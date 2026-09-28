@@ -163,13 +163,21 @@ def test_registrar_alerta_mesma_sessao_produz_o_mesmo_hash(
 
 
 @pytest.mark.parametrize(
-    "sobrescritas",
+    ("sobrescritas", "campo_esperado", "mensagem_esperada"),
     [
-        {"latitude": 200},
-        {"tipo": "tipo_que_nao_existe"},
-        {"severidade": 7},
-        {"campo_extra": "nao_deveria_existir"},
-        {"sessao_id": "nao-e-um-uuid"},
+        ({"latitude": 200}, "latitude", "Deve ser menor ou igual a 90.0."),
+        (
+            {"tipo": "tipo_que_nao_existe"},
+            "tipo",
+            "Tipo de barreira inexistente ou inativo.",
+        ),
+        ({"severidade": 7}, "severidade", "Deve ser menor ou igual a 3."),
+        (
+            {"campo_extra": "nao_deveria_existir"},
+            "campo_extra",
+            "Campo desconhecido: não é aceito neste formulário.",
+        ),
+        ({"sessao_id": "nao-e-um-uuid"}, "sessao_id", "Não é um UUID válido."),
     ],
     ids=[
         "latitude_fora_da_faixa",
@@ -179,16 +187,21 @@ def test_registrar_alerta_mesma_sessao_produz_o_mesmo_hash(
         "sessao_id_invalido",
     ],
 )
-def test_registrar_alerta_reprovado_vai_para_rejeitados(
-    conexao: psycopg.Connection, sobrescritas: dict
+def test_registrar_alerta_reprovado_vai_para_rejeitados_com_mensagem_em_portugues(
+    conexao: psycopg.Connection,
+    sobrescritas: dict,
+    campo_esperado: str,
+    mensagem_esperada: str,
 ) -> None:
+    """G5: a mensagem de erro nunca é o inglês nativo do Pydantic."""
     config = obter_configuracoes()
     antes = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
 
     resultado = registrar_alerta(conexao, _payload(**sobrescritas), origem="real", config=config)
 
     assert resultado.aceito is False
-    assert resultado.erros != []
+    erros_por_campo = {erro.campo: erro.erro for erro in resultado.erros}
+    assert erros_por_campo[campo_esperado] == mensagem_esperada
     depois = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
     assert depois == antes + 1
 

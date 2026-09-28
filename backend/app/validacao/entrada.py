@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from app.config import Configuracoes
 from app.schemas.alerta import AlertaEntrada, ErroCampo
 from app.validacao.geofence import ponto_dentro_da_area
+from app.validacao.mensagens import traduzir_erro_pydantic
 
 _ORIGENS_VALIDAS = {"real", "simulacao"}
 
@@ -79,6 +80,8 @@ def registrar_alerta(
     é um alerta aceito, só não vira barreira). Qualquer reprovação no estágio 1
     (schema inválido ou tipo inexistente/inativo) insere o payload em
     `alertas_rejeitados`, nunca em `alertas` (G9), e devolve `aceito=False`.
+    Mensagens de erro são sempre traduzidas para português (G5) —
+    `ValidationError.errors()` só vem em inglês.
 
     `payload` sendo um `CorpoInvalido` é o caso especial de corpo de
     requisição que não é JSON válido (routers/alertas.py): não há campos
@@ -102,7 +105,10 @@ def registrar_alerta(
         alerta = AlertaEntrada.model_validate(payload)
     except ValidationError as erro_validacao:
         erros = [
-            ErroCampo(campo=".".join(str(parte) for parte in erro["loc"]), erro=erro["msg"])
+            ErroCampo(
+                campo=".".join(str(parte) for parte in erro["loc"]),
+                erro=traduzir_erro_pydantic(erro),
+            )
             for erro in erro_validacao.errors()
         ]
         _rejeitar(conexao, payload, erros, origem)
