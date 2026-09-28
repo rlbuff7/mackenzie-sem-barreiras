@@ -226,11 +226,17 @@ a orientadora e com dados reais. Por isso não podem estar espalhados pelo códi
 
 ## 7. Contrato da API
 
+Contrato completo (corpos, respostas, códigos HTTP, mensagens exatas):
+[`docs/api.md`](docs/api.md). Resumo:
+
 | Método | Rota | Descrição |
 |---|---|---|
-| `POST` | `/alertas` | Recebe report do voluntário. Valida schema + geofence na entrada. |
+| `GET` | `/saude` | Sobe a API e confere se o banco responde. |
+| `GET` | `/tipos-barreira` | Taxonomia ativa, para o formulário do frontend. |
+| `GET` | `/area-estudo` | Polígono(s) da área de estudo, em GeoJSON. |
+| `POST` | `/alertas` | Recebe report do voluntário. Valida schema + geofence na entrada (estágios 1 e 2). |
 | `GET` | `/barreiras?bbox=minLon,minLat,maxLon,maxLat` | Barreiras validadas dentro do retângulo visível do mapa. |
-| `POST` | `/validacao/executar` | Roda o pipeline em lote sobre alertas com status `bruto`. |
+| `POST` | `/validacao/executar` | Roda o pipeline em lote sobre alertas de uma origem (`real`\|`simulacao`). Protegido por `X-Token-Admin`. |
 | `GET` | `/validacao/estatisticas` | Contagens do funil: brutos, descartados por motivo, agrupados, confirmados. |
 
 O parâmetro `bbox` é obrigatório em `/barreiras`. O mapa nunca deve pedir o banco

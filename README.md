@@ -24,13 +24,20 @@ Pré-requisito: Docker com Compose v2. Nada é instalado direto na máquina.
 
 ```bash
 cp .env.example .env      # primeira vez; troque a senha
-docker compose up -d --wait
+docker compose up -d --wait   # sobe db + api (aguarde os dois "healthy")
 ./db/banco.sh migrar      # cria as tabelas e carrega os seeds
 ./db/banco.sh testar      # confere tabelas, constraints e seeds
 ```
 
 O `migrar` pode ser rodado quantas vezes quiser: só aplica as migrations novas
-e atualiza os seeds.
+e atualiza os seeds. A API só responde depois do `migrar` (precisa das tabelas
+e da taxonomia). Contrato completo em [`docs/api.md`](docs/api.md); rápido:
+
+```bash
+curl localhost:8000/tipos-barreira
+curl -X POST localhost:8000/alertas -H 'Content-Type: application/json' -d \
+  '{"latitude": -23.5472, "longitude": -46.6525, "tipo": "degrau", "sessao_id": "<uuid>"}'
+```
 
 Conectar ao banco: `./db/banco.sh psql`, ou de um cliente gráfico (DBeaver,
 pgAdmin) em `localhost:5434`, com usuário e senha do `.env`.
@@ -41,7 +48,9 @@ Apagar o banco e recomeçar do zero: `docker compose down -v`, depois `up` e
 
 ## Backend
 
-Pré-requisito: [`uv`](https://docs.astral.sh/uv/) instalado; banco de cima já rodando.
+`docker compose up` já sobe a API (serviço `api`, build de `backend/Dockerfile`).
+Para rodar fora do container (reload automático, testes) — pré-requisito:
+[`uv`](https://docs.astral.sh/uv/) instalado; banco de cima já rodando.
 
 ```bash
 cd backend
@@ -58,7 +67,7 @@ nunca tocam no banco de desenvolvimento.
 
 - [x] **M0**: Postgres + PostGIS via Docker Compose
 - [x] **M1**: migrations e seeds
-- [ ] **M2**: `POST /alertas` e `GET /barreiras`
+- [x] **M2**: `POST /alertas` e `GET /barreiras`
 - [ ] **M3**: dados sintéticos, pipeline de validação e estatísticas
 - [ ] **M4**: frontend com mapa
 - [ ] **M5**: integração ponta a ponta
