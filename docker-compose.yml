@@ -10,6 +10,8 @@ name: mackenzie-sem-barreiras
 services:
   db:
     image: postgis/postgis:16-3.4
+    # Volta sozinho quando a VM do WSL reinicia; `docker compose stop` ainda para.
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
       POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
