@@ -39,6 +39,21 @@ Parar sem perder dados: `docker compose down`.
 Apagar o banco e recomeçar do zero: `docker compose down -v`, depois `up` e
 `migrar` de novo.
 
+## Backend
+
+Pré-requisito: [`uv`](https://docs.astral.sh/uv/) instalado; banco de cima já rodando.
+
+```bash
+cd backend
+uv sync                                        # instala as dependências (backend/pyproject.toml)
+uv run uvicorn app.main:app --reload --port 8000
+uv run pytest                                   # bate no PostGIS real, num banco de teste à parte
+```
+
+Os testes recriam `${POSTGRES_DB}_teste` do zero a cada execução
+(`../db/banco.sh preparar-teste`, chamado por `backend/tests/conftest.py`) —
+nunca tocam no banco de desenvolvimento.
+
 ## Marcos
 
 - [x] **M0**: Postgres + PostGIS via Docker Compose

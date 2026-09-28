@@ -53,7 +53,7 @@ mackenzie-sem-barreiras/
 ├── .env.example
 ├── CLAUDE.md
 ├── db/
-│   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql}
+│   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql|preparar-teste}
 │   ├── init/                # roda 1x com volume vazio: só habilita o postgis
 │   ├── migrations/          # SQL numerado, aplicado em ordem (schema_migrations)
 │   ├── seeds/               # upserts: tipos de barreira, polígono da área de estudo
@@ -72,7 +72,7 @@ mackenzie-sem-barreiras/
 │   ├── scripts/
 │   │   └── gerar_dados_sinteticos.py
 │   ├── tests/
-│   └── requirements.txt
+│   └── pyproject.toml / uv.lock
 ├── frontend/
 └── docs/
     ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
