@@ -193,5 +193,38 @@ SELECT pg_temp.afirmar('payload inválido é guardado em alertas_rejeitados',
 SELECT pg_temp.deve_rejeitar('rejeitado sem payload',
     $q$INSERT INTO alertas_rejeitados (payload, erros) VALUES (NULL, '[]')$q$, '23502');
 
+-- ---------------------------------------------------------------------------
+-- origem (D2, G10): dado real vs. simulação — migration 002
+-- ---------------------------------------------------------------------------
+
+INSERT INTO alertas (geom, tipo_id, sessao_hash)
+SELECT centro_campus, tipo_degrau, sessao FROM ref;
+SELECT pg_temp.afirmar('alertas.origem padrão é ''real''',
+    (SELECT origem = 'real' FROM alertas ORDER BY id DESC LIMIT 1));
+
+SELECT pg_temp.deve_rejeitar('alertas com origem ''teste'' inválida',
+    format($q$INSERT INTO alertas (geom, tipo_id, sessao_hash, origem)
+              VALUES (%L, %s, %L, 'teste')$q$, centro_campus, tipo_degrau, sessao), '23514')
+FROM ref;
+
+INSERT INTO barreiras (geom, tipo_id, confirmacoes)
+SELECT centro_campus, tipo_degrau, 1 FROM ref;
+SELECT pg_temp.afirmar('barreiras.origem padrão é ''real''',
+    (SELECT origem = 'real' FROM barreiras ORDER BY id DESC LIMIT 1));
+
+SELECT pg_temp.deve_rejeitar('barreiras com origem ''teste'' inválida',
+    format($q$INSERT INTO barreiras (geom, tipo_id, confirmacoes, origem)
+              VALUES (%L, %s, 1, 'teste')$q$, centro_campus, tipo_degrau), '23514')
+FROM ref;
+
+INSERT INTO alertas_rejeitados (payload, erros)
+VALUES ('{"lat": 200}', '[{"campo": "lat", "erro": "fora da faixa"}]');
+SELECT pg_temp.afirmar('alertas_rejeitados.origem padrão é ''real''',
+    (SELECT origem = 'real' FROM alertas_rejeitados ORDER BY id DESC LIMIT 1));
+
+SELECT pg_temp.deve_rejeitar('alertas_rejeitados com origem ''teste'' inválida',
+    $q$INSERT INTO alertas_rejeitados (payload, erros, origem)
+       VALUES ('{}', '[]', 'teste')$q$, '23514');
+
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
