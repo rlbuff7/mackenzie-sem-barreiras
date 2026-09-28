@@ -18,7 +18,7 @@ from psycopg import Connection
 from app.config import Configuracoes, obter_configuracoes
 from app.db import obter_conexao
 from app.schemas.alerta import AlertaRegistrado
-from app.validacao.entrada import registrar_alerta
+from app.validacao.entrada import CorpoInvalido, registrar_alerta
 
 router = APIRouter()
 
@@ -39,11 +39,17 @@ async def criar_alerta(
     config: Configuracoes = Depends(obter_configuracoes),
 ) -> AlertaRegistrado | JSONResponse:
     corpo_bruto = await request.body()
+    payload: object
     try:
         payload = json.loads(corpo_bruto)
     except json.JSONDecodeError:
         texto = corpo_bruto.decode("utf-8", errors="replace")
-        payload = {"corpo_invalido": texto[:_TAMANHO_MAXIMO_CORPO_INVALIDO]}
+        # `CorpoInvalido` é um tipo dedicado (não um dict com chave-sentinela):
+        # `json.loads` nunca devolve uma instância dela, então um cliente não
+        # consegue forjar este atalho enviando `{"corpo_invalido": "..."}` de
+        # propósito — esse corpo, sendo JSON válido, cai no `try` acima e é
+        # validado normalmente contra `AlertaEntrada`.
+        payload = CorpoInvalido(texto[:_TAMANHO_MAXIMO_CORPO_INVALIDO])
 
     # `registrar_alerta` faz I/O de banco síncrono (psycopg); roda fora do
     # event loop para não bloquear as outras requisições.

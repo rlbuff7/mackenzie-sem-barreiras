@@ -78,3 +78,22 @@ def test_post_alertas_json_malformado_devolve_422_e_registra_rejeitado(
         "SELECT payload, erros FROM alertas_rejeitados ORDER BY id DESC LIMIT 1"
     ).fetchone()
     assert "corpo_invalido" in linha[0]
+
+
+def test_post_alertas_corpo_bem_formado_com_chave_corpo_invalido_e_validado_normalmente(
+    cliente: TestClient,
+) -> None:
+    """`{"corpo_invalido": "x"}` é JSON bem formado — não é o corpo malformado do
+    teste acima. Precisa ser validado normalmente contra `AlertaEntrada` (rejeitado
+    por campos obrigatórios ausentes e por campo extra), nunca tratado como o atalho
+    de "JSON malformado" (`campo="corpo"`). Prova que o atalho não colide com um
+    payload de cliente que só coincida, por acaso ou de propósito, com o formato
+    interno usado para JSON realmente inválido."""
+    resposta = cliente.post("/alertas", content=json.dumps({"corpo_invalido": "x"}))
+
+    assert resposta.status_code == 422
+    corpo_resposta = resposta.json()
+    campos = {erro["campo"] for erro in corpo_resposta["erros"]}
+    assert "corpo" not in campos
+    assert "corpo_invalido" in campos
+    assert "latitude" in campos

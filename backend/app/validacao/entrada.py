@@ -20,10 +20,22 @@ from app.validacao.geofence import ponto_dentro_da_area
 
 _ORIGENS_VALIDAS = {"real", "simulacao"}
 
-# Chave-sentinela que `routers/alertas.py` usa para embrulhar um corpo de
-# requisição que não é sequer JSON válido (ver docstring de `registrar_alerta`
-# sobre o tratamento desse caso).
-_CHAVE_CORPO_INVALIDO = "corpo_invalido"
+
+@dataclass
+class CorpoInvalido:
+    """Marca um corpo de requisição que não é JSON válido (routers/alertas.py).
+
+    `json.loads` só devolve `dict | list | str | int | float | bool | None`
+    (RFC 8259) — nunca uma instância desta classe. Por isso o `isinstance`
+    em `registrar_alerta` é seguro: nenhum cliente, malicioso ou não, consegue
+    enviar um corpo que produza um `CorpoInvalido` por acidente. Antes disso o
+    atalho comparava o `payload` a um dict com uma chave-sentinela
+    (`{"corpo_invalido": texto}`), o que um cliente podia forjar de propósito
+    (ou por coincidência) para escapar da validação de schema de verdade —
+    daí a troca para um tipo que o parser de JSON nunca produz.
+    """
+
+    texto: str
 
 
 @dataclass
@@ -65,21 +77,23 @@ def registrar_alerta(
     (estágio 2) e insere em `alertas` com `status='bruto'` (dentro da área) ou
     `status='descartado'` + `motivo_descarte='fora_da_area'` (fora — D4: ainda
     é um alerta aceito, só não vira barreira). Qualquer reprovação no estágio 1
-    (schema inválido ou tipo inexistente/inativo) insere `payload` cru em
+    (schema inválido ou tipo inexistente/inativo) insere o payload em
     `alertas_rejeitados`, nunca em `alertas` (G9), e devolve `aceito=False`.
 
-    `payload` no formato `{"corpo_invalido": <texto>}` é o caso especial de
-    corpo de requisição que não é JSON válido (routers/alertas.py): não há
-    campos individuais para validar, então o erro aponta direto `campo="corpo"`
-    em vez de rodar `AlertaEntrada` (que produziria erros espúrios de campos
-    "ausentes").
+    `payload` sendo um `CorpoInvalido` é o caso especial de corpo de
+    requisição que não é JSON válido (routers/alertas.py): não há campos
+    individuais para validar, então o erro aponta direto `campo="corpo"` em
+    vez de rodar `AlertaEntrada` (que produziria erros espúrios de campos
+    "ausentes"). `CorpoInvalido` é um tipo dedicado, não um dict com uma
+    chave-sentinela, para que um cliente nunca consiga produzir esse atalho
+    através de um JSON de verdade (ver docstring da classe).
     """
     if origem not in _ORIGENS_VALIDAS:
         raise ValueError(f"origem inválida: {origem!r} (esperado 'real' ou 'simulacao')")
 
-    if isinstance(payload, dict) and set(payload) == {_CHAVE_CORPO_INVALIDO}:
+    if isinstance(payload, CorpoInvalido):
         erros = [ErroCampo(campo="corpo", erro="JSON malformado.")]
-        _rejeitar(conexao, payload, erros, origem)
+        _rejeitar(conexao, {"corpo_invalido": payload.texto}, erros, origem)
         return ResultadoEntrada(
             aceito=False, id=None, status=None, motivo_descarte=None, erros=erros
         )

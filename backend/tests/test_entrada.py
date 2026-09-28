@@ -7,7 +7,13 @@ import psycopg
 import pytest
 
 from app.config import obter_configuracoes
-from app.validacao.entrada import buscar_tipo_ativo, calcular_sessao_hash, registrar_alerta
+from app.schemas.alerta import ErroCampo
+from app.validacao.entrada import (
+    CorpoInvalido,
+    buscar_tipo_ativo,
+    calcular_sessao_hash,
+    registrar_alerta,
+)
 
 _DENTRO_DA_AREA = {"latitude": -23.5471938, "longitude": -46.6524631}
 _FORA_DA_AREA = {"latitude": -23.5614, "longitude": -46.6558}
@@ -185,6 +191,43 @@ def test_registrar_alerta_reprovado_vai_para_rejeitados(
     assert resultado.erros != []
     depois = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
     assert depois == antes + 1
+
+
+def test_registrar_alerta_payload_com_chave_corpo_invalido_e_validado_normalmente(
+    conexao: psycopg.Connection,
+) -> None:
+    """Um payload de verdade que por acaso usa a chave `corpo_invalido` (um dict
+    comum, não a marca `CorpoInvalido`) passa pela validação normal contra
+    `AlertaEntrada` — só uma instância de `CorpoInvalido` (produzida por
+    `routers/alertas.py` quando o corpo cru não é JSON válido) aciona o atalho
+    de "corpo malformado". Isso prova que o atalho não colide com um payload
+    de cliente que só coincida com o formato interno."""
+    config = obter_configuracoes()
+
+    resultado = registrar_alerta(conexao, {"corpo_invalido": "x"}, origem="real", config=config)
+
+    assert resultado.aceito is False
+    campos = {erro.campo for erro in resultado.erros}
+    assert "corpo" not in campos
+    assert "corpo_invalido" in campos  # campo extra, rejeitado por extra="forbid"
+    assert "latitude" in campos  # campo obrigatório ausente
+
+
+def test_registrar_alerta_corpo_invalido_grava_erro_no_campo_corpo(
+    conexao: psycopg.Connection,
+) -> None:
+    config = obter_configuracoes()
+
+    resultado = registrar_alerta(
+        conexao, CorpoInvalido("{isso nao e json"), origem="real", config=config
+    )
+
+    assert resultado.aceito is False
+    assert resultado.erros == [ErroCampo(campo="corpo", erro="JSON malformado.")]
+    payload_gravado = conexao.execute(
+        "SELECT payload FROM alertas_rejeitados ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    assert payload_gravado == {"corpo_invalido": "{isso nao e json"}
 
 
 def test_registrar_alerta_tipo_inativo_vai_para_rejeitados(
