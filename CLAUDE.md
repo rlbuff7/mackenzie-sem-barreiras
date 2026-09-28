@@ -53,8 +53,11 @@ mackenzie-sem-barreiras/
 ├── .env.example
 ├── CLAUDE.md
 ├── db/
-│   ├── migrations/          # SQL numerado, aplicado em ordem
-│   └── seeds/               # tipos de barreira, polígono da área de estudo
+│   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql}
+│   ├── init/                # roda 1x com volume vazio: só habilita o postgis
+│   ├── migrations/          # SQL numerado, aplicado em ordem (schema_migrations)
+│   ├── seeds/               # upserts: tipos de barreira, polígono da área de estudo
+│   └── tests/               # testes do schema em SQL, terminam em ROLLBACK
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
@@ -108,19 +111,33 @@ alteração.
 **`area_estudo`** — polígono do entorno do Mackenzie, `GEOMETRY(Polygon, 4326)`.
 É contra ele que o geofence roda.
 
-**`alertas`**
+**`alertas`** (resumo; a fonte da verdade é `db/migrations/001_schema_inicial.sql`)
 ```sql
 id              BIGSERIAL PRIMARY KEY
 geom            GEOMETRY(Point, 4326) NOT NULL
-tipo_id         INT REFERENCES tipos_barreira(id)
+tipo_id         INT NOT NULL REFERENCES tipos_barreira(id)
 severidade      SMALLINT CHECK (severidade BETWEEN 1 AND 3)
 descricao       TEXT
-sessao_hash     VARCHAR(64)      -- identifica reports da mesma origem
-criado_em       TIMESTAMPTZ DEFAULT now()
-status          VARCHAR(24) DEFAULT 'bruto'
+sessao_hash     VARCHAR(64) NOT NULL  -- identifica reports da mesma origem
+criado_em       TIMESTAMPTZ NOT NULL DEFAULT now()
+status          VARCHAR(24) NOT NULL DEFAULT 'bruto'
 motivo_descarte VARCHAR(48)
 barreira_id     BIGINT REFERENCES barreiras(id)
+-- CHECK: status = 'descartado'  <=>  motivo_descarte preenchido
+-- CHECK: status = 'agrupado'    <=>  barreira_id preenchido
 ```
+
+`tipo_id` e `sessao_hash` são `NOT NULL` por causa do pipeline: o DBSCAN particiona
+por tipo, e `COUNT(DISTINCT sessao_hash)` ignora NULL em silêncio.
+
+Ciclo de vida (`status`):
+
+| status | significado | final? |
+|---|---|---|
+| `bruto` | passou do schema e do geofence; aguarda o pipeline | não |
+| `descartado` | motivo em `motivo_descarte` (ex.: `fora_da_area`) | **sim** |
+| `ruido_isolado` | sem vizinhos no DBSCAN | não: é reavaliado quando chegam alertas novos |
+| `agrupado` | pertence a um cluster, ligado a `barreira_id` | não |
 
 **`barreiras`** — barreira consolidada, com geometria representativa do cluster
 (centroide), tipo, contagem de confirmações e status (`pendente` / `confirmada`).
@@ -183,7 +200,8 @@ Quatro estágios, espelhando o funil apresentado no pôster do TCC I:
    fora do entorno é descartado com motivo `fora_da_area`.
 3. **Agrupamento** (`validacao/clustering.py`) — `ST_ClusterDBSCAN` sobre alertas do
    **mesmo tipo**, em geometria reprojetada. Alertas próximos viram um cluster;
-   pontos isolados são marcados como ruído (`ruido_isolado`).
+   pontos isolados recebem status `ruido_isolado`. Ruído **não é descarte**: esses
+   alertas entram de novo em cada execução do pipeline, porque podem ganhar vizinhos.
 4. **Promoção** (`validacao/pipeline.py`) — cluster com pelo menos `MIN_CONFIRMACOES`
    alertas de **sessões distintas** vira barreira `confirmada`. Abaixo disso, entra
    como `pendente`.

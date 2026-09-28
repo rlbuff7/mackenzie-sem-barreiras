@@ -24,26 +24,25 @@ Pré-requisito: Docker com Compose v2. Nada é instalado direto na máquina.
 
 ```bash
 cp .env.example .env      # primeira vez; troque a senha
-docker compose up -d
-docker compose ps         # aguarde o STATUS "healthy"
+docker compose up -d --wait
+./db/banco.sh migrar      # cria as tabelas e carrega os seeds
+./db/banco.sh testar      # confere tabelas, constraints e seeds
 ```
 
-Conectar ao banco:
+O `migrar` pode ser rodado quantas vezes quiser: só aplica as migrations novas
+e atualiza os seeds.
 
-```bash
-docker compose exec db psql -U msb -d mackenzie_sem_barreiras
-```
-
-Ou, de um cliente gráfico (DBeaver, pgAdmin): `localhost:5434`, com usuário e
-senha do `.env`.
+Conectar ao banco: `./db/banco.sh psql`, ou de um cliente gráfico (DBeaver,
+pgAdmin) em `localhost:5434`, com usuário e senha do `.env`.
 
 Parar sem perder dados: `docker compose down`.
-Apagar o banco e recomeçar do zero: `docker compose down -v`.
+Apagar o banco e recomeçar do zero: `docker compose down -v`, depois `up` e
+`migrar` de novo.
 
 ## Marcos
 
 - [x] **M0**: Postgres + PostGIS via Docker Compose
-- [ ] **M1**: migrations e seeds
+- [x] **M1**: migrations e seeds
 - [ ] **M2**: `POST /alertas` e `GET /barreiras`
 - [ ] **M3**: dados sintéticos, pipeline de validação e estatísticas
 - [ ] **M4**: frontend com mapa

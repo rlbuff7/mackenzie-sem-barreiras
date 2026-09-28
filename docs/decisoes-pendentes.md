@@ -11,8 +11,8 @@ anotada aqui.
 | # | Decisão | Valor provisório | Onde está no código | Status |
 |---|---|---|---|---|
 | 1 | **Escopo de roteamento.** Rotas acessíveis ou só a base de dados que as viabiliza? | Nenhum. Sem pgRouting. | — | Aberto |
-| 2 | **Taxonomia** de tipos de barreira | Os 4 tipos do pôster: calçada irregular, ausência de rampa, degrau, obstáculo | `db/seeds/` (M1) | Aberto |
-| 3 | **Polígono** da área de estudo | A definir no M1 (entorno do campus Higienópolis) | `db/seeds/` (M1) | Aberto |
+| 2 | **Taxonomia** de tipos de barreira | Os 4 tipos do pôster: `calcada_irregular`, `ausencia_rampa`, `degrau`, `obstaculo` | `db/seeds/001_tipos_barreira.sql` | Aberto |
+| 3 | **Polígono** da área de estudo | Círculo de 500 m em torno do centroide do campus no OSM (-23.54719, -46.65246), ~0,78 km² | `db/seeds/002_area_estudo.sql` | Aberto |
 | 4 | **Calibração** do DBSCAN e da promoção | `eps` = 8 m, `minpoints` = 2, `MIN_CONFIRMACOES` = 3 | `.env` | Aberto |
 | 5 | **Divisão de responsabilidades** entre os integrantes | — | — | Aberto |
 | 6 | **Atributos quantitativos** da barreira (altura do degrau, inclinação da rampa) | Não modelados. Só `tipo` + `severidade` (1–3). | — | Aberto (novo) |
@@ -31,9 +31,9 @@ Observações:
 | # | Decisão | Afeta | Status |
 |---|---|---|---|
 | T1 | **Como registrar descartes do estágio 1 (`schema_invalido`).** `alertas.geom` é `NOT NULL` e `tipo_id` é FK, então um payload inválido não cabe na tabela. Sem registro, o funil não conta esse estágio. | M1 | **Decidido 28/09:** tabela `alertas_rejeitados` (payload JSONB + erros JSONB) |
-| T2 | **Aplicação de migrations.** O `docker-entrypoint-initdb.d` só roda com o volume vazio, então não aplica migrations novas num banco existente. | M1 | Aberto |
+| T2 | **Aplicação de migrations.** O `docker-entrypoint-initdb.d` só roda com o volume vazio, então não aplica migrations novas num banco existente. | M1 | **Decidido 28/09:** `db/banco.sh migrar` aplica as pendentes em transação e registra em `schema_migrations`; seeds são upserts reaplicados sempre |
 | T3 | **Geração do `sessao_hash`.** Proposta: UUID aleatório no `localStorage` do navegador, gravado como SHA-256 (64 hex). Nenhum IP é armazenado (LGPD). Limitação a declarar no texto: quem limpa o navegador vira uma "sessão nova". | M2 | Aberto |
-| T4 | **Reavaliação de ruído.** `ruido_isolado` não pode ser estado final: um alerta isolado hoje pode ganhar vizinhos depois. Alertas novos perto de uma barreira existente também precisam se juntar a ela. | M3 | Aberto |
+| T4 | **Reavaliação de ruído.** `ruido_isolado` não pode ser estado final: um alerta isolado hoje pode ganhar vizinhos depois. Alertas novos perto de uma barreira existente também precisam se juntar a ela. | M3 | **Parcial (M1):** o schema já trata `ruido_isolado` como status não final, separado de `descartado`. Falta a lógica de reavaliação (M3). |
 | T5 | **Encadeamento do DBSCAN.** Com `eps` = 8 m, alertas a cada ~7 m ao longo de uma calçada viram um único cluster, de comprimento arbitrário. Medir com dados sintéticos e discutir no texto. | M3 | Aberto |
 
 ## Documentos acadêmicos
