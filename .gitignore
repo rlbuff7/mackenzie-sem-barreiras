@@ -21,3 +21,9 @@ dist/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Artefatos dos agentes de desenvolvimento (plano, ledger, relatórios)
+.superpowers/
+
+# Saídas geradas pelos scripts de simulação
+backend/scripts/saida/
