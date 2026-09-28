@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Operações do banco do docker compose.
 #
-#   ./db/banco.sh migrar   aplica migrations pendentes e reaplica os seeds
-#   ./db/banco.sh testar   roda db/tests/*.sql (em transação, sem deixar dados)
-#   ./db/banco.sh psql     abre um console psql
+#   ./db/banco.sh migrar           aplica migrations pendentes e reaplica os seeds
+#   ./db/banco.sh testar           roda db/tests/*.sql (em transação, sem deixar dados)
+#   ./db/banco.sh psql             abre um console psql
+#   ./db/banco.sh preparar-teste   apaga e recria "${POSTGRES_DB}_teste" do zero e
+#                                  roda migrations + seeds nele (usado pelos testes
+#                                  do backend, via backend/tests/conftest.py)
 #
 # Migrations (db/migrations/NNN_*.sql) rodam UMA vez, em ordem, cada uma numa
 # transação; o controle fica na tabela schema_migrations. São imutáveis depois de
@@ -13,6 +16,10 @@
 # `migrar`, porque taxonomia e polígono ainda vão mudar (docs/decisoes-pendentes.md).
 #
 # Usa o psql de dentro do container: nada precisa ser instalado na máquina.
+#
+# BANCO_ALVO controla contra qual banco `migrar` e `psql_no_container` operam
+# (padrão: $POSTGRES_DB). É assim que `preparar-teste` reaplica migrations e
+# seeds no banco de teste sem duplicar essa lógica.
 set -euo pipefail
 shopt -s nullglob
 
@@ -25,9 +32,13 @@ if [[ ! -f .env ]]; then
 fi
 set -a; source .env; set +a
 
+# Sempre DEPOIS do source .env, para que o .env nunca sobrescreva um BANCO_ALVO
+# já definido na chamada (ex.: BANCO_ALVO="${POSTGRES_DB}_teste" ./db/banco.sh migrar).
+BANCO_ALVO="${BANCO_ALVO:-$POSTGRES_DB}"
+
 psql_no_container() {
     docker compose exec -T db \
-        psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"
+        psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$BANCO_ALVO" "$@"
 }
 
 migrar() {
@@ -75,12 +86,26 @@ testar() {
     done
 }
 
+preparar_teste() {
+    local banco_teste="${POSTGRES_DB}_teste"
+    echo "recriando banco de teste: $banco_teste"
+    # Sempre contra o banco "postgres": não dá para DROP DATABASE do banco em que
+    # se está conectado. WITH (FORCE) derruba conexões residuais de execuções
+    # anteriores (ex.: um pytest interrompido no meio).
+    docker compose exec -T db \
+        psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+        -c "DROP DATABASE IF EXISTS ${banco_teste} WITH (FORCE)" \
+        -c "CREATE DATABASE ${banco_teste}"
+    BANCO_ALVO="$banco_teste" migrar
+}
+
 case "${1:-}" in
-    migrar) migrar ;;
-    testar) testar ;;
-    psql)   docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" ;;
+    migrar)         migrar ;;
+    testar)         testar ;;
+    psql)           docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" ;;
+    preparar-teste) preparar_teste ;;
     *)
-        echo "uso: $0 {migrar|testar|psql}" >&2
+        echo "uso: $0 {migrar|testar|psql|preparar-teste}" >&2
         exit 2
         ;;
 esac
