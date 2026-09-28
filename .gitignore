@@ -1,0 +1,23 @@
+# Configuração local com credenciais
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend
+node_modules/
+dist/
+
+# Arquivos temporários do Office (criados enquanto o .doc está aberto no Word)
+~$*
+
+# Sistema operacional
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,9 @@
+# Repositório editado no Windows e executado em containers Linux:
+# força LF para que SQL e scripts funcionem igual nos dois lados.
+* text=auto eol=lf
+
+*.pdf  binary
+*.doc  binary
+*.docx binary
+*.png  binary
+*.jpg  binary
