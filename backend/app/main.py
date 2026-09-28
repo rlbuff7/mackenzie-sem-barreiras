@@ -1,7 +1,8 @@
 """Ponto de entrada da API do Mackenzie sem Barreiras.
 
-M2: fundação e endpoints de referência (`app/routers/referencia.py`). Ainda sem
-lógica de validação — isso entra no M3, em `app/validacao/`.
+M2: endpoints de referência (`app/routers/referencia.py`) e os estágios 1
+(schema) e 2 (geofence) do pipeline na entrada (`POST /alertas`,
+`GET /barreiras`). Agrupamento e promoção (estágios 3 e 4) entram no M3.
 """
 
 from fastapi import FastAPI
@@ -9,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import obter_configuracoes
 from app.db import lifespan
-from app.routers import referencia
+from app.routers import alertas, barreiras, referencia
 
 app = FastAPI(title="Mackenzie sem Barreiras", lifespan=lifespan)
 
@@ -23,3 +24,5 @@ app.add_middleware(
 )
 
 app.include_router(referencia.router)
+app.include_router(alertas.router)
+app.include_router(barreiras.router)
