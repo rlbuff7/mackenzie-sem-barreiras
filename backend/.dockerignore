@@ -1,0 +1,13 @@
+# Contexto de build da imagem da API (docker-compose.yml, serviço `api`):
+# só pyproject.toml, uv.lock e app/ entram na imagem (ver Dockerfile).
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+tests/
+scripts/

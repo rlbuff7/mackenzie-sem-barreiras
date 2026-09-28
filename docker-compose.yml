@@ -1,8 +1,8 @@
 # Infra local do Mackenzie sem Barreiras.
-# M0: apenas o banco. Backend e frontend entram nos marcos seguintes.
+# M2: banco + API. Frontend entra num marco seguinte.
 #
 #   cp .env.example .env    # primeira vez
-#   docker compose up -d
+#   docker compose up -d --wait
 #   docker compose ps       # aguarde STATUS "healthy"
 
 name: mackenzie-sem-barreiras
@@ -28,6 +28,36 @@ services:
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Dentro da rede do compose o banco atende em "db", na porta interna
+      # 5432 — não na porta mapeada no host (POSTGRES_PORTA_HOST, usada só
+      # por quem acessa o banco de fora do compose; ver backend/app/config.py).
+      POSTGRES_HOST: db
+      POSTGRES_PORTA: 5432
+    ports:
+      # Só localhost, como o banco: a API de desenvolvimento não fica exposta na rede.
+      - "127.0.0.1:${API_PORTA_HOST:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Sem curl na imagem base (slim): usa o Python do próprio container.
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
