@@ -1,0 +1,35 @@
+# Infra local do Mackenzie sem Barreiras.
+# M0: apenas o banco. Backend e frontend entram nos marcos seguintes.
+#
+#   cp .env.example .env    # primeira vez
+#   docker compose up -d
+#   docker compose ps       # aguarde STATUS "healthy"
+
+name: mackenzie-sem-barreiras
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      TZ: America/Sao_Paulo
+    ports:
+      # Só localhost: o banco de desenvolvimento não fica exposto na rede.
+      - "127.0.0.1:${POSTGRES_PORTA_HOST:-5434}:5432"
+    volumes:
+      # Volume nomeado, não bind mount: o Postgres exige permissões POSIX
+      # no diretório de dados, que o NTFS/OneDrive (/mnt/c) não oferece.
+      - pgdata:/var/lib/postgresql/data
+      # Substitui o init da imagem: habilita só a extensão postgis.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:
