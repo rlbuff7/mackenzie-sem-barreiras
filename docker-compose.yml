@@ -1,9 +1,12 @@
-# Infra local do Mackenzie sem Barreiras.
-# M2: banco + API. Frontend entra num marco seguinte.
+# Infra local do Mackenzie sem Barreiras: banco + API + frontend.
 #
-#   cp .env.example .env    # primeira vez
-#   docker compose up -d --wait
-#   docker compose ps       # aguarde STATUS "healthy"
+#   cp .env.example .env       # primeira vez
+#   docker compose up -d --build --wait
+#   docker compose ps          # aguarde os três serviços "healthy"
+#
+# M5 (scripts/ponta-a-ponta.sh) sobe uma pilha ISOLADA a partir deste MESMO
+# arquivo, com COMPOSE_PROJECT_NAME=msb-e2e e as portas de *_PORTA_HOST
+# trocadas por variável de ambiente — nunca mexe nesta pilha nem no volume dela.
 
 name: mackenzie-sem-barreiras
 
@@ -62,6 +65,34 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Fixado em tempo de BUILD (Vite embute no bundle): a pilha isolada
+        # do M5 sobe esta mesma imagem com API_PORTA_HOST=58000 exportado no
+        # shell, então a interpolação abaixo já gera a URL certa para ela.
+        VITE_API_URL: http://localhost:${API_PORTA_HOST:-8000}
+    restart: unless-stopped
+    ports:
+      # Só localhost, como os outros dois: o frontend de desenvolvimento não
+      # fica exposto na rede.
+      - "127.0.0.1:${FRONTEND_PORTA_HOST:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # nginx:alpine não tem curl; usa o wget do busybox, que já vem na
+      # imagem. "127.0.0.1", não "localhost": nosso nginx.conf substitui o
+      # default.conf da imagem sem `listen [::]:80`, então só escuta em
+      # IPv4 — e o wget do Alpine resolve "localhost" para ::1 primeiro,
+      # o que derrubava o healthcheck com "connection refused" (verificado).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
 volumes:
   pgdata:
