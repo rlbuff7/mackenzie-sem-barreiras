@@ -26,10 +26,22 @@ Outros scripts:
 
 | Variável | Padrão usado no código | Descrição |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:8000` | Base da API. Lida em `src/api.ts` via `import.meta.env.VITE_API_URL`. |
+| `VITE_API_URL` | `http://localhost:8000` | Base da API. Lida em `src/api.ts` via `import.meta.env.VITE_API_URL`. Aceita uma URL absoluta (este `npm run dev`, cross-origin, com CORS) ou relativa (`/api`, usada pelo container — ver abaixo). |
 
 `.env` nunca é commitado; `.env.example` documenta a variável sem valor sensível (não há
 segredo aqui, é só a URL da API).
+
+## Em container (M5)
+
+`docker compose up` (raiz do repo) builda este frontend com `frontend/Dockerfile`
+(node:22-alpine → nginx:alpine) e serve em `http://localhost:8081` por padrão
+(`FRONTEND_PORTA_HOST` no `.env` da raiz — 8081, não 8080, porque 8080 costuma já
+estar ocupada por outro serviço, ex.: Jenkins). Nesse modo, `VITE_API_URL=/api`
+(fixado no build pelo `docker-compose.yml`): `frontend/nginx.conf` encaminha `/api/`
+para o serviço `api` pela MESMA origem do frontend, então o navegador nunca faz uma
+requisição cross-origin — `CORS_ORIGENS` no backend não precisa (e não deve) listar a
+porta do frontend em container (R19). Isso só vale para o container; `npm run dev`
+continua absoluto e cross-origin, como sempre.
 
 ## Estrutura
 

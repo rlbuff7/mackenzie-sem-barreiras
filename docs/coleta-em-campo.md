@@ -87,13 +87,20 @@ localização" do frontend, `frontend/src/mapa.ts`) em **contexto seguro**: HTTP
 localização automática falha no celular — só resta o botão "Usar o centro do mapa" e
 tocar manualmente, o que derrota o propósito de captar o ponto certo em campo.
 
+**Ganho prático do proxy same-origin (R19):** desde que `frontend/nginx.conf` passou a
+encaminhar `/api/` para o serviço `api` pela mesma origem, só o **frontend** precisa
+ficar acessível por HTTPS na internet — a API não precisa mais de uma URL pública
+própria nem de CORS liberado para o domínio da coleta; o navegador do voluntário só
+fala com o container do frontend, que fala com a API por dentro da rede do compose. Ou
+seja, expor **um único endpoint HTTPS** (o frontend), não dois.
+
 **Isto ainda não está decidido — decidir com a equipe antes do dia da coleta.** Duas
 famílias de opção, sem escolher nenhuma aqui:
 
 | Opção | Como funciona | Vantagens | Desvantagens |
 |---|---|---|---|
-| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o `frontend`/`api` locais (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel (fora do escopo de "nada é instalado direto na máquina" do resto do projeto — table isolada, não persistente). |
-| **Hospedagem gratuita** (ex.: um provedor de PaaS/estático com HTTPS incluso) | Sobe as imagens (ou o build do frontend + a API) para um serviço externo com HTTPS de fábrica. | URL estável, reutilizável em coletas futuras; não depende do notebook de ninguém durante a coleta. | Precisa expor a API (e o banco, ou um banco gerenciado) na internet — implica revisar CORS, `TOKEN_ADMIN` (hoje provisório) e, dependendo do provedor, custo ou limite de uso; mais um passo de configuração para manter. |
+| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o container `frontend` local (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária; a API fica só na rede interna do compose, nunca exposta. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5; só um túnel (um endpoint), não dois. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel (fora do escopo de "nada é instalado direto na máquina" do resto do projeto — tabela isolada, não persistente). |
+| **Hospedagem gratuita** (ex.: um provedor de PaaS/estático com HTTPS incluso) | Sobe as duas imagens (`frontend` e `api`) para um serviço externo com HTTPS de fábrica; só o `frontend` precisa de URL pública, a `api` só precisa ser alcançável pelo `frontend` na rede interna do provedor. | URL estável, reutilizável em coletas futuras; não depende do notebook de ninguém durante a coleta; sem CORS para configurar (mesma origem). | Ainda expõe o banco (ou um banco gerenciado) e o `TOKEN_ADMIN` (hoje provisório) precisa estar configurado antes de publicar; dependendo do provedor, custo ou limite de uso; mais um passo de configuração para manter. |
 
 Qualquer que seja a escolha, ela não muda o contrato da API nem o pipeline — só onde
 `frontend`/`api` ficam acessíveis. Registrar a decisão final em

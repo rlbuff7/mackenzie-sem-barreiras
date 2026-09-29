@@ -46,9 +46,16 @@ URLs (portas padrão; ajustáveis por `*_PORTA_HOST` no `.env`):
 
 | Serviço | URL |
 |---|---|
-| Frontend (mapa) | http://localhost:8080 |
+| Frontend (mapa) | http://localhost:8081 |
 | API | http://localhost:8000 |
 | Banco (psql/cliente gráfico) | `localhost:5434`, usuário e senha do `.env` |
+
+O frontend fala com a API pela MESMA origem (`http://localhost:8081/api/...`):
+`frontend/nginx.conf` encaminha `/api/` para o serviço `api` dentro da rede do
+compose (R19), então o navegador nunca faz uma requisição cross-origin — e
+`CORS_ORIGENS` não precisa listar a porta do frontend. A porta padrão é 8081,
+não 8080: 8080 costuma já estar ocupada por outro serviço na máquina de quem
+desenvolve (Jenkins, Tomcat, etc.).
 
 Conectar ao banco: `./db/banco.sh psql`, ou de um cliente gráfico (DBeaver,
 pgAdmin) em `localhost:5434`, com usuário e senha do `.env`.
@@ -68,9 +75,10 @@ cd backend && uv run pytest   # API e validacao/, no banco de teste (${POSTGRES_
 `scripts/ponta-a-ponta.sh` sobe uma pilha Docker Compose **isolada**
 (`COMPOSE_PROJECT_NAME=msb-e2e`, portas 55434/58000/58080, volume próprio), aplica
 migrations/seeds nela, roda `backend/scripts/ponta_a_ponta.py` (saúde, taxonomia,
-entrada de alertas, pipeline em lote, consulta de barreiras, estatísticas e o
-frontend) e **sempre** derruba essa pilha no fim (`down -v`, mesmo em falha ou
-Ctrl-C) — nunca toca a pilha principal nem o banco dela.
+entrada de alertas, pipeline em lote, consulta de barreiras, estatísticas, o
+proxy `/api/` do frontend — R19 — e o próprio frontend) e **sempre** derruba
+essa pilha no fim (`down -v`, mesmo em falha ou Ctrl-C) — nunca toca a pilha
+principal nem o banco dela.
 
 ## Backend
 

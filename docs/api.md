@@ -3,7 +3,9 @@
 Fonte única para backend e frontend (resumo em [`CLAUDE.md` §7](../CLAUDE.md)).
 
 Base local: `http://localhost:8000`. JSON UTF-8. CORS liberado para as origens de
-`CORS_ORIGENS` (vírgula), padrão `http://localhost:5173,http://localhost:8080`.
+`CORS_ORIGENS` (vírgula), padrão `http://localhost:5173` (só o servidor de dev do
+Vite; o frontend em container fala com a API pela mesma origem, via proxy do nginx
+em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
 
 - `GET /saude` → 200 `{"status": "ok", "banco": "ok"}` (503 se o banco não responde).
 - `GET /tipos-barreira` → 200 `[{"codigo": "degrau", "nome": "Degrau", "descricao": "..."}]`
