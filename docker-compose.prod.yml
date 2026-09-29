@@ -1,15 +1,19 @@
 # Pilha de PRODUÇÃO (coleta em campo): usa as IMAGENS PUBLICADAS no GHCR pelo CI
 # (docs/ci-cd.md), sem build local. Passo a passo em docs/implantacao.md.
 #
-#   TOKEN_ADMIN=<segredo> docker compose -f docker-compose.prod.yml up -d --wait
+#   docker compose -f docker-compose.prod.yml up -d --wait
 #   COMPOSE_FILE=docker-compose.prod.yml ./db/banco.sh migrar     # ou: ./db/banco.sh --prod migrar
+#
+# TOKEN_ADMIN (o segredo do executar) fica no .env desta máquina: o ${TOKEN_ADMIN:?}
+# abaixo é avaliado em TODO comando deste arquivo (ps, logs, stop e down também),
+# e um valor diferente num `up` recriaria a API com outro token (docs/implantacao.md §2).
 #
 # Nunca colide com a pilha de desenvolvimento (docker-compose.yml): projeto
 # próprio (mackenzie-sem-barreiras-prod), volume próprio (pgdata_prod) e portas
 # próprias (*_PORTA_PROD), todas presas a 127.0.0.1. Para expor por HTTPS sem
 # conta, use o profile `tunel` (Quick Tunnel da Cloudflare):
 #
-#   TOKEN_ADMIN=<segredo> docker compose -f docker-compose.prod.yml --profile tunel up -d --wait
+#   docker compose -f docker-compose.prod.yml --profile tunel up -d --wait
 
 name: mackenzie-sem-barreiras-prod
 

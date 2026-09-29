@@ -28,14 +28,27 @@ As duas podem rodar ao mesmo tempo.
 ## 2. Subir a pilha de produção
 
 ```bash
-export TOKEN_ADMIN="$(openssl rand -hex 24)"   # guarde: é o segredo do "executar"
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"   # gera o segredo do "executar"
+# grave o valor no .env DESTA máquina, numa linha:  TOKEN_ADMIN=<valor gerado>
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d --wait
 ```
 
-- `TOKEN_ADMIN` é **obrigatório**: sem ele o compose recusa subir. Precisa estar no
-  shell em todo comando `docker compose -f docker-compose.prod.yml ...` que recria a
-  API (ou no `.env`, se preferir; o do shell tem prioridade).
+- `TOKEN_ADMIN` é **obrigatório**, e o compose de produção o exige em **todo** comando,
+  não só no `up`: `ps`, `logs`, `stop` e `down` também param com "defina TOKEN_ADMIN"
+  se ele não estiver no `.env` nem no shell (o `${TOKEN_ADMIN:?…}` do arquivo é
+  avaliado sempre). Por isso ele fica no **`.env` da máquina de produção** (que nunca vai
+  para o Git): qualquer terminal novo, o do fim do dia ou o do dia seguinte, já o
+  encontra, e o token da API não muda sem ninguém querer.
+- Evite `export TOKEN_ADMIN=...`: o valor do shell tem prioridade sobre o `.env`, e um
+  `up` feito com outro valor recria a API com outro token. `./db/banco.sh --prod` e
+  `./scripts/preparar-coleta.sh` não usam o token (põem um valor de enchimento só para o
+  compose aceitar `exec`, `ps` e `logs`).
+- Para mandar o token no `executar` sem imprimi-lo na tela:
+  `-H "X-Token-Admin: $(sed -n 's/^TOKEN_ADMIN=//p' .env)"`
+  ([`coleta-em-campo.md`](coleta-em-campo.md) §6).
+- Se as duas pilhas rodam no mesmo checkout, a de desenvolvimento lê o mesmo `.env`:
+  com o token lá, o `executar` do dev também passa a pedir o header (inofensivo).
 - `EXPOR_DOCS` é fixo em `false` na produção: `/api/docs`, `/api/redoc` e
   `/api/openapi.json` respondem 404.
 - `IMAGEM_TAG` (padrão `latest`) escolhe a versão das imagens: um sha curto do commit
@@ -206,14 +219,31 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
 
 ## 10. Derrubar (fim do dia)
 
+No fim de cada dia de coleta, depois do backup (§9), derrube o túnel. Num terminal
+novo não há nada a exportar: o token está no `.env` (§2).
+
 ```bash
-docker compose -f docker-compose.prod.yml --profile tunel stop tunel      # só o túnel
+cd ~/projetos/mackenzie-sem-barreiras
+docker compose -f docker-compose.prod.yml --profile tunel stop tunel      # só o túnel: fim do dia
+docker compose -f docker-compose.prod.yml --profile tunel ps              # confira: o tunel não aparece mais
+```
+
+A pilha (db, api, frontend) pode ficar de pé entre um dia e outro: sem o túnel, ela só
+escuta em `127.0.0.1`. No dia seguinte, reabra pelo §8. No fim da coleta inteira:
+
+```bash
 docker compose -f docker-compose.prod.yml --profile tunel down            # para tudo, MANTÉM os dados
 docker compose -f docker-compose.prod.yml --profile tunel down -v         # APAGA o volume: só com backup em mãos
 ```
 
 O `--profile tunel` faz o `down` remover também o container do túnel e a rede. Nunca
 deixe o túnel no ar fora da janela de coleta.
+
+Se um comando parar com "defina TOKEN_ADMIN", o token não está no `.env` desta máquina.
+Para `stop`, `ps`, `logs` e `down`, que não recriam a API, qualquer valor serve
+(`TOKEN_ADMIN=x docker compose -f docker-compose.prod.yml --profile tunel stop tunel`).
+Nunca faça isso com `up`: ele recriaria a API com o token errado. Grave o token no
+`.env` (§2) antes do próximo `up`.
 
 ---
 
