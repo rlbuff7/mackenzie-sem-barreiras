@@ -30,13 +30,22 @@ def banco_de_teste() -> None:
     de `obter_configuracoes`, para que a primeira chamada real já enxergue o
     banco de teste — nunca o banco de desenvolvimento.
     """
-    subprocess.run(
+    resultado = subprocess.run(
         [str(_RAIZ_REPO / "db" / "banco.sh"), "preparar-teste"],
         cwd=_RAIZ_REPO,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if resultado.returncode != 0:
+        # A saída do banco.sh (psql, docker compose) é o que explica a falha;
+        # com `check=True` ela ficaria escondida no CalledProcessError.
+        pytest.fail(
+            f"./db/banco.sh preparar-teste saiu com código {resultado.returncode}. "
+            "O banco do docker compose está de pé (`docker compose ps`)?\n"
+            f"--- stdout ---\n{resultado.stdout}\n--- stderr ---\n{resultado.stderr}",
+            pytrace=False,
+        )
 
     configuracoes = obter_configuracoes()
     # Não usa a fixture `monkeypatch` porque ela é de escopo de função; aqui o
