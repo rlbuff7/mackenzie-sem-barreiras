@@ -23,6 +23,9 @@ import {
   type ColecaoBarreiras,
   type FeatureBarreira,
 } from "./api";
+import { itensIguais, type ItemListaBarreira } from "./itens";
+
+export type { ItemListaBarreira };
 
 const CENTRO_INICIAL: L.LatLngTuple = [-23.5471938, -46.6524631];
 const ZOOM_INICIAL = 17;
@@ -38,14 +41,6 @@ const COR_SELECAO = "#B5501C";
 export interface PontoSelecionado {
   latitude: number;
   longitude: number;
-}
-
-/** Uma barreira da bbox atual, com só o necessário para a lista acessível. */
-export interface ItemListaBarreira {
-  id: number;
-  tipoNome: string;
-  status: FeatureBarreira["properties"]["status"];
-  confirmacoes: number;
 }
 
 export interface ControladorMapa {
@@ -115,30 +110,6 @@ function criarIconeBarreira(status: FeatureBarreira["properties"]["status"]): L.
   });
 }
 
-/**
- * Compara duas listas de barreiras pelo que a lista acessível exibe (id,
- * tipo, status, confirmações), como conjuntos — sem depender da ordem, já
- * que o backend não garante a mesma ordem entre duas consultas idênticas.
- * Usado para não notificar `aoAtualizarBarreiras` — e assim não forçar
- * main.ts a reconstruir a lista e derrubar o foco de teclado — quando a
- * recarga da bbox devolve exatamente o mesmo conteúdo de antes.
- */
-function itensIguais(a: ItemListaBarreira[], b: ItemListaBarreira[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  const porId = new Map(b.map((item) => [item.id, item]));
-  return a.every((item) => {
-    const outro = porId.get(item.id);
-    return (
-      outro !== undefined &&
-      outro.tipoNome === item.tipoNome &&
-      outro.status === item.status &&
-      outro.confirmacoes === item.confirmacoes
-    );
-  });
-}
-
 function conteudoPopupBarreira(feature: FeatureBarreira): string {
   const { tipo_nome, status, confirmacoes } = feature.properties;
   const rotuloStatus = status === "confirmada" ? "Confirmada" : "Pendente";
@@ -189,51 +160,72 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
     }
   }
 
+  // Só a consulta mais recente vale: mover o mapa de novo cancela a anterior, e
+  // uma resposta que chegue atrasada (o fetch já não abortável) é ignorada pela
+  // sequência, para não sobrescrever a vista mais nova com a bbox antiga.
+  let controladorConsulta: AbortController | null = null;
+  let sequenciaConsulta = 0;
+
   async function carregarBarreirasNaBbox(): Promise<void> {
+    controladorConsulta?.abort();
+    const controlador = new AbortController();
+    controladorConsulta = controlador;
+    const minhaSequencia = ++sequenciaConsulta;
     const bbox = bboxVisivel(mapa.getBounds());
     try {
       const colecao: Pick<ColecaoBarreiras, "features"> =
-        bbox === null ? { features: [] } : await buscarBarreiras(bbox);
-      camadaBarreiras.clearLayers();
-      marcadoresPorId.clear();
-      const itens: ItemListaBarreira[] = [];
-      for (const feature of colecao.features) {
-        const [longitude, latitude] = feature.geometry.coordinates;
-        const marcador = L.marker([latitude, longitude], {
-          icon: criarIconeBarreira(feature.properties.status),
-          keyboard: false,
-        });
-        marcador.bindPopup(conteudoPopupBarreira(feature));
-        marcador.addTo(camadaBarreiras);
-        marcadoresPorId.set(feature.properties.id, marcador);
-        itens.push({
-          id: feature.properties.id,
-          tipoNome: feature.properties.tipo_nome,
-          status: feature.properties.status,
-          confirmacoes: feature.properties.confirmacoes,
-        });
+        bbox === null
+          ? { features: [] }
+          : await buscarBarreiras(bbox, controlador.signal);
+      if (minhaSequencia !== sequenciaConsulta) {
+        return;
+      }
+      const itens: ItemListaBarreira[] = colecao.features.map((feature) => ({
+        id: feature.properties.id,
+        tipoNome: feature.properties.tipo_nome,
+        status: feature.properties.status,
+        confirmacoes: feature.properties.confirmacoes,
+        latitude: feature.geometry.coordinates[1],
+        longitude: feature.geometry.coordinates[0],
+      }));
+      // Só refaz a camada de marcadores (e avisa a lista acessível) se o
+      // conteúdo realmente mudou: recarregar com o mesmo resultado não pode
+      // apagar e recriar os marcadores (fecharia o popup aberto) nem forçar
+      // main.ts a reconstruir a lista, o que derrubaria o foco de quem acabou
+      // de ativar um botão "Ver no mapa" nela.
+      const mudou = !itensIguais(itens, itensAtuais);
+      if (mudou) {
+        camadaBarreiras.clearLayers();
+        marcadoresPorId.clear();
+        for (const feature of colecao.features) {
+          const [longitude, latitude] = feature.geometry.coordinates;
+          const marcador = L.marker([latitude, longitude], {
+            icon: criarIconeBarreira(feature.properties.status),
+            keyboard: false,
+          });
+          marcador.bindPopup(conteudoPopupBarreira(feature));
+          marcador.addTo(camadaBarreiras);
+          marcadoresPorId.set(feature.properties.id, marcador);
+        }
+        itensAtuais = itens;
       }
       // Se a barreira que a lista acessível centralizou por último ainda está
-      // nesta bbox, reabre o popup dela no marcador recém-criado — sem isso,
-      // o clique em "ver no mapa" abriria o popup só para ele sumir na
-      // próxima recarga (a cada moveend, mesmo sem o usuário mexer em nada).
-      // É um reforço só desta primeira recarga: reabre no máximo uma vez, e
-      // não fica reabrindo popup sozinho em toda recarga futura.
+      // nesta bbox, reabre o popup dela — sem isso, o clique em "ver no mapa"
+      // abriria o popup só para ele sumir na recarga do moveend. É um reforço
+      // só desta primeira recarga: reabre no máximo uma vez.
       if (idBarreiraEmFoco !== null) {
         marcadoresPorId.get(idBarreiraEmFoco)?.openPopup();
         idBarreiraEmFoco = null;
       }
-      // Só troca o estado (e avisa a lista acessível) se o conteúdo realmente
-      // mudou: recarregar com o mesmo resultado não pode forçar main.ts a
-      // reconstruir a lista, porque isso derrubaria o foco de quem acabou de
-      // ativar um botão "Ver no mapa" nela.
-      if (!itensIguais(itens, itensAtuais)) {
-        itensAtuais = itens;
+      if (mudou) {
         for (const ouvinte of ouvintesAtualizacaoBarreiras) {
           ouvinte(itens);
         }
       }
     } catch (erro) {
+      if (erro instanceof DOMException && erro.name === "AbortError") {
+        return; // cancelada por uma consulta mais nova: não é falha
+      }
       console.error("Falha ao carregar barreiras da área visível:", erro);
     }
   }
@@ -295,8 +287,14 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
       if (!marcador) {
         return;
       }
-      idBarreiraEmFoco = id;
-      mapa.setView(marcador.getLatLng(), Math.max(mapa.getZoom(), ZOOM_INICIAL));
+      const destino = marcador.getLatLng();
+      const zoomDestino = Math.max(mapa.getZoom(), ZOOM_INICIAL);
+      // A recarga que reabre o popup vem do `moveend`. Se a vista já está no
+      // destino, não haverá `moveend`: o "foco" ficaria armado e reabriria o
+      // popup numa recarga futura qualquer (o usuário arrastando o mapa).
+      const vistaMuda = !mapa.getCenter().equals(destino) || mapa.getZoom() !== zoomDestino;
+      idBarreiraEmFoco = vistaMuda ? id : null;
+      mapa.setView(destino, zoomDestino);
       marcador.openPopup();
     },
   };

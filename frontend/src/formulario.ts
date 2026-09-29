@@ -91,6 +91,9 @@ export async function iniciarFormulario(
     if (!pontoAtual) {
       statusEnvio.textContent =
         "Selecione um ponto no mapa, use sua localização ou o centro do mapa antes de enviar.";
+      // O aviso pede uma escolha de ponto: leva o foco aos botões que a fazem
+      // (o primeiro deles), em vez de deixá-lo no botão "Enviar".
+      elementoObrigatorio<HTMLButtonElement>("botao-localizacao").focus();
       return;
     }
 

@@ -122,8 +122,8 @@ export type ResultadoEnvioAlerta =
 /** Erro lançado quando a API responde com um formato inesperado. */
 export class ErroApiInesperado extends Error {}
 
-async function requisitarJson<T>(caminho: string): Promise<T> {
-  const resposta = await fetch(`${URL_BASE_API}${caminho}`);
+async function requisitarJson<T>(caminho: string, sinal?: AbortSignal): Promise<T> {
+  const resposta = await fetch(`${URL_BASE_API}${caminho}`, { signal: sinal });
   if (!resposta.ok) {
     throw new ErroApiInesperado(
       `Falha ao consultar ${caminho}: HTTP ${resposta.status}`,
@@ -149,12 +149,13 @@ export async function buscarAreaEstudo(): Promise<ColecaoAreaEstudo> {
  */
 export async function buscarBarreiras(
   bbox: readonly [number, number, number, number],
+  sinal?: AbortSignal,
 ): Promise<ColecaoBarreiras> {
   const parametros = new URLSearchParams({
     bbox: bbox.join(","),
     origem: "real",
   });
-  return requisitarJson<ColecaoBarreiras>(`/barreiras?${parametros.toString()}`);
+  return requisitarJson<ColecaoBarreiras>(`/barreiras?${parametros.toString()}`, sinal);
 }
 
 /**
