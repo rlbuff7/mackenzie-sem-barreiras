@@ -60,7 +60,7 @@ def test_post_alertas_invalido_devolve_422_e_registra_rejeitado(
     assert resposta.status_code == 422
     corpo_resposta = resposta.json()
     assert corpo_resposta["mensagem"] == "Alerta inválido."
-    assert {"campo": "latitude", "erro": "Deve ser menor ou igual a 90.0."} in (
+    assert {"campo": "latitude", "erro": "Deve ser menor ou igual a 90."} in (
         corpo_resposta["erros"]
     )
     total = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]

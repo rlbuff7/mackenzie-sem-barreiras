@@ -39,13 +39,26 @@ _MENSAGENS_FIXAS: dict[str, str] = {
     "json_invalid": "JSON malformado.",
 }
 
+
+def _numero_brasileiro(valor: object) -> str:
+    """Limite numérico no padrão brasileiro: `90.0` → "90", `0.5` → "0,5".
+
+    O Pydantic guarda o limite como veio do `Field` (`le=90` num campo `float`
+    chega como `90.0`), e `str()` o escreveria no padrão americano."""
+    if isinstance(valor, bool) or not isinstance(valor, int | float):
+        return str(valor)
+    if isinstance(valor, float) and valor.is_integer():
+        return str(int(valor))
+    return str(valor).replace(".", ",")
+
+
 # Erros que citam um limite do `ctx`: mensagem montada em cima do valor real
 # do `Field` (nunca hardcoded aqui — vem do próprio erro do Pydantic).
 _MENSAGENS_COM_LIMITE: dict[str, Any] = {
-    "less_than_equal": lambda ctx: f"Deve ser menor ou igual a {ctx['le']}.",
-    "greater_than_equal": lambda ctx: f"Deve ser maior ou igual a {ctx['ge']}.",
-    "less_than": lambda ctx: f"Deve ser menor que {ctx['lt']}.",
-    "greater_than": lambda ctx: f"Deve ser maior que {ctx['gt']}.",
+    "less_than_equal": lambda ctx: f"Deve ser menor ou igual a {_numero_brasileiro(ctx['le'])}.",
+    "greater_than_equal": lambda ctx: f"Deve ser maior ou igual a {_numero_brasileiro(ctx['ge'])}.",
+    "less_than": lambda ctx: f"Deve ser menor que {_numero_brasileiro(ctx['lt'])}.",
+    "greater_than": lambda ctx: f"Deve ser maior que {_numero_brasileiro(ctx['gt'])}.",
     "string_too_long": lambda ctx: f"Deve ter no máximo {ctx['max_length']} caracteres.",
     "string_too_short": lambda ctx: f"Deve ter no mínimo {ctx['min_length']} caracteres.",
     "string_pattern_mismatch": lambda ctx: (

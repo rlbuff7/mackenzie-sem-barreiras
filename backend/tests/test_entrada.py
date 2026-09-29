@@ -254,7 +254,7 @@ def test_registrar_alerta_mesma_sessao_produz_o_mesmo_hash(
 @pytest.mark.parametrize(
     ("sobrescritas", "campo_esperado", "mensagem_esperada"),
     [
-        ({"latitude": 200}, "latitude", "Deve ser menor ou igual a 90.0."),
+        ({"latitude": 200}, "latitude", "Deve ser menor ou igual a 90."),
         (
             {"tipo": "tipo_que_nao_existe"},
             "tipo",

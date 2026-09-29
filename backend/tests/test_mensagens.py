@@ -28,9 +28,16 @@ from app.validacao.mensagens import traduzir_erro_pydantic, traduzir_erros_da_re
         ({"type": "model_type", "ctx": None}, "Deve ser um objeto JSON (chave-valor)."),
         ({"type": "dict_type", "ctx": None}, "Deve ser um objeto JSON (chave-valor)."),
         ({"type": "json_invalid", "ctx": None}, "JSON malformado."),
-        ({"type": "less_than_equal", "ctx": {"le": 90.0}}, "Deve ser menor ou igual a 90.0."),
+        ({"type": "less_than_equal", "ctx": {"le": 90.0}}, "Deve ser menor ou igual a 90."),
         ({"type": "less_than_equal", "ctx": {"le": 3}}, "Deve ser menor ou igual a 3."),
         ({"type": "greater_than_equal", "ctx": {"ge": -90}}, "Deve ser maior ou igual a -90."),
+        # Padrão brasileiro: sem ".0" à toa e com vírgula decimal.
+        (
+            {"type": "greater_than_equal", "ctx": {"ge": -180.0}},
+            "Deve ser maior ou igual a -180.",
+        ),
+        ({"type": "less_than", "ctx": {"lt": 0.5}}, "Deve ser menor que 0,5."),
+        ({"type": "greater_than", "ctx": {"gt": -46.25}}, "Deve ser maior que -46,25."),
         ({"type": "less_than", "ctx": {"lt": 10}}, "Deve ser menor que 10."),
         ({"type": "greater_than", "ctx": {"gt": 0}}, "Deve ser maior que 0."),
         (
