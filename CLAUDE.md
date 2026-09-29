@@ -66,9 +66,12 @@ mackenzie-sem-barreiras/
 │   │   ├── schemas/         # modelos Pydantic
 │   │   ├── routers/         # endpoints HTTP
 │   │   └── validacao/       # NÚCLEO DO TCC
-│   │       ├── geofence.py
-│   │       ├── clustering.py
-│   │       └── pipeline.py
+│   │       ├── entrada.py       # estágios 1 e 2 na entrada (registrar_alerta)
+│   │       ├── mensagens.py     # erros do schema em português
+│   │       ├── geofence.py      # estágio 2
+│   │       ├── clustering.py    # estágio 3
+│   │       ├── pipeline.py      # estágio 4 + execução em lote (D6)
+│   │       └── estatisticas.py  # contagens do funil
 │   ├── scripts/
 │   │   └── gerar_dados_sinteticos.py
 │   ├── tests/
@@ -208,6 +211,54 @@ Quatro estágios, espelhando o funil apresentado no pôster do TCC I:
 
 O estágio 4 usar sessões distintas é importante: impede que uma pessoa sozinha
 reportando cinco vezes no mesmo lugar produza uma "confirmação" falsa.
+
+### Execução em lote: reconstrução completa (D6)
+
+Os estágios 1 e 2 rodam na entrada, alerta por alerta. Os estágios 3 e 4 rodam em
+lote, em `executar_pipeline` (`POST /validacao/executar?origem=real|simulacao` ou os
+scripts de simulação), sempre sobre **uma origem por vez** e numa única transação:
+
+1. `pg_advisory_xact_lock(CHAVE_LOCK_PIPELINE)`: uma segunda execução simultânea
+   espera a primeira terminar. O lock é liberado sozinho no commit/rollback de quem
+   chamou; as funções de `validacao/` nunca fazem commit.
+2. Reset: `agrupado` e `ruido_isolado` da origem voltam a `bruto`; as barreiras da
+   origem são apagadas.
+3. `rotular_clusters` (DBSCAN) sobre tudo que não é `descartado`.
+4. Uma barreira por cluster (tipo, cluster): centroide calculado em `SRID_CALCULO`
+   e gravado em `SRID_ARMAZENAMENTO`, `confirmacoes = COUNT(DISTINCT sessao_hash)`,
+   status `confirmada`/`pendente`. Os alertas do cluster viram `agrupado`; o ruído
+   vira `ruido_isolado`.
+
+Recalcular tudo, em vez de atualizar só o que mudou, porque no DBSCAN o rótulo de um
+alerta depende de todos os outros. Assim o **ruído é reavaliado** a cada execução, um
+alerta novo perto de uma barreira entra no cluster dela (T4), e duas execuções
+seguidas dão o mesmo resultado. `descartado` nunca é tocado. Custo aceito: os ids das
+barreiras mudam a cada execução.
+
+`executar_pipeline` recebe os parâmetros explicitamente (`eps_metros`, `min_pontos`,
+`min_confirmacoes`, `srid_calculo`, `srid_armazenamento`). A rota passa os do `.env`;
+a análise de sensibilidade passa outros sem mexer no `.env`.
+
+`ST_ClusterDBSCAN` roda com `OVER (PARTITION BY tipo_id ORDER BY id)`. O `ORDER BY id`
+torna o resultado reproduzível (numeração dos clusters e destino de pontos de borda
+não dependem da ordem física da tabela). Isso foi verificado no PostGIS 3.4.3 e está
+coberto por teste.
+
+### Estatísticas do funil
+
+`GET /validacao/estatisticas?origem=real|simulacao` (`validacao/estatisticas.py`)
+devolve contagens reais do banco, separadas por unidade:
+
+- `alertas` (conta **alertas**): `recebidos` (= `rejeitados_schema` + linhas de
+  `alertas`), `rejeitados_schema` (estágio 1), `descartados` por motivo
+  (`fora_da_area` sempre presente, mesmo com 0), `aguardando_pipeline` (`bruto`),
+  `ruido_isolado`, `agrupados`. `recebidos` é a soma de todos os outros.
+- `barreiras` (conta **barreiras**): `total`, `pendentes`, `confirmadas`.
+- `rotulo`: `"SIMULAÇÃO — dados sintéticos"` ou `"Dados reais de campo"` (§9).
+- `parametros` (os da configuração) e `gerado_em` (ISO-8601, UTC). O banco não guarda
+  com que parâmetros o estado atual foi produzido.
+
+Formato exato em [`docs/api.md`](docs/api.md).
 
 ### Parâmetros — sempre em `.env`, nunca no código
 

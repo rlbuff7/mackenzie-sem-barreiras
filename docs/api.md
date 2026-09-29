@@ -32,7 +32,8 @@ Base local: `http://localhost:8000`. JSON UTF-8. CORS liberado para as origens d
 - `POST /validacao/executar?origem=real|simulacao` (padrão `real`; D7) →
   200 `{"origem", "alertas_processados", "agrupados", "ruido_isolado",
   "barreiras_pendentes", "barreiras_confirmadas", "parametros": {"eps_metros",
-  "min_pontos", "min_confirmacoes"}}`; 401 com token errado/ausente.
+  "min_pontos", "min_confirmacoes"}}`; 401 com token errado/ausente
+  (`{"detail": "Token de administrador ausente ou inválido (header X-Token-Admin)."}`).
 - `GET /validacao/estatisticas?origem=real|simulacao` (padrão `real`) → 200
   ```json
   {"origem": "simulacao", "rotulo": "SIMULAÇÃO — dados sintéticos",
@@ -45,9 +46,13 @@ Base local: `http://localhost:8000`. JSON UTF-8. CORS liberado para as origens d
   `rotulo` para `real`: `"Dados reais de campo"`. `recebidos` = rejeitados + linhas de
   `alertas` daquela origem. Unidades explícitas: o bloco `alertas` conta alertas, o bloco
   `barreiras` conta barreiras.
+- Nas duas rotas de validação, `parametros.eps_metros` sai como número de ponto
+  flutuante (ex.: `8.0`), como na configuração.
 
 ## Estado de implementação
 
 - **M2 (implementado):** `GET /saude`, `GET /tipos-barreira`, `GET /area-estudo`,
   `POST /alertas`, `GET /barreiras`.
-- **M3 (planejado):** `POST /validacao/executar`, `GET /validacao/estatisticas`.
+- **M3 (implementado):** `POST /validacao/executar`, `GET /validacao/estatisticas`
+  (`app/routers/validacao.py`; lógica em `app/validacao/pipeline.py` e
+  `app/validacao/estatisticas.py`).
