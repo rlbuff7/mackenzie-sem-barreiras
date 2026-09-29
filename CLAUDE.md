@@ -104,7 +104,7 @@ mackenzie-sem-barreiras/
     ├── api.md                 # Contrato da API (fonte única, backend + frontend)
     ├── ci-cd.md               # M5.1: o que cada job do GitHub Actions faz e como usá-lo
     ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
-    ├── decisoes-de-implementacao.md  # glossário: G1–G12, D1–D8, R1–R26, "Task N"
+    ├── decisoes-de-implementacao.md  # glossário: G1–G12, D1–D8, R1–R37, "Task N"
     ├── coleta-em-campo.md     # M6: protocolo de coleta em campo
     ├── figuras/               # figuras geradas pelos scripts (funil)
     └── academico/             # pôster e artigo do TCC I (não é código)
@@ -525,7 +525,7 @@ Registradas aqui porque afetam a coerência entre código e texto:
 ## 13. Como trabalhar comigo neste repositório
 
 - Antes de criar arquivo novo, verifique se já existe algo equivalente.
-- Os identificadores G1–G12, D1–D8, R1–R26 e "Task N" citados no código e nos
+- Os identificadores G1–G12, D1–D8, R1–R37 e "Task N" citados no código e nos
   commits estão definidos em [`docs/decisoes-de-implementacao.md`](docs/decisoes-de-implementacao.md).
   Uma decisão nova desse tipo ganha uma linha lá.
 - Mudanças em schema do banco: **sempre** via migration, nunca `ALTER` manual.

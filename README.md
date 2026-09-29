@@ -11,7 +11,7 @@ valida os reports antes de persistir em banco espacial (PostgreSQL + PostGIS).
 Contexto completo do projeto, decisões e convenções: [CLAUDE.md](CLAUDE.md).
 Pontos em aberto: [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md).
 Significado dos identificadores citados no código e nos commits (G1–G12, D1–D8,
-R1–R27, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
+R1–R37, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
 
 ## Estrutura
 
