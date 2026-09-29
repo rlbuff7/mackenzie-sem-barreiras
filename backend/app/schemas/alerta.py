@@ -19,13 +19,16 @@ class AlertaEntrada(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    # strict: `true` não vira 1.0 (um "fora da área" enganoso) e "2" não vira 2;
+    # o JSON já distingue número de texto e de booleano, então nada disso é
+    # conversão útil. Inteiro continua aceito como coordenada (-23 é um float válido).
+    latitude: float = Field(strict=True, ge=-90, le=90)
+    longitude: float = Field(strict=True, ge=-180, le=180)
     # Código da taxonomia (D3), não o id: `tipo_que_nao_existe` também é erro
     # de schema aqui; "existe mas está inativo" só é sabido depois, contra o
     # banco (app/validacao/entrada.py::buscar_tipo_ativo).
     tipo: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
-    severidade: int | None = Field(default=None, ge=1, le=3)
+    severidade: int | None = Field(default=None, strict=True, ge=1, le=3)
     descricao: str | None = Field(default=None, max_length=500)
     sessao_id: UUID
 

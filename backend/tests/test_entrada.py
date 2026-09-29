@@ -398,3 +398,56 @@ def test_registrar_alerta_origem_invalida_levanta_value_error(
 
     with pytest.raises(ValueError):
         registrar_alerta(conexao, _payload(), origem="rascunho", config=config)
+
+
+# --- validação estrita de tipos (Task 8): booleano e texto não viram número ---
+
+
+@pytest.mark.parametrize(
+    ("sobrescritas", "campo_esperado", "mensagem_esperada"),
+    [
+        ({"latitude": True}, "latitude", "Deve ser um número."),
+        ({"longitude": False}, "longitude", "Deve ser um número."),
+        ({"latitude": "-23.5"}, "latitude", "Deve ser um número."),
+        ({"longitude": "-46.6"}, "longitude", "Deve ser um número."),
+        ({"severidade": True}, "severidade", "Deve ser um número inteiro."),
+        ({"severidade": "2"}, "severidade", "Deve ser um número inteiro."),
+        ({"severidade": 2.5}, "severidade", "Deve ser um número inteiro."),
+        ({"severidade": 2.0}, "severidade", "Deve ser um número inteiro."),
+    ],
+    ids=[
+        "latitude_booleano",
+        "longitude_booleano",
+        "latitude_texto",
+        "longitude_texto",
+        "severidade_booleano",
+        "severidade_texto",
+        "severidade_decimal",
+        "severidade_decimal_inteiro",
+    ],
+)
+def test_registrar_alerta_tipo_estrito_reprova_no_estagio_1(
+    conexao: psycopg.Connection,
+    sobrescritas: dict,
+    campo_esperado: str,
+    mensagem_esperada: str,
+) -> None:
+    config = obter_configuracoes()
+    resultado = registrar_alerta(conexao, _payload(**sobrescritas), origem="real", config=config)
+
+    assert resultado.aceito is False
+    assert [(e.campo, e.erro) for e in resultado.erros] == [(campo_esperado, mensagem_esperada)]
+    assert conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0] == 1
+    assert conexao.execute("SELECT count(*) FROM alertas").fetchone()[0] == 0
+
+
+def test_registrar_alerta_coordenada_inteira_continua_aceita(
+    conexao: psycopg.Connection
+) -> None:
+    """Inteiros seguem valendo para coordenadas (ponto fora da área, mas aceito)."""
+    config = obter_configuracoes()
+    resultado = registrar_alerta(
+        conexao, _payload(latitude=-23, longitude=-46), origem="real", config=config
+    )
+
+    assert resultado.aceito is True

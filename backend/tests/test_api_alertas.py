@@ -174,3 +174,28 @@ def test_post_alertas_corpo_limite_devolve_422_e_conta_o_rejeitado(
     rejeitados = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
     assert rejeitados == rejeitados_antes + 1
     assert conexao.execute("SELECT count(*) FROM alertas").fetchone()[0] == alertas_antes
+
+
+@pytest.mark.parametrize(
+    ("sobrescritas", "campo", "erro"),
+    [
+        ({"latitude": True}, "latitude", "Deve ser um número."),
+        ({"longitude": "-46.6"}, "longitude", "Deve ser um número."),
+        ({"severidade": True}, "severidade", "Deve ser um número inteiro."),
+        ({"severidade": "2"}, "severidade", "Deve ser um número inteiro."),
+        ({"severidade": 2.5}, "severidade", "Deve ser um número inteiro."),
+    ],
+    ids=["latitude_true", "longitude_texto", "severidade_true", "severidade_texto", "severidade_2_5"],
+)
+def test_post_alertas_tipo_estrito_devolve_422_e_registra_rejeitado(
+    cliente: TestClient, conexao: psycopg.Connection, sobrescritas: dict, campo: str, erro: str
+) -> None:
+    """`true` em latitude não vira 1.0 (e um "fora da área"): é reprovado no estágio 1."""
+    corpo = {**_CORPO_DENTRO_DA_AREA, **sobrescritas, "sessao_id": str(uuid4())}
+
+    resposta = cliente.post("/alertas", content=json.dumps(corpo))
+
+    assert resposta.status_code == 422
+    assert {"campo": campo, "erro": erro} in resposta.json()["erros"]
+    assert conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0] == 1
+    assert conexao.execute("SELECT count(*) FROM alertas").fetchone()[0] == 0
