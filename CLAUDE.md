@@ -98,7 +98,8 @@ mackenzie-sem-barreiras/
 │       ├── sessao.ts           # sessao_id (UUID) em localStorage (D1)
 │       ├── mapa.ts             # Leaflet: tiles OSM, área de estudo, barreiras por bbox
 │       ├── formulario.ts       # formulário de envio de alerta
-│       └── estilos.css
+│       ├── estilos.css
+│       └── fontes/             # Public Sans (woff2 + OFL), servida pelo próprio frontend
 └── docs/
     ├── api.md                 # Contrato da API (fonte única, backend + frontend)
     ├── ci-cd.md               # M5.1: o que cada job do GitHub Actions faz e como usá-lo
