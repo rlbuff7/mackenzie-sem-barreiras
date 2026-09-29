@@ -205,6 +205,24 @@ export async function enviarAlerta(
     }
   }
 
+  // 429 vem do nginx (limit_req em frontend/nginx.conf), com corpo HTML: não há
+  // o que ler nele, só a mensagem em português abaixo.
+  if (resposta.status === 429) {
+    return {
+      tipo: "erro_rede",
+      mensagem: "Muitos envios em sequência; aguarde um minuto.",
+    };
+  }
+
+  // 413: o corpo passou do limite (nginx ou API). Um relato de verdade nunca chega
+  // lá; a mensagem existe para o caso de a descrição ser colada de um texto enorme.
+  if (resposta.status === 413) {
+    return {
+      tipo: "erro_rede",
+      mensagem: "O relato ficou grande demais para ser enviado. Encurte a descrição.",
+    };
+  }
+
   return {
     tipo: "erro_rede",
     mensagem: `O servidor respondeu de forma inesperada (HTTP ${resposta.status}). Tente novamente em instantes.`,
