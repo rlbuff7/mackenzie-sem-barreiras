@@ -13,10 +13,15 @@ on:
     branches: [main]
 
 # Cancela uma execução mais antiga do mesmo branch/PR quando chega um push novo:
-# evita gastar minutos de runner numa versão já ultrapassada.
+# evita gastar minutos de runner numa versão já ultrapassada. EXCEÇÃO: em main e
+# em tag de versão (v*), nunca cancela — só enfileira a nova execução atrás da
+# que já está em andamento (mesmo group, cancel-in-progress: false). Do
+# contrário, um push rápido logo depois de outro em main poderia cancelar o
+# `publicar-imagens` no MEIO do push pro GHCR, perdendo a imagem daquele commit
+# (revisão da Task 7, rodada 1).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') }}
 
 # Mínimo por padrão; o job de publicação eleva só o que precisa (packages: write).
 permissions:
