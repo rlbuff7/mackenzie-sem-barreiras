@@ -2,7 +2,8 @@
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
+from fastapi.exceptions import RequestValidationError
 from psycopg import Connection
 
 from app.config import Configuracoes, obter_configuracoes
@@ -15,10 +16,10 @@ router = APIRouter()
 def interpretar_bbox(texto: str) -> tuple[float, float, float, float]:
     """Converte `minLon,minLat,maxLon,maxLat` (Contrato) em floats.
 
-    Levanta `ValueError` com mensagem clara se o texto não tiver 4 números,
-    se algum estiver fora da faixa de coordenadas geográficas, ou se o
-    mínimo não for estritamente menor que o máximo — o router converte esse
-    erro em HTTP 422.
+    Levanta `ValueError` com mensagem clara (em português) se o texto não tiver
+    4 números, se algum estiver fora da faixa de coordenadas geográficas, ou se
+    o mínimo não for estritamente menor que o máximo — o router converte esse
+    erro em HTTP 422, com `campo: "bbox"` e esta mensagem.
     """
     partes = texto.split(",")
     if len(partes) != 4:
@@ -122,7 +123,18 @@ def listar_barreiras(
     try:
         bbox_interpretado = interpretar_bbox(bbox)
     except ValueError as erro:
-        raise HTTPException(status_code=422, detail=str(erro)) from erro
+        # Como um erro de validação do próprio FastAPI: sai pelo handler de
+        # `app/main.py`, no mesmo formato de "bbox ausente" (`campo: "bbox"`).
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("query", "bbox"),
+                    "input": bbox,
+                    "ctx": {"error": erro},
+                }
+            ]
+        ) from erro
 
     return buscar_barreiras_no_bbox(
         conexao,

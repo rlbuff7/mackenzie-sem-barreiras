@@ -129,6 +129,13 @@ def test_executar_origem_padrao_e_real(
     assert corpo["alertas_processados"] == 0
 
 
+# G5: o 422 de parâmetro de query sai em português, no formato do resto da API.
+_ORIGEM_INVALIDA = {
+    "mensagem": "Requisição inválida.",
+    "erros": [{"campo": "origem", "erro": "Deve ser um destes valores: 'real' ou 'simulacao'."}],
+}
+
+
 def test_executar_origem_invalida_devolve_422(
     cliente: TestClient, configurar: Callable[..., None]
 ) -> None:
@@ -137,6 +144,7 @@ def test_executar_origem_invalida_devolve_422(
     resposta = cliente.post("/validacao/executar", params={"origem": "rascunho"})
 
     assert resposta.status_code == 422
+    assert resposta.json() == _ORIGEM_INVALIDA
 
 
 # --- GET /validacao/estatisticas ---
@@ -198,3 +206,4 @@ def test_estatisticas_origem_invalida_devolve_422(cliente: TestClient) -> None:
     resposta = cliente.get("/validacao/estatisticas", params={"origem": "rascunho"})
 
     assert resposta.status_code == 422
+    assert resposta.json() == _ORIGEM_INVALIDA

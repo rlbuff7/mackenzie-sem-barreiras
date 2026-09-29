@@ -5,7 +5,7 @@ G5: mensagens de erro nunca vazam o inglês nativo do Pydantic (`erro["msg"]`).
 
 import pytest
 
-from app.validacao.mensagens import traduzir_erro_pydantic
+from app.validacao.mensagens import traduzir_erro_pydantic, traduzir_erros_da_requisicao
 
 
 @pytest.mark.parametrize(
@@ -51,6 +51,19 @@ from app.validacao.mensagens import traduzir_erro_pydantic
             "Valor inválido.",
         ),
         ({"type": "less_than_equal", "ctx": None}, "Valor inválido."),  # ctx incompleto
+        (
+            {"type": "literal_error", "ctx": {"expected": "'real' or 'simulacao'"}},
+            "Deve ser um destes valores: 'real' ou 'simulacao'.",
+        ),
+        (
+            {"type": "literal_error", "ctx": {"expected": "'a', 'b' or 'c'"}},
+            "Deve ser um destes valores: 'a', 'b' ou 'c'.",
+        ),
+        # value_error: o ValueError de um validador deste projeto, já em português.
+        (
+            {"type": "value_error", "ctx": {"error": ValueError("bbox inválido.")}},
+            "bbox inválido.",
+        ),
     ],
 )
 def test_traduzir_erro_pydantic(erro: dict, mensagem_esperada: str) -> None:
@@ -61,3 +74,33 @@ def test_traduzir_erro_pydantic_nunca_devolve_o_msg_em_ingles() -> None:
     erro = {"type": "less_than_equal", "ctx": {"le": 90.0}, "msg": "Input should be <= 90"}
 
     assert traduzir_erro_pydantic(erro) != erro["msg"]
+
+
+def test_traduzir_erros_da_requisicao_tira_a_origem_do_parametro_do_campo() -> None:
+    """`loc` do FastAPI começa pela parte da requisição (`query`, `path`...); o
+    campo do Contrato é só o nome do parâmetro, como no `POST /alertas`."""
+    erros = [
+        {"type": "missing", "loc": ("query", "bbox"), "msg": "Field required"},
+        {
+            "type": "literal_error",
+            "loc": ("query", "status"),
+            "msg": "Input should be 'pendente' or 'confirmada'",
+            "ctx": {"expected": "'pendente' or 'confirmada'"},
+        },
+        {"type": "missing", "loc": ("header", "x-token-admin"), "msg": "Field required"},
+    ]
+
+    assert traduzir_erros_da_requisicao(erros) == [
+        {"campo": "bbox", "erro": "Campo obrigatório."},
+        {"campo": "status", "erro": "Deve ser um destes valores: 'pendente' ou 'confirmada'."},
+        {"campo": "x-token-admin", "erro": "Campo obrigatório."},
+    ]
+
+
+def test_traduzir_erros_da_requisicao_mantem_loc_sem_origem_conhecida() -> None:
+    erros = [{"type": "missing", "loc": ("corpo", "latitude")}, {"type": "missing", "loc": ()}]
+
+    assert traduzir_erros_da_requisicao(erros) == [
+        {"campo": "corpo.latitude", "erro": "Campo obrigatório."},
+        {"campo": "corpo", "erro": "Campo obrigatório."},
+    ]

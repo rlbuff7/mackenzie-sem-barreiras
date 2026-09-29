@@ -9,8 +9,13 @@ usando `ctx` para preencher limites (ex.: `le`, `max_length`).
 
 Tipo de erro não mapeado cai no fallback genérico — nunca vaza `erro["msg"]`
 em inglês para a resposta.
+
+`traduzir_erros_da_requisicao` aplica a mesma tradução aos erros de validação
+de parâmetros das rotas (query), que o FastAPI levanta como
+`RequestValidationError` e o handler de `app/main.py` devolve em português.
 """
 
+from collections.abc import Iterable
 from typing import Any
 
 _MENSAGEM_PADRAO = "Valor inválido."
@@ -46,7 +51,18 @@ _MENSAGENS_COM_LIMITE: dict[str, Any] = {
     "string_pattern_mismatch": lambda ctx: (
         f"Não corresponde ao formato esperado ({ctx['pattern']})."
     ),
+    # `expected` vem do Pydantic como "'a', 'b' or 'c'": só o "or" é inglês.
+    "literal_error": lambda ctx: (
+        f"Deve ser um destes valores: {ctx['expected'].replace(' or ', ' ou ')}."
+    ),
+    # O ValueError de um validador DESTE projeto (ex.: o bbox de GET /barreiras),
+    # cuja mensagem já é escrita em português. Os validadores do próprio Pydantic
+    # usam tipos específicos, nunca `value_error`.
+    "value_error": lambda ctx: str(ctx["error"]),
 }
+
+# Primeiro elemento do `loc` de um erro de parâmetro: a parte da requisição.
+_PARTES_DA_REQUISICAO = frozenset({"query", "path", "header", "cookie", "body"})
 
 
 def traduzir_erro_pydantic(erro: dict[str, Any]) -> str:
@@ -69,3 +85,21 @@ def traduzir_erro_pydantic(erro: dict[str, Any]) -> str:
             return _MENSAGEM_PADRAO
 
     return _MENSAGEM_PADRAO
+
+
+def traduzir_erros_da_requisicao(erros: Iterable[dict[str, Any]]) -> list[dict[str, str]]:
+    """`[{"campo", "erro"}]` em português para os erros de um `RequestValidationError`.
+
+    O `campo` é o nome do parâmetro, sem a parte da requisição que o FastAPI põe
+    no começo do `loc` (`("query", "bbox")` vira `"bbox"`), no mesmo formato dos
+    erros de `POST /alertas`. Um `loc` vazio aponta o corpo inteiro (`"corpo"`).
+    """
+    traduzidos = []
+    for erro in erros:
+        partes = [str(parte) for parte in erro.get("loc", ())]
+        if len(partes) > 1 and partes[0] in _PARTES_DA_REQUISICAO:
+            partes = partes[1:]
+        traduzidos.append(
+            {"campo": ".".join(partes) or "corpo", "erro": traduzir_erro_pydantic(erro)}
+        )
+    return traduzidos

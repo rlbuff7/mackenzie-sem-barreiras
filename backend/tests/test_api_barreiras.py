@@ -40,16 +40,39 @@ def _inserir_barreira(
     return linha[0]
 
 
-def test_bbox_ausente_devolve_422(cliente: TestClient) -> None:
+def test_bbox_ausente_devolve_422_em_portugues(cliente: TestClient) -> None:
     resposta = cliente.get("/barreiras")
 
     assert resposta.status_code == 422
+    assert resposta.json() == {
+        "mensagem": "Requisição inválida.",
+        "erros": [{"campo": "bbox", "erro": "Campo obrigatório."}],
+    }
 
 
-def test_bbox_malformado_devolve_422(cliente: TestClient) -> None:
+def test_bbox_malformado_devolve_422_no_mesmo_formato(cliente: TestClient) -> None:
     resposta = cliente.get("/barreiras", params={"bbox": "nao,e,um,bbox"})
 
     assert resposta.status_code == 422
+    assert resposta.json() == {
+        "mensagem": "Requisição inválida.",
+        "erros": [{"campo": "bbox", "erro": "bbox deve conter apenas números."}],
+    }
+
+
+def test_status_e_origem_invalidos_devolvem_422_em_portugues(cliente: TestClient) -> None:
+    resposta = cliente.get(
+        "/barreiras", params={"bbox": _BBOX_CAMPUS, "status": "xyz", "origem": "abc"}
+    )
+
+    assert resposta.status_code == 422
+    assert resposta.json() == {
+        "mensagem": "Requisição inválida.",
+        "erros": [
+            {"campo": "status", "erro": "Deve ser um destes valores: 'pendente' ou 'confirmada'."},
+            {"campo": "origem", "erro": "Deve ser um destes valores: 'real' ou 'simulacao'."},
+        ],
+    }
 
 
 def test_bbox_invertido_devolve_422(cliente: TestClient) -> None:
