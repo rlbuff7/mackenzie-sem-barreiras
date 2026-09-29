@@ -129,14 +129,21 @@ Só com o checklist todo `[ok]` (e a URL do túnel impressa) entregue a URL ao M
   banco temporário e só então troca pelo banco alvo, apagando o antigo: um dump ruim
   aborta com o banco original intacto. Sem o argumento literal `--sim-substituir-banco`
   ele só explica e sai.
+- **Restaurar em `--prod` derruba as conexões da API por instantes** (entre as duas
+  trocas de nome, `ALLOW_CONNECTIONS` fica desligado no banco atual): faça antes de
+  abrir a coleta ou com o frontend parado. Se a troca for interrompida (Ctrl-C, erro),
+  o script devolve o banco original; se nem isso der, imprime o SQL para recuperar à mão
+  (os dados ficam em `<banco>_antigo_<data-hora>`).
+- As mensagens de recusa de `restaurar` e `zerar-real` mostram o alvo em palavras e o
+  comando completo, já com `--prod`/`--teste`: confira o "Alvo:" antes de copiar.
 - Ensaie no banco de teste, sem `--prod`: `./db/banco.sh --teste backup` e
   `./db/banco.sh --teste restaurar backups/ARQUIVO.dump --sim-substituir-banco`
   (`--teste` aponta para `<POSTGRES_DB>_teste`; crie-o antes com
   `./db/banco.sh preparar-teste`, na pilha de desenvolvimento).
 - Opções de `banco.sh` (antes do subcomando): `--prod` vale para `migrar`, `testar`,
   `psql`, `backup`, `restaurar` e `zerar-real`; `preparar-teste` **recusa** `--prod`
-  (não cria banco de teste no servidor de produção). `--teste` vale para `backup` e
-  `restaurar`.
+  (não cria banco de teste no servidor de produção). `--teste` vale para `backup`, `restaurar` e `zerar-real`. Testes
+  de segurança do script: `./db/tests/banco_sh_seguranca.sh`.
 
 ## 9. Derrubar
 
