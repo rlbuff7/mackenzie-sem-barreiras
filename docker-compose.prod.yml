@@ -40,7 +40,8 @@ services:
 
   api:
     # IMAGEM_TAG: `latest` (padrão) é o que o CI publica a cada merge em main;
-    # um sha curto ou vX.Y.Z fixa uma versão conhecida (docs/implantacao.md).
+    # `sha-<7 caracteres do commit>` (ex.: sha-050ec68) ou, para uma tag vX.Y.Z do
+    # repositório, `X.Y.Z` fixa uma versão conhecida (docs/implantacao.md §2).
     image: ghcr.io/rlbuff7/mackenzie-sem-barreiras-api:${IMAGEM_TAG:-latest}
     restart: unless-stopped
     env_file: .env

@@ -51,8 +51,13 @@ docker compose -f docker-compose.prod.yml up -d --wait
   com o token lá, o `executar` do dev também passa a pedir o header (inofensivo).
 - `EXPOR_DOCS` é fixo em `false` na produção: `/api/docs`, `/api/redoc` e
   `/api/openapi.json` respondem 404.
-- `IMAGEM_TAG` (padrão `latest`) escolhe a versão das imagens: um sha curto do commit
-  ou `vX.Y.Z` fixa uma versão conhecida (`IMAGEM_TAG=ab12cd3 docker compose ...`).
+- `IMAGEM_TAG` (padrão `latest`) escolhe a versão das imagens. O CI publica (ver
+  `docker/metadata-action` em `.github/workflows/ci-cd.yml`): `latest` a cada push em
+  `main`; `sha-<7 primeiros caracteres do commit>` em todo push de `main` ou de tag; e,
+  para uma tag `vX.Y.Z` do repositório, `X.Y.Z` e `X.Y` (sem o `v`). Para fixar uma
+  versão conhecida: `IMAGEM_TAG=sha-050ec68 docker compose -f docker-compose.prod.yml
+  up -d --wait` (ou a linha `IMAGEM_TAG=sha-050ec68` no `.env`, para valer em todo
+  comando).
   **Atenção:** `latest` só passa a incluir `EXPOR_DOCS` e os limites de envio depois
   que o branch `fase2` for para `main` e o CI publicar; antes disso, `/api/docs` fica
   aberto mesmo com a variável (o `preparar-coleta.sh` acusa isso).

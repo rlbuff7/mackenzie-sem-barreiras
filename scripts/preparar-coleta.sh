@@ -153,7 +153,7 @@ else
             ok "EXPOR_DOCS=false e /api/docs responde 404"
         else
             falha "EXPOR_DOCS=false, mas GET /api/docs respondeu ${codigo_docs:-sem resposta} (imagem antiga, sem EXPOR_DOCS?)" \
-                  "docker compose -f $arquivo_compose pull && docker compose -f $arquivo_compose up -d (ou fixe IMAGEM_TAG)"
+                  "docker compose -f $arquivo_compose pull && docker compose -f $arquivo_compose up -d (ou fixe uma versão: IMAGEM_TAG=sha-<7 caracteres do commit> no .env)"
         fi
     else
         falha "EXPOR_DOCS=${expor_docs:-<vazio>} (esperado false)" \
