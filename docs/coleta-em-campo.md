@@ -96,6 +96,14 @@ ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
   nginx na rede do compose. Isso vale para os containers deste repositório: o túnel ou a
   hospedagem escolhidos (§4) têm os próprios logs, fora do nosso controle. Conferir a
   política do serviço escolhido e citá-la no texto de consentimento.
+- **Com o Quick Tunnel (§4), a Cloudflare vê o tráfego.** O túnel `trycloudflare.com`
+  termina o TLS na Cloudflare: os relatos (ponto, tipo, severidade, descrição e o
+  `sessao_id` no corpo) passam em claro por um terceiro antes de chegar ao nosso nginx,
+  e o IP do voluntário é visto por ela (os nossos logs continuam sem IP). É o mesmo tipo
+  de exposição dos tiles do OpenStreetMap, mas aqui inclui o conteúdo do relato.
+  Para o voluntário: não escrever dado pessoal na descrição, e o texto de consentimento
+  deve citar a Cloudflare como intermediária. Uma hospedagem própria com HTTPS (§4)
+  também tem esse intermediário, só que escolhido por nós.
 - **A sessão é um pseudônimo do aparelho, não anonimato.** O navegador gera um UUID
   aleatório e o guarda no `localStorage` (D1); nos relatos aceitos o servidor grava só
   `sha256(uuid)`, nunca o UUID cru (a exceção são os reprovados no estágio 1, que
