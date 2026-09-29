@@ -41,9 +41,12 @@ class Configuracoes(BaseSettings):
     postgres_password: str
 
     # --- Validação (CLAUDE.md §6) — provisórios, calibrados só com dados reais ---
-    dbscan_eps_metros: float
-    dbscan_min_points: int
-    min_confirmacoes: int
+    # Faixas: um .env sem sentido falha ao subir a API, não na primeira execução do
+    # pipeline. São as mesmas que executar_pipeline e execucoes_pipeline (migration
+    # 003) exigem (R15).
+    dbscan_eps_metros: float = Field(gt=0)
+    dbscan_min_points: int = Field(ge=1)
+    min_confirmacoes: int = Field(ge=1)
     srid_armazenamento: int
     srid_calculo: int
 

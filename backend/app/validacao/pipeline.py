@@ -84,6 +84,12 @@ def executar_pipeline(
 ) -> ResumoExecucao:
     """Reconstrói do zero o agrupamento e as barreiras de `origem` (D6).
 
+    Antes de tocar no banco, valida a origem e os parâmetros (`ValueError`):
+    `eps_metros > 0` (o PostGIS aceita 0 e NaN sem erro e só recusa negativos, e
+    isso já depois do reset), `min_pontos >= 1` e `min_confirmacoes >= 1`. Um
+    valor inválido não pode apagar as barreiras e só então falhar, nem passar
+    em silêncio quando não há cluster para chegar ao estágio 4.
+
     Passos, todos na transação de quem chamou:
 
     1. `pg_advisory_xact_lock(CHAVE_LOCK_PIPELINE)`. Duas execuções ao mesmo
@@ -131,6 +137,9 @@ def executar_pipeline(
     """
     if origem not in ORIGENS_VALIDAS:
         raise ValueError(f"origem inválida: {origem!r} (esperado 'real' ou 'simulacao')")
+    _validar_parametros(
+        eps_metros=eps_metros, min_pontos=min_pontos, min_confirmacoes=min_confirmacoes
+    )
 
     conexao.execute(
         "SELECT pg_advisory_xact_lock(%(chave)s::bigint)", {"chave": CHAVE_LOCK_PIPELINE}
@@ -199,6 +208,20 @@ def executar_pipeline(
         },
         executado_em=executado_em,
     )
+
+
+def _validar_parametros(*, eps_metros: float, min_pontos: int, min_confirmacoes: int) -> None:
+    """Recusa parâmetros sem sentido antes de qualquer SQL (ver `executar_pipeline`).
+
+    `not (eps_metros > 0)` em vez de `eps_metros <= 0`: com NaN as duas comparações
+    dão falso, e só a primeira forma recusa o NaN.
+    """
+    if not (eps_metros > 0):
+        raise ValueError(f"eps_metros deve ser maior que 0 (recebido: {eps_metros})")
+    if min_pontos < 1:
+        raise ValueError(f"min_pontos deve ser pelo menos 1 (recebido: {min_pontos})")
+    if min_confirmacoes < 1:
+        raise ValueError(f"min_confirmacoes deve ser pelo menos 1 (recebido: {min_confirmacoes})")
 
 
 def _registrar_execucao(

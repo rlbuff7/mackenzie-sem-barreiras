@@ -1,5 +1,6 @@
 """Testes do estágio 4 (promoção) e da orquestração: `app/validacao/pipeline.py`."""
 
+import math
 from datetime import datetime
 
 import psycopg
@@ -332,6 +333,36 @@ def test_sem_alertas_nada_acontece(conexao: psycopg.Connection) -> None:
 def test_origem_invalida_levanta_value_error(conexao: psycopg.Connection) -> None:
     with pytest.raises(ValueError):
         _executar(conexao, origem="simulação")
+
+
+@pytest.mark.parametrize(
+    "parametro_invalido",
+    [
+        {"eps_metros": 0},
+        {"eps_metros": -1},
+        {"eps_metros": math.nan},
+        {"min_pontos": 0},
+        {"min_confirmacoes": 0},
+    ],
+    ids=["eps_zero", "eps_negativo", "eps_nan", "min_pontos_zero", "min_confirmacoes_zero"],
+)
+def test_parametro_invalido_levanta_antes_de_tocar_nos_dados(
+    conexao: psycopg.Connection, parametro_invalido: dict
+) -> None:
+    """R15: a validação vem antes do lock e do reset. Um alerta `ruido_isolado`
+    sozinho não forma cluster, então `min_confirmacoes = 0` só seria descoberto
+    tarde demais (ou nunca) se a checagem ficasse no estágio 4."""
+    alerta = _alerta_em(conexao, 0, status="ruido_isolado")
+
+    with pytest.raises(ValueError):
+        _executar(conexao, **parametro_invalido)
+
+    assert _estado_alertas(conexao, [alerta]) == [(alerta, "ruido_isolado", None, None)]
+    assert _execucao_registrada(conexao, "simulacao") is None
+    locks_advisory = conexao.execute(
+        "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()"
+    ).fetchone()[0]
+    assert locks_advisory == 0
 
 
 # --- execucoes_pipeline (R14): parâmetros que produziram o estado atual ---
