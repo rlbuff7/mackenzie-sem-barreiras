@@ -133,7 +133,8 @@ def _corpo_valido_com_descricao(descricao_em_json: str) -> bytes:
         (b'{"latitude": -Infinity}', _ERRO_JSON_MALFORMADO),
         (b'{"latitude": 1e999}', _ERRO_JSON_MALFORMADO),
         (b'{"descricao": "a\x00b"}', _ERRO_JSON_MALFORMADO),
-        (b"[" * 100_000 + b"]" * 100_000, _ERRO_JSON_MALFORMADO),
+        # 5_000 níveis (10 KB, abaixo do limite de 16 KiB) já estouram a recursão do parser.
+        (b"[" * 5_000 + b"]" * 5_000, _ERRO_JSON_MALFORMADO),
         (_corpo_valido_com_descricao("a\\u0000b"), _ERRO_CARACTERE_NAO_GRAVAVEL),
         (_corpo_valido_com_descricao("a\\ud800b"), _ERRO_CARACTERE_NAO_GRAVAVEL),
         (b'{"a\\u0000": 1}', _ERRO_CARACTERE_NAO_GRAVAVEL),
@@ -199,3 +200,67 @@ def test_post_alertas_tipo_estrito_devolve_422_e_registra_rejeitado(
     assert {"campo": campo, "erro": erro} in resposta.json()["erros"]
     assert conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0] == 1
     assert conexao.execute("SELECT count(*) FROM alertas").fetchone()[0] == 0
+
+
+# --- limite do corpo (Task 8): abuso, não relato ---
+
+_MENSAGEM_413 = "Corpo grande demais: o limite é 16 KiB."
+
+
+def _corpo_com_tamanho(tamanho: int) -> bytes:
+    """JSON válido de exatamente `tamanho` bytes (a descrição enche o resto)."""
+    base = {**_CORPO_DENTRO_DA_AREA, "sessao_id": str(uuid4()), "descricao": ""}
+    vazio = len(json.dumps(base).encode())
+    base["descricao"] = "a" * (tamanho - vazio)
+    corpo = json.dumps(base).encode()
+    assert len(corpo) == tamanho
+    return corpo
+
+
+def _contagens(conexao: psycopg.Connection) -> tuple[int, int]:
+    alertas = conexao.execute("SELECT count(*) FROM alertas").fetchone()[0]
+    rejeitados = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
+    return alertas, rejeitados
+
+
+def test_post_alertas_corpo_de_17_kib_devolve_413_sem_gravar_nada(
+    cliente: TestClient, conexao: psycopg.Connection
+) -> None:
+    antes = _contagens(conexao)
+
+    resposta = cliente.post("/alertas", content=_corpo_com_tamanho(17 * 1024))
+
+    assert resposta.status_code == 413
+    assert resposta.json() == {"mensagem": _MENSAGEM_413}
+    assert _contagens(conexao) == antes
+
+
+def test_post_alertas_corpo_sem_content_length_acima_do_limite_devolve_413(
+    cliente: TestClient, conexao: psycopg.Connection
+) -> None:
+    """Transferência em pedaços (chunked): não há Content-Length para conferir,
+    o limite é aplicado enquanto o corpo é lido."""
+    antes = _contagens(conexao)
+    corpo = _corpo_com_tamanho(17 * 1024)
+
+    def pedacos():
+        for inicio in range(0, len(corpo), 1024):
+            yield corpo[inicio : inicio + 1024]
+
+    resposta = cliente.post("/alertas", content=pedacos())
+
+    assert resposta.status_code == 413
+    assert resposta.json() == {"mensagem": _MENSAGEM_413}
+    assert _contagens(conexao) == antes
+
+
+def test_post_alertas_corpo_exatamente_no_limite_e_aceito(cliente: TestClient) -> None:
+    corpo = _corpo_com_tamanho(16 * 1024)
+    # 500 caracteres é o máximo da descrição: acima disso o schema reprova (422),
+    # o que prova que o corpo passou do limite de tamanho e chegou ao estágio 1.
+    resposta = cliente.post("/alertas", content=corpo)
+
+    assert resposta.status_code == 422
+    assert resposta.json()["erros"] == [
+        {"campo": "descricao", "erro": "Deve ter no máximo 500 caracteres."}
+    ]
