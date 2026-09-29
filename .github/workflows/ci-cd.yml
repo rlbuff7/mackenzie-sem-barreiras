@@ -5,6 +5,11 @@
 # CD: todo push em main (ou tag v*) publica as imagens Docker da API e do
 # frontend no GHCR, prontas para implantar. A implantação em si NÃO é
 # automática (job `implantar`, desativado — ver docs/ci-cd.md).
+#
+# `runs-on: ubuntu-24.04` em todo job (não `ubuntu-latest`): o `ubuntu-latest`
+# passa a apontar para o Ubuntu 26 a partir de 19/10/2026, e não vale a pena
+# arriscar uma imagem nova de runner no meio do TCC II. Fixo por enquanto; a
+# equipe pode migrar depois da entrega, com calma (R20).
 name: CI/CD
 
 on:
@@ -33,9 +38,9 @@ jobs:
   # real num banco de teste à parte — G8).
   banco-e-backend:
     name: Banco e backend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A senha de exemplo serve: o banco do CI é descartável, só escuta em
       # 127.0.0.1 e morre com o runner.
@@ -51,7 +56,7 @@ jobs:
       - name: Testes de schema (SQL, em transação desfeita)
         run: ./db/banco.sh testar
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -78,11 +83,11 @@ jobs:
   # Typecheck (tsc --noEmit, via "verificar") e build de produção do Vite.
   frontend:
     name: Frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -108,16 +113,16 @@ jobs:
   ponta-a-ponta:
     name: Ponta a ponta (E2E)
     needs: [banco-e-backend, frontend]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Preparar .env
         run: cp .env.example .env
 
       # scripts/ponta-a-ponta.sh chama `uv run` de dentro de backend/ para
       # rodar backend/scripts/ponta_a_ponta.py — precisa do uv no PATH.
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -135,12 +140,12 @@ jobs:
     if: |
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # GHCR exige o nome da imagem em minúsculas; github.repository_owner
       # pode não estar (o dono deste repo já é minúsculo, mas um fork com
@@ -153,7 +158,7 @@ jobs:
             >> "$GITHUB_OUTPUT"
 
       - name: Login no GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -161,11 +166,11 @@ jobs:
 
       # Precisa vir ANTES do build-push-action: é o Buildx que sabe falar
       # com o cache do tipo "gha".
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Metadados da imagem da API
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ steps.owner.outputs.minusculo }}/mackenzie-sem-barreiras-api
           tags: |
@@ -175,7 +180,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build e push da imagem da API
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: backend
           push: true
@@ -186,7 +191,7 @@ jobs:
 
       - name: Metadados da imagem do frontend
         id: meta-frontend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ steps.owner.outputs.minusculo }}/mackenzie-sem-barreiras-frontend
           tags: |
@@ -196,7 +201,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build e push da imagem do frontend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: frontend
           push: true
@@ -227,7 +232,7 @@ jobs:
     name: Implantar (desativado)
     needs: [publicar-imagens]
     if: false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
     steps:
       - name: Chamar o deploy hook da hospedagem
         run: curl -fsSL -X POST "${{ secrets.DEPLOY_HOOK_URL }}"
