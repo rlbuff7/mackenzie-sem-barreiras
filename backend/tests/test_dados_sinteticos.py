@@ -599,6 +599,22 @@ def test_avaliar_grupo_todo_reprovado_continua_no_esperado() -> None:
     assert avaliacao.grupos_incompletos == 2
 
 
+def test_avaliar_conta_so_as_barreiras_que_tocam_os_itens_avaliados() -> None:
+    """A barreira 11 só tem o alerta 99, que não está entre os itens avaliados (outra
+    população ou sobra de outra execução): não entra nas obtidas. É o que permite
+    avaliar o controle e as sequências separadamente, no mesmo banco."""
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2, 3)]
+    estado = EstadoFinal(
+        alertas={1: _agrupado(10), 2: _agrupado(10), 3: _agrupado(10), 99: _agrupado(11)},
+        barreiras={10: "confirmada", 11: "confirmada"},
+    )
+
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
+
+    assert avaliacao.barreiras_obtidas == {"confirmada": 1, "pendente": 0}
+    assert avaliacao.por_categoria["aglomerado"].obtido == 1
+
+
 def test_avaliar_ruido_agrupado_conta_como_ruido_em_barreira() -> None:
     registrados = [_registrado(1, "ruido"), _registrado(2, "ruido"), _registrado(3, "ruido")]
     estado = EstadoFinal(

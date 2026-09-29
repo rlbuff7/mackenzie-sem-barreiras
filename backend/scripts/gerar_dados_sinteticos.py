@@ -615,7 +615,9 @@ class Avaliacao:
       os inválidos). Só aparecem os destinos com contagem > 0.
     - `barreiras_esperadas`/`barreiras_obtidas`: por status. Esperadas vêm dos grupos
       GERADOS (um grupo reprovado na entrada continua no denominador); obtidas conta
-      TODAS as barreiras da simulação no banco.
+      as barreiras do banco com pelo menos um alerta dos itens avaliados. Assim a
+      mesma função avalia uma população de cada vez (a análise de sensibilidade
+      separa o controle das sequências).
     - `barreiras_corretas`: grupos acertados, pelo status esperado.
     - `grupos_incompletos`: grupos com algum relato reprovado no estágio 1 ou ausente
       do banco. Nunca contam como acerto: o grupo gerado não chegou inteiro.
@@ -748,7 +750,12 @@ def avaliar(
             unidade = "payloads" if categoria == "invalido" else "alertas"
         por_categoria[categoria] = ResultadoCategoria(categoria, unidade, esperado, obtido)
 
-    status_obtidos = Counter(estado.barreiras.values())
+    barreiras_tocadas = {
+        estado.alertas[r.resultado.id].barreira_id
+        for r in registrados
+        if r.resultado.aceito and r.resultado.id in estado.alertas
+    } - {None}
+    status_obtidos = Counter(estado.barreiras[i] for i in barreiras_tocadas)
     return Avaliacao(
         por_categoria=por_categoria,
         confusao={
