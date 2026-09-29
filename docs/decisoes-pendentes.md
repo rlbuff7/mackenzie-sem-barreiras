@@ -54,7 +54,9 @@ Observações:
   **Efeito de eps:**
   - O controle acerta 100% com eps de 8 a 20 m. Abaixo de 5 m (o maior salto dentro de
     um grupo), os grupos se dividem.
-  - As sequências só ficam 100% separadas com eps = 8 m (ver T5).
+  - Na grade, as sequências só ficam 100% separadas com eps = 8 m; a janela medida é de
+    cerca de [5; 10,3) m, do maior salto dentro de uma barreira à menor distância entre
+    barreiras vizinhas (ver T5).
   - **O eps certo depende do erro de posição dos relatos reais E da distância entre
     barreiras vizinhas de verdade.** Com `--dispersao-metros 6`, eps = 8 m acerta 90%
     dos aglomerados e 55% das barreiras em sequência. Com `--dispersao-metros 10`, os

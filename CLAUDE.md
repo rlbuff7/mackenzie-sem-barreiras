@@ -72,7 +72,7 @@ mackenzie-sem-barreiras/
 │   │       ├── clustering.py    # estágio 3
 │   │       ├── pipeline.py      # estágio 4 + execução em lote (D6)
 │   │       └── estatisticas.py  # contagens do funil
-│   ├── scripts/             # SIMULAÇÃO e figuras (§9); pontos de entrada, fazem commit
+│   ├── scripts/             # SIMULAÇÃO e figuras (§9); a sensibilidade nunca grava
 │   │   ├── gerar_dados_sinteticos.py  # 5 populações + teste de eficácia
 │   │   ├── analisar_sensibilidade.py  # grade eps × min_confirmacoes
 │   │   ├── gerar_figura_funil.py      # docs/figuras/funil-<origem>.svg|png
@@ -358,7 +358,8 @@ sensibilidade (R16):
 - `--sequencias N` (população `sequencia`): linhas retas de `--barreiras-por-sequencia`
   barreiras DISTINTAS do mesmo tipo, a `--espacamento-sequencia-metros` (15 m) umas das
   outras, cada uma com `--pontos-por-aglomerado` sessões. Ficam a 4 × o maior eps usado
-  de todo o resto, então só se fundem entre si. Esperado: cada barreira separada. É a
+  de todo ponto do mesmo tipo fora delas (o DBSCAN agrupa por tipo), então só se fundem
+  entre si. Esperado: cada barreira separada. É a
   população que mede o encadeamento (T5).
 
 Regras da geração:
@@ -405,24 +406,25 @@ robustez** (por construção, grupos vizinhos ficam fora do alcance do DBSCAN, e
 fusões" do controle não medem nada). A robustez é o que a análise de sensibilidade
 mede. Relatório completo em `backend/scripts/saida/simulacao-semente-<N>.json`.
 
-A análise de sensibilidade gera a simulação uma vez (com commit), roda cada combinação da
-grade numa transação **desfeita** e, no fim, confirma só a rodada com os parâmetros do
-`.env`. Assim o banco, `execucoes_pipeline`, as estatísticas e a figura correspondem
-sempre à configuração, nunca a uma combinação da grade. Ela avalia à parte o controle
-(efeito de `min_confirmacoes` em confirmadas × pendentes) e as sequências (barreiras
-verdadeiras × obtidas, fusões, por eps). Os dados que ficam no banco são os DELA
-(com sequências); para voltar ao canônico, rode o gerador com `--limpar` de novo.
-Resultado em `backend/scripts/saida/sensibilidade-semente-<N>.csv` (o nome ganha as
-opções fora do padrão, para nunca sobrescrever o canônico); leitura dos números em
+A análise de sensibilidade **não toca o banco** (R18). Numa única transação, desfeita
+no fim, ela apaga a simulação existente, gera a sua uma vez e roda cada combinação da
+grade num savepoint desfeito. O banco continua como estava antes (normalmente a
+simulação canônica do gerador, com a sua linha em `execucoes_pipeline`), então as
+estatísticas e a figura nunca mostram a população de estresse, e a ordem em que os
+scripts rodam não importa. Ela avalia à parte o controle (efeito de `min_confirmacoes`
+em confirmadas × pendentes) e as sequências (barreiras verdadeiras × obtidas, fusões,
+por eps). Resultado só no console e em
+`backend/scripts/saida/sensibilidade-semente-<N>.csv` (o nome ganha as opções fora do
+padrão, para nunca sobrescrever o canônico); leitura dos números em
 `docs/decisoes-pendentes.md` (#4 e T5).
 
 A figura (`docs/figuras/funil-<origem>.svg|png`) lê `calcular_estatisticas`. Ela tem um
 painel para alertas e outro para barreiras, e a legenda traz os parâmetros da última
 execução. Se a origem nunca foi processada, o script recusa desenhar.
 
-`--limpar` e a análise de sensibilidade apagam só `origem='simulacao'` (alertas,
-barreiras, rejeitados e a linha de `execucoes_pipeline`). Nenhum script toca
-`origem='real'`.
+`--limpar` apaga só `origem='simulacao'` (alertas, barreiras, rejeitados e a linha de
+`execucoes_pipeline`); a análise de sensibilidade faz o mesmo, mas dentro da transação
+que desfaz no fim. Nenhum script toca `origem='real'`.
 
 **Regra de honestidade acadêmica:** dado sintético é para desenvolver e testar. Em
 qualquer saída, log, gráfico ou documento, deve estar rotulado como simulação. Nunca

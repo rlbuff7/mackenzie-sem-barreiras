@@ -81,11 +81,10 @@ uv run python -m scripts.gerar_dados_sinteticos --limpar --executar-pipeline --a
 
 # 2. Sensibilidade: mede eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4}.
 #    Além do controle, liga por padrão aglomerados de 2 a 5 sessões e 5 sequências
-#    de barreiras distintas a 15 m (encadeamento, T5). Cada rodada é desfeita; no fim
-#    só a rodada com os parâmetros do .env fica gravada.
+#    de barreiras distintas a 15 m (encadeamento, T5). NÃO TOCA O BANCO: roda tudo
+#    numa transação desfeita no fim, e os resultados ficam só no console e no CSV.
+#    O banco continua com a simulação do passo 1, então a ordem dos passos não importa.
 uv run python -m scripts.analisar_sensibilidade
-
-# (a sensibilidade deixa no banco os dados dela; para voltar ao canônico, repita o 1.)
 
 # 3. Figura do funil (docs/figuras/funil-simulacao.svg e .png), a partir das
 #    estatísticas do banco. O matplotlib fica num grupo opcional.
