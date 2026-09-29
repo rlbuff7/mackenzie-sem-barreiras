@@ -13,9 +13,9 @@ jobs, na ordem em que dependem uns dos outros:
 
 | Job | O que faz | Depende de |
 |---|---|---|
-| `banco-e-backend` | Sobe só o serviço `db` (PostGIS), aplica migrations e seeds (`./db/banco.sh migrar`), roda os testes de schema (`./db/banco.sh testar`) e a suíte do backend: `uv sync --frozen`, `ruff check`, `ruff format --check`, `pytest` (bate no PostGIS real, num banco de teste à parte — G8). | — |
-| `frontend` | `npm ci`, checagem de tipos (`npm run verificar`, `tsc --noEmit`) e build de produção (`npm run build`). | — |
-| `ponta-a-ponta` | `./scripts/ponta-a-ponta.sh`: sobe uma pilha Docker Compose **isolada** (`msb-e2e`), roda o contrato inteiro da API por HTTP e sempre derruba a pilha no fim. | `banco-e-backend`, `frontend` |
+| `banco-e-backend` | Valida o compose de produção (`TOKEN_ADMIN=ci docker compose -f docker-compose.prod.yml --profile tunel config -q`), sobe só o serviço `db` (PostGIS), aplica migrations e seeds (`./db/banco.sh migrar`), roda os testes de schema (`./db/banco.sh testar`), os testes de segurança do `banco.sh` (`./db/tests/banco_sh_seguranca.sh`, só no banco de teste, R34) e a suíte do backend: `uv sync --frozen`, `ruff check`, `ruff format --check`, `pytest` (bate no PostGIS real, num banco de teste à parte — G8). | — |
+| `frontend` | `npm ci`, checagem de tipos (`npm run verificar`, `tsc --noEmit`), testes com `node:test` (`npm run testar`) e build de produção (`npm run build`). | — |
+| `ponta-a-ponta` | `./scripts/ponta-a-ponta.sh` **duas vezes**: sobe uma pilha Docker Compose **isolada** (`msb-e2e`), roda o contrato inteiro da API por HTTP, confere `preparar-coleta.sh` e `zerar-real` com os relatos reais que ficaram e sempre derruba a pilha no fim. A segunda execução usa a configuração da coleta (`TOKEN_ADMIN` aleatório e `EXPOR_DOCS=false`): cobre o 401 do `executar` sem o header, o 404 de `/docs`, `/redoc` e `/openapi.json` e o `PRONTO` do `preparar-coleta.sh --reabrir`. | `banco-e-backend`, `frontend` |
 | `publicar-imagens` | Publica as imagens da API e do frontend no GHCR. | `ponta-a-ponta` |
 
 `ponta-a-ponta` só roda se os dois primeiros passarem: é o job mais lento (builda
