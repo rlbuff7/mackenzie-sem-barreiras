@@ -187,8 +187,9 @@ Maps)" da Fase 2: o protótipo usa Leaflet com OpenStreetMap.
 - **Resumo** termina com ".." (ponto duplo).
 - **Introdução:** "SIG tradicionais são estáticos e omitidos em dados de
   microacessibilidade" → "são estáticos e omissos quanto a dados de microacessibilidade".
-- **Cabeçalho:** "10425852,10426074 @mackenzista.com.br" → um e-mail completo por autor.
-- **Metadados do `.doc`:** as propriedades do arquivo trazem título "Edital Vestibular SP
-  Alphaville" e autor "Milton P. Filho", de outro documento. No Word: Arquivo →
-  Informações → Propriedades (corrigir título e autores) e Verificar se há problemas →
-  Inspecionar documento (remover dados pessoais ocultos) antes de reenviar.
+- **Cabeçalho:** os e-mails aparecem fundidos num endereço só (números de matrícula
+  separados por vírgula antes de `@mackenzista.com.br`) → um e-mail completo por autor.
+- **Metadados do `.doc`:** os metadados do arquivo trazem título e autor de outro
+  documento; limpe-os antes de circular. No Word: Arquivo → Informações → Propriedades
+  (corrigir título e autores) e Verificar se há problemas → Inspecionar documento
+  (remover dados pessoais ocultos).
