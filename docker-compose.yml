@@ -70,15 +70,18 @@ services:
     build:
       context: ./frontend
       args:
-        # Fixado em tempo de BUILD (Vite embute no bundle): a pilha isolada
-        # do M5 sobe esta mesma imagem com API_PORTA_HOST=58000 exportado no
-        # shell, então a interpolação abaixo já gera a URL certa para ela.
-        VITE_API_URL: http://localhost:${API_PORTA_HOST:-8000}
+        # R19: relativa, não a URL absoluta da API. `frontend/nginx.conf`
+        # encaminha `/api/` para o serviço `api` (mesma origem, sem CORS) —
+        # e como não depende mais de qual porta a API expõe no host, a MESMA
+        # imagem serve tanto esta pilha quanto a pilha isolada do M5.
+        VITE_API_URL: /api
     restart: unless-stopped
     ports:
       # Só localhost, como os outros dois: o frontend de desenvolvimento não
-      # fica exposto na rede.
-      - "127.0.0.1:${FRONTEND_PORTA_HOST:-8080}:80"
+      # fica exposto na rede. Padrão 8081, não 8080: 8080 costuma já estar
+      # ocupada por outro serviço na máquina de quem desenvolve (Jenkins,
+      # Tomcat) — G12.
+      - "127.0.0.1:${FRONTEND_PORTA_HOST:-8081}:80"
     depends_on:
       api:
         condition: service_healthy
