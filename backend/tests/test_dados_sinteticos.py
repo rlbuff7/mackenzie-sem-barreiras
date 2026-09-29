@@ -55,6 +55,9 @@ _SRID_CALCULO = 31983
 _SRID_ARMAZENAMENTO = 4326
 _SEPARACAO_METROS = FATOR_SEPARACAO * _EPS_METROS
 
+# As cinco populações de controle (D8); `sequencia` fica desligada por padrão.
+_CONTROLE = ("aglomerado", "sessao_repetida", "ruido", "fora_da_area", "invalido")
+
 # Os quatro códigos do seed (db/seeds/001_tipos_barreira.sql), em ordem alfabética.
 _TIPOS = ("ausencia_rampa", "calcada_irregular", "degrau", "obstaculo")
 
@@ -74,6 +77,24 @@ _OPCOES_PEQUENAS = OpcoesGeracao(
 def _gerar(opcoes: OpcoesGeracao | None = None) -> list[ItemGerado]:
     """Gera sem banco, com os padrões da CLI quando `opcoes` é None."""
     return gerar_populacoes(opcoes or OpcoesGeracao(), tipos=_TIPOS, eps_metros=_EPS_METROS)
+
+
+# O maior eps da grade da sensibilidade: as sequências ficam a 4 × ele do resto.
+_EPS_MAXIMO_METROS = 20
+_OPCOES_COM_SEQUENCIAS = OpcoesGeracao(sequencias=5)
+
+
+def _gerar_com_sequencias(opcoes: OpcoesGeracao = _OPCOES_COM_SEQUENCIAS) -> list[ItemGerado]:
+    return gerar_populacoes(
+        opcoes, tipos=_TIPOS, eps_metros=_EPS_METROS, eps_maximo_metros=_EPS_MAXIMO_METROS
+    )
+
+
+def _media_metros(itens: list[ItemGerado]) -> tuple[float, float]:
+    return (
+        sum(i.norte_metros for i in itens) / len(itens),
+        sum(i.leste_metros for i in itens) / len(itens),
+    )
 
 
 def _da_categoria(itens: list[ItemGerado], categoria: str) -> list[ItemGerado]:
@@ -134,7 +155,7 @@ def test_quantidades_por_categoria_seguem_as_opcoes() -> None:
         "fora_da_area": 30,
         "invalido": 10,
     }
-    assert set(contagem) == set(CATEGORIAS)
+    assert set(contagem) == set(CATEGORIAS) - {"sequencia"}  # sequências: desligadas
 
 
 def test_aglomerado_tem_uma_sessao_por_relato_e_sessao_repetida_uma_so() -> None:
@@ -230,6 +251,59 @@ def test_amostragem_impossivel_falha_com_mensagem_clara() -> None:
         gerar_populacoes(OpcoesGeracao(aglomerados=10), tipos=_TIPOS, eps_metros=150)
 
 
+def test_sequencias_nao_mudam_as_populacoes_de_controle() -> None:
+    """As sequências são sorteadas depois do controle: ligá-las não move nada dele."""
+    com_sequencias = _gerar_com_sequencias()
+
+    assert [i for i in com_sequencias if i.categoria != "sequencia"] == _gerar()
+    assert com_sequencias == _gerar_com_sequencias()
+
+
+def test_sequencia_tem_barreiras_distintas_em_linha_com_o_espacamento_pedido() -> None:
+    """5 sequências × 4 barreiras × 4 relatos. Numa sequência, todas as barreiras
+    têm o mesmo tipo, cada uma com 4 sessões distintas, e os centros ficam em linha
+    a 15 m: centros médios consecutivos a 15 ± 2 × 3 m, extremos a 45 ± 2 × 3 m."""
+    itens = _da_categoria(_gerar_com_sequencias(), "sequencia")
+    assert len(itens) == 5 * 4 * 4
+
+    for sequencia in range(5):
+        da_sequencia = [i for i in itens if i.sequencia == sequencia]
+        assert len({i.payload["tipo"] for i in da_sequencia}) == 1
+        grupos = sorted({i.grupo for i in da_sequencia})
+        assert len(grupos) == 4
+        medias = []
+        for grupo in grupos:
+            relatos = [i for i in da_sequencia if i.grupo == grupo]
+            assert len({r.payload["sessao_id"] for r in relatos}) == 4
+            medias.append(_media_metros(relatos))
+        for a, b in zip(medias, medias[1:], strict=False):
+            assert 15 - 6 <= math.dist(a, b) <= 15 + 6
+        assert 45 - 6 <= math.dist(medias[0], medias[-1]) <= 45 + 6
+
+
+def test_sequencia_fica_isolada_a_4_vezes_o_maior_eps_de_tudo_do_mesmo_tipo() -> None:
+    """Só pode haver fusão DENTRO de uma sequência: de qualquer outro ponto do mesmo
+    tipo (controle ou outra sequência), cada ponto dela fica a ≥ 4 × 20 m."""
+    itens = _gerar_com_sequencias()
+    dentro = [i for i in itens if i.categoria in ("aglomerado", "sessao_repetida", "ruido")]
+    sequencias = _da_categoria(itens, "sequencia")
+    for ponto in sequencias:
+        assert math.hypot(ponto.norte_metros, ponto.leste_metros) <= RAIO_GERACAO_METROS + 3
+        for outro in dentro + sequencias:
+            if (
+                outro.payload["tipo"] == ponto.payload["tipo"]
+                and outro.sequencia != ponto.sequencia
+            ):
+                assert _distancia_metros(ponto, outro) >= FATOR_SEPARACAO * _EPS_MAXIMO_METROS
+
+
+def test_sequencia_impossivel_falha_com_mensagem_clara() -> None:
+    with pytest.raises(ValueError, match="não coube"):
+        gerar_populacoes(
+            OpcoesGeracao(sequencias=10), tipos=_TIPOS, eps_metros=8, eps_maximo_metros=150
+        )
+
+
 @pytest.mark.parametrize(
     "sobrescritas",
     [
@@ -237,6 +311,9 @@ def test_amostragem_impossivel_falha_com_mensagem_clara() -> None:
         {"aglomerados": -1},
         {"ruido": -1},
         {"dispersao_metros": -0.5},
+        {"sequencias": -1},
+        {"barreiras_por_sequencia": 1},
+        {"espacamento_sequencia_metros": 0},
     ],
 )
 def test_opcoes_sem_sentido_sao_recusadas(sobrescritas: dict) -> None:
@@ -296,7 +373,7 @@ def test_ruido_fica_a_4_eps_do_vizinho_mais_proximo_tambem_no_elipsoide(
 
 
 def test_pontos_fora_da_area_ficam_fora_pelo_geofence_real(conexao: psycopg.Connection) -> None:
-    for item in _gerar():
+    for item in _gerar_com_sequencias():
         if item.categoria == "invalido":
             continue
         dentro = ponto_dentro_da_area(
@@ -454,8 +531,8 @@ def test_avaliar_cenario_perfeito_acerta_tudo() -> None:
     avaliacao = avaliar(*_cenario_perfeito(), min_confirmacoes=3)
 
     assert {c: r.taxa for c, r in avaliacao.por_categoria.items()} == {
-        categoria: 1.0 for categoria in CATEGORIAS
-    }
+        categoria: 1.0 for categoria in _CONTROLE
+    } | {"sequencia": None}
     assert avaliacao.por_categoria["aglomerado"].esperado == 1
     assert avaliacao.por_categoria["aglomerado"].unidade == "grupos"
     assert avaliacao.por_categoria["ruido"].unidade == "alertas"
@@ -475,6 +552,7 @@ def test_avaliar_monta_a_matriz_categoria_para_destino_final() -> None:
         "ruido": {"ruido_isolado": 1},
         "fora_da_area": {"descartado:fora_da_area": 1},
         "invalido": {"rejeitado_schema": 1},
+        "sequencia": {},
     }
 
 
@@ -665,8 +743,8 @@ def test_ponta_a_ponta_pequena_acerta_100_por_cento_em_cada_categoria(
     avaliacao = avaliar(registrados, ler_estado_final(conexao), min_confirmacoes=_MIN_CONFIRMACOES)
 
     assert {c: r.taxa for c, r in avaliacao.por_categoria.items()} == {
-        categoria: 1.0 for categoria in CATEGORIAS
-    }
+        categoria: 1.0 for categoria in _CONTROLE
+    } | {"sequencia": None}
     assert avaliacao.barreiras_obtidas == {"confirmada": 3, "pendente": 2}
     assert (resumo.barreiras_confirmadas, resumo.barreiras_pendentes) == (3, 2)
     assert resumo.ruido_isolado == 5

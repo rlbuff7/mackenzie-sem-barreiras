@@ -85,7 +85,11 @@ FATOR_SEPARACAO = 4
 # mais pontos do que cabem na área com a separação exigida.
 MAX_TENTATIVAS = 10_000
 
-CATEGORIAS = ("aglomerado", "sessao_repetida", "ruido", "fora_da_area", "invalido")
+# As cinco primeiras são o CONTROLE (D8): bem separadas de propósito, o pipeline tem
+# de acertá-las. `sequencia` é a população de estresse do encadeamento (T5, R16):
+# barreiras distintas em linha, a `espacamento_sequencia_metros` umas das outras.
+# Desligada por padrão no gerador; ligada na análise de sensibilidade.
+CATEGORIAS = ("aglomerado", "sessao_repetida", "ruido", "fora_da_area", "invalido", "sequencia")
 
 # Com `sessoes_variaveis`, cada aglomerado sorteia daqui quantas sessões distintas (e
 # quantos relatos, um por sessão) terá. Assim uns grupos passam e outros não passam
@@ -117,7 +121,7 @@ ORDEM_DESTINOS = (
     "barreira_pendente",
     "barreira_confirmada",
 )
-_CATEGORIAS_DE_GRUPO = ("aglomerado", "sessao_repetida")
+_CATEGORIAS_DE_GRUPO = ("aglomerado", "sessao_repetida", "sequencia")
 
 _RAIZ_REPO = Path(__file__).resolve().parent.parent.parent
 DIRETORIO_SAIDA = Path(__file__).resolve().parent / "saida"
@@ -145,6 +149,12 @@ class OpcoesGeracao:
     `pontos_por_aglomerado` relatos. Com `sessoes_variaveis`, cada aglomerado tem, em
     vez disso, k relatos de k sessões distintas, k sorteado de `SESSOES_VARIAVEIS`.
     As demais contam relatos (ou payloads).
+
+    `sequencias` linhas retas de `barreiras_por_sequencia` barreiras DISTINTAS do
+    mesmo tipo, com centros consecutivos a `espacamento_sequencia_metros` num rumo
+    sorteado; cada barreira é um grupo de `pontos_por_aglomerado` sessões distintas,
+    com a mesma dispersão dos aglomerados.
+
     `dispersao_metros` é o RAIO MÁXIMO em torno do centro do grupo (sorteio uniforme
     no disco): dois relatos do mesmo grupo ficam a no máximo 2 × dispersão.
     """
@@ -158,9 +168,13 @@ class OpcoesGeracao:
     fora_da_area: int = 30
     invalidos: int = 10
     sessoes_variaveis: bool = False
+    sequencias: int = 0
+    barreiras_por_sequencia: int = 4
+    espacamento_sequencia_metros: float = 15.0
 
     def __post_init__(self) -> None:
-        for nome in ("aglomerados", "sessao_repetida", "ruido", "fora_da_area", "invalidos"):
+        contagens = ("aglomerados", "sessao_repetida", "ruido", "fora_da_area", "invalidos")
+        for nome in (*contagens, "sequencias"):
             if getattr(self, nome) < 0:
                 raise ValueError(f"{nome} não pode ser negativo (recebido: {getattr(self, nome)})")
         if self.pontos_por_aglomerado < 2:
@@ -172,16 +186,28 @@ class OpcoesGeracao:
             raise ValueError(
                 f"dispersao_metros deve ser 0 ou mais (recebido: {self.dispersao_metros})"
             )
+        if self.barreiras_por_sequencia < 2:
+            raise ValueError(
+                "barreiras_por_sequencia deve ser pelo menos 2: uma barreira sozinha é um "
+                f"aglomerado (recebido: {self.barreiras_por_sequencia})"
+            )
+        if not (self.espacamento_sequencia_metros > 0):
+            raise ValueError(
+                "espacamento_sequencia_metros deve ser maior que 0 "
+                f"(recebido: {self.espacamento_sequencia_metros})"
+            )
 
 
 @dataclass(frozen=True)
 class ItemGerado:
     """Um relato sintético e a verdade sobre ele.
 
-    `grupo` numera os grupos de `aglomerado` e de `sessao_repetida` (a identidade de
-    um grupo é o par categoria + grupo); é `None` nas outras categorias. `variacao` é
-    o defeito de um `invalido`. `norte_metros`/`leste_metros` são a posição no plano
-    local em relação ao centro do campus. `payload` é exatamente o que vai para
+    `grupo` numera os grupos de `aglomerado`, de `sessao_repetida` e as barreiras de
+    `sequencia` (a identidade de um grupo é o par categoria + grupo); é `None` nas
+    outras categorias. `sequencia` diz a que sequência pertence uma barreira de
+    `sequencia` (senão, `None`). `variacao` é o defeito de um `invalido`.
+    `norte_metros`/`leste_metros` são a posição no plano local em relação ao centro
+    do campus. `payload` é exatamente o que vai para
     `registrar_alerta`, como viria do navegador.
     """
 
@@ -191,6 +217,14 @@ class ItemGerado:
     norte_metros: float
     leste_metros: float
     payload: dict[str, Any]
+    sequencia: int | None = None
+
+
+def distancia_de_isolamento_metros(eps_metros: float, eps_maximo_metros: float | None) -> float:
+    """Distância mínima entre uma sequência e qualquer outro ponto do mesmo tipo:
+    `FATOR_SEPARACAO` × o maior eps com que os dados serão agrupados. Assim, dentro
+    desse eps, só pode haver fusão entre barreiras da MESMA sequência."""
+    return FATOR_SEPARACAO * max(eps_metros, eps_maximo_metros or eps_metros)
 
 
 def deslocar_ponto(
@@ -218,19 +252,27 @@ def deslocar_ponto(
 
 
 def gerar_populacoes(
-    opcoes: OpcoesGeracao, *, tipos: Sequence[str], eps_metros: float
+    opcoes: OpcoesGeracao,
+    *,
+    tipos: Sequence[str],
+    eps_metros: float,
+    eps_maximo_metros: float | None = None,
 ) -> list[ItemGerado]:
-    """As cinco populações (D8), na ordem de `CATEGORIAS`.
+    """As cinco populações de controle (D8) e as sequências, na ordem de `CATEGORIAS`.
 
     Determinística dada a semente. Cada categoria tem o seu próprio gerador
     aleatório (semente + nome da categoria), então mudar a quantidade de uma
     população não move as outras que não dependem dela. Dependências: os centros de
     `sessao_repetida` evitam os de `aglomerado`; o ruído evita todos os pontos de
-    grupo do mesmo tipo.
+    grupo do mesmo tipo; as sequências vêm por último e evitam tudo o que já foi
+    sorteado, então ligá-las não move o controle.
 
     `tipos` são os códigos de tipo aceitos (a taxonomia ainda está aberta, #2; o
     script lê os ativos do banco). `eps_metros` define a separação mínima
-    (`FATOR_SEPARACAO` × eps). `ValueError` se a separação não couber na área.
+    (`FATOR_SEPARACAO` × eps) do controle. `eps_maximo_metros` é o maior eps com que
+    os dados serão agrupados (a sensibilidade passa o maior da grade); as sequências
+    ficam a `distancia_de_isolamento_metros` de todo ponto do mesmo tipo fora delas.
+    `ValueError` se a separação não couber na área.
     """
     if not tipos:
         raise ValueError("nenhum tipo de barreira informado (rode ./db/banco.sh migrar)")
@@ -271,6 +313,15 @@ def gerar_populacoes(
     )
     itens.extend(_gerar_fora_da_area(_gerador(opcoes.semente, "fora_da_area"), opcoes, tipos))
     itens.extend(_gerar_invalidos(_gerador(opcoes.semente, "invalido"), opcoes, tipos))
+    itens.extend(
+        _gerar_sequencias(
+            _gerador(opcoes.semente, "sequencia"),
+            opcoes,
+            tipos=tipos,
+            isolamento_metros=distancia_de_isolamento_metros(eps_metros, eps_maximo_metros),
+            pontos_por_tipo=pontos_por_tipo,
+        )
+    )
     return itens
 
 
@@ -471,6 +522,99 @@ def _gerar_invalidos(
             payload["campo_extra"] = "campo que não existe no contrato"
         itens.append(ItemGerado("invalido", None, variacao, norte_metros, leste_metros, payload))
     return itens
+
+
+def _gerar_sequencias(
+    rng: random.Random,
+    opcoes: OpcoesGeracao,
+    *,
+    tipos: list[str],
+    isolamento_metros: float,
+    pontos_por_tipo: dict[str, list[PontoMetros]],
+) -> list[ItemGerado]:
+    """Barreiras DISTINTAS em linha reta, do mesmo tipo dentro de cada sequência.
+
+    Cada sequência sorteia o tipo, o primeiro centro e um rumo; os centros seguintes
+    ficam a `espacamento_sequencia_metros` uns dos outros nesse rumo. Cada barreira é
+    um grupo de `pontos_por_aglomerado` relatos de sessões distintas, com a
+    dispersão de sempre. A sequência inteira é sorteada de novo (amostragem com
+    rejeição) até todos os centros caberem no disco de geração e todos os pontos
+    ficarem a ≥ `isolamento_metros` de qualquer outro ponto do mesmo tipo.
+    """
+    itens: list[ItemGerado] = []
+    for sequencia in range(opcoes.sequencias):
+        tipo = rng.choice(tipos)
+        barreiras = _sortear_sequencia(
+            rng,
+            opcoes,
+            pontos_por_tipo[tipo],
+            isolamento_metros,
+            f"a sequência {sequencia + 1} ({tipo})",
+        )
+        for barreira, pontos in enumerate(barreiras):
+            grupo = sequencia * opcoes.barreiras_por_sequencia + barreira
+            for relato, (norte_metros, leste_metros) in enumerate(pontos):
+                payload = _payload(
+                    rng,
+                    norte_metros,
+                    leste_metros,
+                    tipo=tipo,
+                    sessao_id=_nova_sessao(rng),
+                    descricao=(
+                        f"SIMULAÇÃO: sequência {sequencia + 1}, barreira {barreira + 1} "
+                        f"(relato {relato + 1} de {len(pontos)})"
+                    ),
+                )
+                itens.append(
+                    ItemGerado(
+                        "sequencia", grupo, None, norte_metros, leste_metros, payload, sequencia
+                    )
+                )
+            pontos_por_tipo[tipo].extend(pontos)
+    return itens
+
+
+def _sortear_sequencia(
+    rng: random.Random,
+    opcoes: OpcoesGeracao,
+    outros: Sequence[PontoMetros],
+    isolamento_metros: float,
+    descricao: str,
+) -> list[list[PontoMetros]]:
+    """Os pontos de cada barreira de uma sequência, por amostragem com rejeição."""
+    for _ in range(MAX_TENTATIVAS):
+        inicio_metros = _ponto_no_disco(rng, RAIO_GERACAO_METROS)
+        rumo = rng.uniform(0, 2 * math.pi)
+        centros_metros = [
+            (
+                inicio_metros[0] + i * opcoes.espacamento_sequencia_metros * math.cos(rumo),
+                inicio_metros[1] + i * opcoes.espacamento_sequencia_metros * math.sin(rumo),
+            )
+            for i in range(opcoes.barreiras_por_sequencia)
+        ]
+        if any(math.hypot(*centro) > RAIO_GERACAO_METROS for centro in centros_metros):
+            continue
+        barreiras = [
+            [
+                (centro[0] + desvio[0], centro[1] + desvio[1])
+                for desvio in (
+                    _ponto_no_disco(rng, opcoes.dispersao_metros)
+                    for _ in range(opcoes.pontos_por_aglomerado)
+                )
+            ]
+            for centro in centros_metros
+        ]
+        if all(
+            _longe_de_todos(ponto, outros, isolamento_metros)
+            for pontos in barreiras
+            for ponto in pontos
+        ):
+            return barreiras
+    raise ValueError(
+        f"{descricao} não coube a {isolamento_metros:g} m dos demais pontos do mesmo tipo "
+        f"em {MAX_TENTATIVAS} tentativas, num disco de {RAIO_GERACAO_METROS:g} m: reduza "
+        "as quantidades"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -830,8 +974,10 @@ def formatar_geracao(
     *,
     eps_metros: float,
     min_confirmacoes: int,
+    eps_maximo_metros: float | None = None,
 ) -> str:
     contagem = Counter(item.categoria for item in itens)
+    isolamento_metros = distancia_de_isolamento_metros(eps_metros, eps_maximo_metros)
     grupos = {
         categoria: len({item.grupo for item in itens if item.categoria == categoria})
         for categoria in _CATEGORIAS_DE_GRUPO
@@ -855,6 +1001,8 @@ def formatar_geracao(
         "ruido": "ruido_isolado",
         "fora_da_area": "descartado (fora_da_area)",
         "invalido": "rejeitado no schema (estágio 1)",
+        "sequencia": f"cada barreira separada, {status_esperado(fixo, min_confirmacoes)} "
+        f"({fixo} sessões)",
     }
     linhas = [
         [
@@ -875,6 +1023,15 @@ def formatar_geracao(
         f"{formatar_metros(opcoes.dispersao_metros)}; separação mínima "
         f"{formatar_metros(separacao)} = {FATOR_SEPARACAO} × eps de "
         f"{formatar_metros(eps_metros)})\n"
+        + (
+            f"[SIMULAÇÃO] Sequências: {opcoes.sequencias} de {opcoes.barreiras_por_sequencia} "
+            "barreiras distintas em linha, a "
+            f"{formatar_metros(opcoes.espacamento_sequencia_metros)} umas das outras; "
+            f"isoladas a ≥ {formatar_metros(isolamento_metros)} de todo ponto do mesmo tipo "
+            "fora delas\n"
+            if opcoes.sequencias
+            else ""
+        )
         + formatar_tabela(
             ["categoria", "grupos", "enviados", "unidade", "destino esperado"], linhas
         )
@@ -918,6 +1075,7 @@ def formatar_avaliacao(avaliacao: Avaliacao) -> str:
                 sum(avaliacao.confusao[categoria].values()),
             ]
             for categoria in CATEGORIAS
+            if avaliacao.confusao[categoria]
         ],
     )
     barreiras = formatar_tabela(
@@ -937,20 +1095,33 @@ def formatar_avaliacao(avaliacao: Avaliacao) -> str:
         [
             [r.categoria, r.unidade, r.esperado, r.obtido, formatar_taxa(r.taxa)]
             for r in avaliacao.por_categoria.values()
+            if r.esperado
         ],
     )
     return "\n\n".join(
         [
             "[SIMULAÇÃO] Matriz categoria → destino final (em alertas; inválidos em payloads)\n"
             + matriz,
-            "[SIMULAÇÃO] Barreiras esperadas × obtidas (aglomerado → confirmada, "
-            "sessão repetida → pendente)\n" + barreiras,
+            "[SIMULAÇÃO] Barreiras esperadas × obtidas (status esperado de cada grupo: "
+            "confirmada se sessões ≥ min_confirmacoes)\n" + barreiras,
             "[SIMULAÇÃO] Taxa de acerto por categoria\n" + acertos,
             "[SIMULAÇÃO] Grupos incompletos (relato reprovado na entrada ou ausente): "
             f"{avaliacao.grupos_incompletos} · fragmentados: {avaliacao.grupos_fragmentados}"
             f" · fusões indevidas: {avaliacao.fusoes_indevidas} · ruído classificado como "
             f"barreira: {avaliacao.ruido_em_barreira}",
         ]
+    )
+
+
+def formatar_sequencias(avaliacao_sequencia: Avaliacao) -> str:
+    """Uma linha sobre a população `sequencia`, avaliada à parte."""
+    resultado = avaliacao_sequencia.por_categoria["sequencia"]
+    obtidas = sum(avaliacao_sequencia.barreiras_obtidas.values())
+    return (
+        f"[SIMULAÇÃO] Sequências: {resultado.esperado} barreiras verdadeiras → {obtidas} "
+        f"barreiras obtidas; {resultado.obtido} separadas corretamente "
+        f"({formatar_taxa(resultado.taxa)}); fusões: {avaliacao_sequencia.fusoes_indevidas}; "
+        f"fragmentadas: {avaliacao_sequencia.grupos_fragmentados}"
     )
 
 
@@ -1041,6 +1212,25 @@ def adicionar_opcoes_de_geracao(
         help="payloads malformados (padrão: %(default)s)",
     )
     grupo.add_argument(
+        "--sequencias",
+        type=int,
+        default=padrao.sequencias,
+        help="linhas de barreiras distintas, para medir o encadeamento (T5) (padrão: %(default)s)",
+    )
+    grupo.add_argument(
+        "--barreiras-por-sequencia",
+        type=int,
+        default=padrao.barreiras_por_sequencia,
+        help="barreiras em cada sequência (padrão: %(default)s)",
+    )
+    grupo.add_argument(
+        "--espacamento-sequencia-metros",
+        type=float,
+        default=padrao.espacamento_sequencia_metros,
+        help="distância, em metros, entre os centros de barreiras vizinhas numa sequência "
+        "(padrão: %(default)s)",
+    )
+    grupo.add_argument(
         "--sessoes-variaveis",
         action=argparse.BooleanOptionalAction,
         default=padrao.sessoes_variaveis,
@@ -1101,6 +1291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     resumo: ResumoExecucao | None = None
     avaliacao: Avaliacao | None = None
+    avaliacao_sequencia: Avaliacao | None = None
     apagados: dict[str, int] | None = None
     try:
         with psycopg.connect(config.conninfo) as conexao:
@@ -1128,11 +1319,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     srid_armazenamento=config.srid_armazenamento,
                 )
             if args.avaliar:
-                avaliacao = avaliar(
-                    registrados,
-                    ler_estado_final(conexao),
-                    min_confirmacoes=config.min_confirmacoes,
-                )
+                estado = ler_estado_final(conexao)
+                avaliacao = avaliar(registrados, estado, min_confirmacoes=config.min_confirmacoes)
+                if opcoes.sequencias:
+                    avaliacao_sequencia = avaliar(
+                        [r for r in registrados if r.item.categoria == "sequencia"],
+                        estado,
+                        min_confirmacoes=config.min_confirmacoes,
+                    )
             conexao.commit()
     except ValueError as erro:
         print(f"erro: {erro}. Nada foi gravado (rollback).", file=sys.stderr)
@@ -1164,6 +1358,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
     if avaliacao is not None:
         print(formatar_avaliacao(avaliacao) + "\n")
+    if avaliacao_sequencia is not None:
+        print(formatar_sequencias(avaliacao_sequencia) + "\n")
 
     caminho = DIRETORIO_SAIDA / f"simulacao-semente-{opcoes.semente}.json"
     gravar_json(
@@ -1188,6 +1384,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "categoria": r.item.categoria,
                     "grupo": r.item.grupo,
+                    "sequencia": r.item.sequencia,
                     "variacao": r.item.variacao,
                     "norte_metros": r.item.norte_metros,
                     "leste_metros": r.item.leste_metros,
