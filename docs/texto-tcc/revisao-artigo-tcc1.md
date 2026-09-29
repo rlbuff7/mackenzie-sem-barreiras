@@ -181,9 +181,7 @@ Maps)" da Fase 2: o protótipo usa Leaflet com OpenStreetMap.
 - **Títulos divergentes:** artigo "Acessibilidade Mackenzie"; pôster "Mackenzie sem
   Barreiras: Mapeamento Colaborativo da Acessibilidade Urbana no Entorno Universitário".
   Sugestão: adotar o do pôster nos dois (é o nome do repositório e do sistema).
-- **Autores [EQUIPE]:** pôster e artigo listam dois autores; a divisão de
-  responsabilidades decidida em 29/09/2026 (#5) cita três responsáveis (código = rlbuff7;
-  infra = Victor; dados reais = Maurício). Conferir a lista de autores do documento final.
+- **Autores [EQUIPE]:** conferir com a equipe e a orientadora a lista de autores do TCC II.
 - **Arquitetura do pôster (Figura 1):** "TypeScript + Google Maps API" → "TypeScript +
   Leaflet/OpenStreetMap".
 - **Resumo** termina com ".." (ponto duplo).

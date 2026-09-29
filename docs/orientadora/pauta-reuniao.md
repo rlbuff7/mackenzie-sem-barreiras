@@ -192,6 +192,7 @@ contrato da API, testes; o pipeline não muda.
 - **Correções no material do TCC I** ([`revisao-artigo-tcc1.md`](../texto-tcc/revisao-artigo-tcc1.md)):
   IBGE 14,4 × 18,6 milhões (pesquisas diferentes, não comparáveis), OMS 2011 × 2022,
   referencial fora de escopo, cronograma.
+- Conferir com a equipe e a orientadora a lista de autores do TCC II.
 - **Perguntas rápidas:**
   - O texto de consentimento dos voluntários (`coleta-em-campo.md` §3) está bom? A coleta
     precisa de algum trâmite de ética na universidade?
