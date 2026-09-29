@@ -190,8 +190,8 @@ cluster, juntar-se a uma barreira existente ou unir dois clusters. A reconstruç
 sempre o mesmo resultado que uma primeira execução sobre os mesmos dados. Com isso, o
 ruído é reavaliado a cada execução (T4), um alerta novo perto de uma barreira entra no
 cluster dela, e duas execuções seguidas produzem o mesmo resumo. O custo aceito é que os
-identificadores das barreiras mudam a cada execução. Como os alertas brutos nunca são
-apagados, mudar os parâmetros é só reexecutar o pipeline sobre os mesmos dados.
+identificadores das barreiras mudam a cada execução. Como o pipeline nunca apaga
+alertas, mudar os parâmetros é só reexecutar o pipeline sobre os mesmos dados.
 
 ## 9 Estatísticas do funil
 
