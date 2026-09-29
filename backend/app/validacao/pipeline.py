@@ -9,11 +9,13 @@ de outros. Por isso rodam em lote, em `executar_pipeline`, chamado por
 
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 
 from psycopg import Connection
 
 from app.validacao.clustering import rotular_clusters
 from app.validacao.entrada import ORIGENS_VALIDAS
+from app.validacao.estatisticas import ROTULOS_POR_ORIGEM
 
 # Chave do advisory lock que serializa as execuções do pipeline (D6). O número em
 # si é arbitrário: basta ser uma constante que nenhum outro uso de advisory lock
@@ -28,19 +30,24 @@ class ResumoExecucao:
     """O que uma execução do pipeline fez. Tem os mesmos campos da resposta de
     `POST /validacao/executar` (Contrato da API).
 
-    `alertas_processados` conta os alertas que entraram no agrupamento (todos os
-    não descartados da origem) e é sempre `agrupados + ruido_isolado`. Os dois
-    campos de barreiras contam barreiras, não alertas. `parametros` registra com
-    que valores a execução rodou, para que um resultado nunca seja lido sem eles.
+    `rotulo` diz de onde vêm os números (G10: "SIMULAÇÃO" em toda saída de dado
+    sintético), com o mesmo texto das estatísticas. `alertas_processados` conta
+    os alertas que entraram no agrupamento (todos os não descartados da origem) e
+    é sempre `agrupados + ruido_isolado`. Os dois campos de barreiras contam
+    barreiras, não alertas. `parametros` registra com que valores a execução
+    rodou, para que um resultado nunca seja lido sem eles; os mesmos valores
+    ficam gravados em `execucoes_pipeline`, com o instante `executado_em`.
     """
 
     origem: str
+    rotulo: str
     alertas_processados: int
     agrupados: int
     ruido_isolado: int
     barreiras_pendentes: int
     barreiras_confirmadas: int
     parametros: dict[str, float | int]
+    executado_em: datetime
 
 
 def decidir_status_barreira(sessoes_distintas: int, min_confirmacoes: int) -> str:
@@ -93,6 +100,10 @@ def executar_pipeline(
        status dado por `decidir_status_barreira`. Os alertas do cluster viram
        `agrupado`, ligados a ela.
     5. Os alertas que o DBSCAN marcou como ruído viram `ruido_isolado`.
+    6. A linha da origem em `execucoes_pipeline` recebe os parâmetros usados e o
+       instante da execução (R14). É dela que as estatísticas leem os parâmetros:
+       o funil e os parâmetros que o produziram saem sempre da mesma transação,
+       mesmo que o `.env` mude depois ou que um script rode com outros valores.
 
     Por que reconstruir tudo em vez de atualizar só o que mudou: no DBSCAN, o
     rótulo de um alerta depende de todos os outros. Um alerta novo pode
@@ -164,8 +175,18 @@ def executar_pipeline(
             {"ids": alertas_ruido},
         )
 
+    executado_em = _registrar_execucao(
+        conexao,
+        origem=origem,
+        eps_metros=eps_metros,
+        min_pontos=min_pontos,
+        min_confirmacoes=min_confirmacoes,
+        srid_calculo=srid_calculo,
+    )
+
     return ResumoExecucao(
         origem=origem,
+        rotulo=ROTULOS_POR_ORIGEM[origem],
         alertas_processados=len(rotulos),
         agrupados=len(rotulos) - len(alertas_ruido),
         ruido_isolado=len(alertas_ruido),
@@ -176,7 +197,48 @@ def executar_pipeline(
             "min_pontos": min_pontos,
             "min_confirmacoes": min_confirmacoes,
         },
+        executado_em=executado_em,
     )
+
+
+def _registrar_execucao(
+    conexao: Connection,
+    *,
+    origem: str,
+    eps_metros: float,
+    min_pontos: int,
+    min_confirmacoes: int,
+    srid_calculo: int,
+) -> datetime:
+    """Passo 6 de `executar_pipeline`: grava (upsert) os parâmetros desta execução
+    na linha da origem em `execucoes_pipeline` e devolve `executado_em`.
+
+    Uma linha por origem basta: cada execução reconstrói tudo do zero (D6), então
+    só a última explica o estado atual. `executado_em` é o `now()` da transação,
+    o mesmo instante para tudo o que esta execução gravou.
+    """
+    return conexao.execute(
+        """
+        INSERT INTO execucoes_pipeline
+            (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+        VALUES (%(origem)s, %(eps_metros)s, %(min_pontos)s, %(min_confirmacoes)s,
+                %(srid_calculo)s)
+        ON CONFLICT (origem) DO UPDATE
+            SET eps_metros       = EXCLUDED.eps_metros,
+                min_pontos       = EXCLUDED.min_pontos,
+                min_confirmacoes = EXCLUDED.min_confirmacoes,
+                srid_calculo     = EXCLUDED.srid_calculo,
+                executado_em     = EXCLUDED.executado_em
+        RETURNING executado_em
+        """,
+        {
+            "origem": origem,
+            "eps_metros": eps_metros,
+            "min_pontos": min_pontos,
+            "min_confirmacoes": min_confirmacoes,
+            "srid_calculo": srid_calculo,
+        },
+    ).fetchone()[0]
 
 
 def _desfazer_execucao_anterior(conexao: Connection, origem: str) -> None:

@@ -1,12 +1,14 @@
 """`POST /validacao/executar` e `GET /validacao/estatisticas` (Contrato da API).
 
 A lógica fica em `app/validacao/` (`pipeline.py`, `estatisticas.py`). Este módulo só
-traduz HTTP: lê os parâmetros da configuração, protege a execução com o token de
-administrador (D7) e devolve o JSON do Contrato.
+traduz HTTP: passa os parâmetros da configuração para a execução, protege a execução
+com o token de administrador (D7) e devolve o JSON do Contrato. As estatísticas não
+recebem parâmetros da configuração: mostram os da última execução (R14).
 """
 
 import secrets
 from dataclasses import asdict
+from datetime import UTC
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -51,42 +53,38 @@ def exigir_token_admin(
         )
 
 
-def parametros_da_configuracao(config: Configuracoes) -> dict[str, float | int]:
-    """Os parâmetros de validação da configuração (G7), com os nomes do Contrato."""
-    return {
-        "eps_metros": config.dbscan_eps_metros,
-        "min_pontos": config.dbscan_min_points,
-        "min_confirmacoes": config.min_confirmacoes,
-    }
-
-
 @router.post("/executar", dependencies=[Depends(exigir_token_admin)])
 def executar(
     origem: Literal["real", "simulacao"] = "real",
     conexao: Connection = Depends(obter_conexao),
     config: Configuracoes = Depends(obter_configuracoes),
 ) -> dict[str, Any]:
-    """Roda o pipeline (estágios 3 e 4) sobre a origem pedida (padrão `real`)."""
-    parametros = parametros_da_configuracao(config)
+    """Roda o pipeline (estágios 3 e 4) sobre a origem pedida (padrão `real`), com
+    os parâmetros da configuração (G7).
+
+    `executado_em` sai em UTC, no mesmo formato de `GET /validacao/estatisticas`,
+    para que o cliente possa comparar os dois textos diretamente.
+    """
     resumo = executar_pipeline(
         conexao,
         origem=origem,
-        eps_metros=parametros["eps_metros"],
-        min_pontos=parametros["min_pontos"],
-        min_confirmacoes=parametros["min_confirmacoes"],
+        eps_metros=config.dbscan_eps_metros,
+        min_pontos=config.dbscan_min_points,
+        min_confirmacoes=config.min_confirmacoes,
         srid_calculo=config.srid_calculo,
         srid_armazenamento=config.srid_armazenamento,
     )
-    return asdict(resumo)
+    return {**asdict(resumo), "executado_em": resumo.executado_em.astimezone(UTC).isoformat()}
 
 
 @router.get("/estatisticas")
 def estatisticas(
     origem: Literal["real", "simulacao"] = "real",
     conexao: Connection = Depends(obter_conexao),
-    config: Configuracoes = Depends(obter_configuracoes),
 ) -> dict[str, Any]:
-    """Contagens do funil da origem pedida (padrão `real`). Rota pública, só leitura."""
-    return calcular_estatisticas(
-        conexao, origem=origem, parametros=parametros_da_configuracao(config)
-    )
+    """Contagens do funil da origem pedida (padrão `real`). Rota pública, só leitura.
+
+    `parametros` e `executado_em` vêm da última execução do pipeline daquela
+    origem, não da configuração atual (R14); `null` se ela nunca foi processada.
+    """
+    return calcular_estatisticas(conexao, origem=origem)

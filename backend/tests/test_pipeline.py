@@ -1,5 +1,7 @@
 """Testes do estágio 4 (promoção) e da orquestração: `app/validacao/pipeline.py`."""
 
+from datetime import datetime
+
 import psycopg
 import pytest
 
@@ -32,16 +34,37 @@ _PARAMETROS = {
 }
 
 
-def _executar(conexao: psycopg.Connection, origem: str = "simulacao") -> ResumoExecucao:
-    return executar_pipeline(
-        conexao,
-        origem=origem,
-        eps_metros=_EPS_METROS,
-        min_pontos=_MIN_PONTOS,
-        min_confirmacoes=_MIN_CONFIRMACOES,
-        srid_calculo=_SRID_CALCULO,
-        srid_armazenamento=_SRID_ARMAZENAMENTO,
-    )
+_ROTULO_SIMULACAO = "SIMULAÇÃO — dados sintéticos"
+
+
+def _executar(
+    conexao: psycopg.Connection, origem: str = "simulacao", **sobrescritas: object
+) -> ResumoExecucao:
+    parametros: dict[str, object] = {
+        "origem": origem,
+        "eps_metros": _EPS_METROS,
+        "min_pontos": _MIN_PONTOS,
+        "min_confirmacoes": _MIN_CONFIRMACOES,
+        "srid_calculo": _SRID_CALCULO,
+        "srid_armazenamento": _SRID_ARMAZENAMENTO,
+    }
+    parametros.update(sobrescritas)
+    return executar_pipeline(conexao, **parametros)
+
+
+def _agora(conexao: psycopg.Connection) -> datetime:
+    """`now()` da transação do teste: é o `executado_em` de qualquer execução nela."""
+    return conexao.execute("SELECT now()").fetchone()[0]
+
+
+def _execucao_registrada(conexao: psycopg.Connection, origem: str) -> tuple | None:
+    return conexao.execute(
+        """
+        SELECT eps_metros, min_pontos, min_confirmacoes, srid_calculo, executado_em
+        FROM execucoes_pipeline WHERE origem = %s
+        """,
+        (origem,),
+    ).fetchone()
 
 
 def _alerta_em(
@@ -108,12 +131,14 @@ def test_tres_sessoes_distintas_proximas_viram_barreira_confirmada(
 
     assert resumo == ResumoExecucao(
         origem="simulacao",
+        rotulo=_ROTULO_SIMULACAO,
         alertas_processados=3,
         agrupados=3,
         ruido_isolado=0,
         barreiras_pendentes=0,
         barreiras_confirmadas=1,
         parametros=_PARAMETROS,
+        executado_em=_agora(conexao),
     )
     [(barreira_id, tipo, status, confirmacoes)] = _barreiras(conexao)
     assert (tipo, status, confirmacoes) == ("degrau", "confirmada", 3)
@@ -247,12 +272,14 @@ def test_origens_nao_se_misturam(conexao: psycopg.Connection) -> None:
 
     assert resumo_real == ResumoExecucao(
         origem="real",
+        rotulo="Dados reais de campo",
         alertas_processados=1,
         agrupados=0,
         ruido_isolado=1,
         barreiras_pendentes=0,
         barreiras_confirmadas=0,
         parametros=_PARAMETROS,
+        executado_em=_agora(conexao),
     )
     assert _barreiras(conexao, origem="real") == []
     [(barreira_simulacao, _, status, _)] = _barreiras(conexao, origem="simulacao")
@@ -291,18 +318,56 @@ def test_sem_alertas_nada_acontece(conexao: psycopg.Connection) -> None:
 
     assert resumo == ResumoExecucao(
         origem="simulacao",
+        rotulo=_ROTULO_SIMULACAO,
         alertas_processados=0,
         agrupados=0,
         ruido_isolado=0,
         barreiras_pendentes=0,
         barreiras_confirmadas=0,
         parametros=_PARAMETROS,
+        executado_em=_agora(conexao),
     )
 
 
 def test_origem_invalida_levanta_value_error(conexao: psycopg.Connection) -> None:
     with pytest.raises(ValueError):
         _executar(conexao, origem="simulação")
+
+
+# --- execucoes_pipeline (R14): parâmetros que produziram o estado atual ---
+
+
+def test_registra_os_parametros_que_a_execucao_usou(conexao: psycopg.Connection) -> None:
+    """Valores propositalmente diferentes dos do `.env`: a linha guarda o que a
+    execução usou, não a configuração."""
+    resumo = _executar(conexao, eps_metros=4.5, min_pontos=3, min_confirmacoes=2)
+
+    assert _execucao_registrada(conexao, "simulacao") == (
+        4.5,
+        3,
+        2,
+        _SRID_CALCULO,
+        resumo.executado_em,
+    )
+    assert resumo.parametros == {"eps_metros": 4.5, "min_pontos": 3, "min_confirmacoes": 2}
+    assert resumo.executado_em == _agora(conexao)
+
+
+def test_segunda_execucao_atualiza_a_linha_da_origem(conexao: psycopg.Connection) -> None:
+    _executar(conexao, eps_metros=4.5)
+    _executar(conexao, eps_metros=12, min_confirmacoes=4)
+
+    linhas = conexao.execute(
+        "SELECT origem, eps_metros, min_confirmacoes FROM execucoes_pipeline"
+    ).fetchall()
+    assert linhas == [("simulacao", 12, 4)]
+
+
+def test_execucao_de_uma_origem_nao_registra_a_outra(conexao: psycopg.Connection) -> None:
+    _executar(conexao, origem="simulacao")
+
+    assert _execucao_registrada(conexao, "simulacao") is not None
+    assert _execucao_registrada(conexao, "real") is None
 
 
 def test_nao_faz_commit_e_segura_o_lock_ate_o_fim_da_transacao(

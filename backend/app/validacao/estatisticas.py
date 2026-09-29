@@ -25,9 +25,7 @@ ROTULOS_POR_ORIGEM = {
 _MOTIVO_FORA_DA_AREA = "fora_da_area"
 
 
-def calcular_estatisticas(
-    conexao: Connection, *, origem: str, parametros: dict[str, float | int]
-) -> dict[str, Any]:
+def calcular_estatisticas(conexao: Connection, *, origem: str) -> dict[str, Any]:
     """Contagens do funil de uma origem, no formato do Contrato da API.
 
     Unidades: o bloco `alertas` conta ALERTAS e o bloco `barreiras` conta
@@ -53,71 +51,102 @@ def calcular_estatisticas(
 
     Bloco `barreiras`: `total`, `pendentes` e `confirmadas` (estágio 4).
 
-    `parametros` (`eps_metros`, `min_pontos`, `min_confirmacoes`) é devolvido
-    como veio. O banco não guarda com que parâmetros o estado atual foi
-    produzido. A rota passa os da configuração, que são os que
-    `POST /validacao/executar` usa; se um script rodou o pipeline com outros
-    valores (análise de sensibilidade, Task 4), as contagens refletem a última
-    execução, não necessariamente estes parâmetros.
+    `parametros` (`eps_metros`, `min_pontos`, `min_confirmacoes`) e
+    `executado_em` são os da ÚLTIMA EXECUÇÃO do pipeline para a origem, lidos de
+    `execucoes_pipeline` (R14). NÃO são a configuração atual: os status e as
+    barreiras foram produzidos por aquela execução, e o `.env` pode ter mudado
+    depois, ou um script pode ter rodado com outros valores (análise de
+    sensibilidade). Assim a figura do funil nunca leva parâmetros que não
+    produziram os números. Origem nunca processada: os dois são `None`.
 
-    `gerado_em` é o instante do cálculo (UTC, ISO-8601).
+    Um único snapshot: tudo sai de UMA consulta. Em READ COMMITTED (o padrão do
+    Postgres) cada comando enxerga os dados confirmados até o seu início; com
+    várias consultas, uma execução do pipeline confirmada entre elas produziria
+    um funil misturado (alertas de antes, barreiras de depois). Numa consulta
+    só, as contagens e os parâmetros são sempre do mesmo instante.
+
+    `gerado_em` é o instante do cálculo (UTC, ISO-8601); `executado_em` também
+    sai em UTC.
     """
     if origem not in ORIGENS_VALIDAS:
         raise ValueError(f"origem inválida: {origem!r} (esperado 'real' ou 'simulacao')")
 
-    rejeitados_schema = conexao.execute(
-        "SELECT count(*) FROM alertas_rejeitados WHERE origem = %(origem)s",
-        {"origem": origem},
-    ).fetchone()[0]
-
-    linhas_alertas = conexao.execute(
+    linha = conexao.execute(
         """
-        SELECT status, motivo_descarte, count(*)
-        FROM alertas
-        WHERE origem = %(origem)s
-        GROUP BY status, motivo_descarte
+        WITH alertas_da_origem AS (
+            SELECT status, motivo_descarte FROM alertas WHERE origem = %(origem)s
+        ),
+        barreiras_da_origem AS (
+            SELECT status FROM barreiras WHERE origem = %(origem)s
+        )
+        SELECT
+            (SELECT count(*) FROM alertas_rejeitados WHERE origem = %(origem)s),
+            (SELECT count(*) FROM alertas_da_origem),
+            (SELECT COALESCE(jsonb_object_agg(motivo_descarte, total), '{}'::jsonb)
+             FROM (SELECT motivo_descarte, count(*) AS total
+                   FROM alertas_da_origem
+                   WHERE status = 'descartado'
+                   GROUP BY motivo_descarte) AS por_motivo),
+            (SELECT count(*) FROM alertas_da_origem WHERE status = 'bruto'),
+            (SELECT count(*) FROM alertas_da_origem WHERE status = 'ruido_isolado'),
+            (SELECT count(*) FROM alertas_da_origem WHERE status = 'agrupado'),
+            (SELECT count(*) FROM barreiras_da_origem),
+            (SELECT count(*) FROM barreiras_da_origem WHERE status = 'pendente'),
+            (SELECT count(*) FROM barreiras_da_origem WHERE status = 'confirmada'),
+            execucao.eps_metros,
+            execucao.min_pontos,
+            execucao.min_confirmacoes,
+            execucao.executado_em
+        FROM (VALUES (1)) AS uma_linha
+        LEFT JOIN execucoes_pipeline AS execucao ON execucao.origem = %(origem)s
         """,
         {"origem": origem},
-    ).fetchall()
-    alertas_por_status: dict[str, int] = {}
-    descartados_por_motivo: dict[str, int] = {}
-    for status, motivo_descarte, total in linhas_alertas:
-        alertas_por_status[status] = alertas_por_status.get(status, 0) + total
-        if status == "descartado":
-            descartados_por_motivo[motivo_descarte] = total
-
-    barreiras_por_status = dict(
-        conexao.execute(
-            "SELECT status, count(*) FROM barreiras WHERE origem = %(origem)s GROUP BY status",
-            {"origem": origem},
-        ).fetchall()
-    )
+    ).fetchone()
+    (
+        rejeitados_schema,
+        linhas_alertas,
+        descartados_por_motivo,
+        aguardando_pipeline,
+        ruido_isolado,
+        agrupados,
+        barreiras_total,
+        barreiras_pendentes,
+        barreiras_confirmadas,
+        eps_metros,
+        min_pontos,
+        min_confirmacoes,
+        executado_em,
+    ) = linha
 
     # `fora_da_area` primeiro (é o estágio 2 do funil), os outros em ordem
     # alfabética, para a resposta ter sempre a mesma forma.
     descartados = {_MOTIVO_FORA_DA_AREA: descartados_por_motivo.pop(_MOTIVO_FORA_DA_AREA, 0)}
     descartados.update(sorted(descartados_por_motivo.items()))
 
+    nunca_executado = executado_em is None
     return {
         "origem": origem,
         "rotulo": ROTULOS_POR_ORIGEM[origem],
         "alertas": {
-            "recebidos": rejeitados_schema + sum(alertas_por_status.values()),
+            "recebidos": rejeitados_schema + linhas_alertas,
             "rejeitados_schema": rejeitados_schema,
             "descartados": descartados,
-            "aguardando_pipeline": alertas_por_status.get("bruto", 0),
-            "ruido_isolado": alertas_por_status.get("ruido_isolado", 0),
-            "agrupados": alertas_por_status.get("agrupado", 0),
+            "aguardando_pipeline": aguardando_pipeline,
+            "ruido_isolado": ruido_isolado,
+            "agrupados": agrupados,
         },
         "barreiras": {
-            "total": sum(barreiras_por_status.values()),
-            "pendentes": barreiras_por_status.get("pendente", 0),
-            "confirmadas": barreiras_por_status.get("confirmada", 0),
+            "total": barreiras_total,
+            "pendentes": barreiras_pendentes,
+            "confirmadas": barreiras_confirmadas,
         },
-        "parametros": {
-            "eps_metros": parametros["eps_metros"],
-            "min_pontos": parametros["min_pontos"],
-            "min_confirmacoes": parametros["min_confirmacoes"],
+        "parametros": None
+        if nunca_executado
+        else {
+            "eps_metros": eps_metros,
+            "min_pontos": min_pontos,
+            "min_confirmacoes": min_confirmacoes,
         },
+        "executado_em": None if nunca_executado else executado_em.astimezone(UTC).isoformat(),
         "gerado_em": datetime.now(UTC).isoformat(),
     }

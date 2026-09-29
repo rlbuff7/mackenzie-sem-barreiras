@@ -19,6 +19,9 @@ from tests.auxiliares import (
 
 # G8: valores de teste explícitos, sem passar por Configuracoes.
 _PARAMETROS = {"eps_metros": 8, "min_pontos": 2, "min_confirmacoes": 3}
+# Diferentes dos do `.env` de propósito: provam que as estatísticas mostram os
+# parâmetros da execução, não os da configuração.
+_PARAMETROS_FORA_DA_CONFIG = {"eps_metros": 4.5, "min_pontos": 3, "min_confirmacoes": 2}
 
 
 def _alerta_em(conexao: psycopg.Connection, norte_metros: float, **campos: object) -> int:
@@ -35,20 +38,31 @@ def _inserir_rejeitado(conexao: psycopg.Connection, origem: str) -> None:
     )
 
 
-def _executar_pipeline(conexao: psycopg.Connection) -> None:
+def _executar_pipeline(
+    conexao: psycopg.Connection, origem: str = "simulacao", parametros: dict = _PARAMETROS
+) -> None:
     executar_pipeline(
         conexao,
-        origem="simulacao",
-        eps_metros=_PARAMETROS["eps_metros"],
-        min_pontos=_PARAMETROS["min_pontos"],
-        min_confirmacoes=_PARAMETROS["min_confirmacoes"],
+        origem=origem,
+        eps_metros=parametros["eps_metros"],
+        min_pontos=parametros["min_pontos"],
+        min_confirmacoes=parametros["min_confirmacoes"],
         srid_calculo=31983,
         srid_armazenamento=4326,
     )
 
 
-def _sem_gerado_em(estatisticas: dict) -> dict:
-    return {chave: valor for chave, valor in estatisticas.items() if chave != "gerado_em"}
+def _agora(conexao: psycopg.Connection) -> datetime:
+    """`now()` da transação do teste: é o `executado_em` de qualquer execução nela."""
+    return conexao.execute("SELECT now()").fetchone()[0]
+
+
+def _sem_instantes(estatisticas: dict) -> dict:
+    return {
+        chave: valor
+        for chave, valor in estatisticas.items()
+        if chave not in {"gerado_em", "executado_em"}
+    }
 
 
 def test_contagens_batem_com_o_cenario_montado(conexao: psycopg.Connection) -> None:
@@ -69,9 +83,9 @@ def test_contagens_batem_com_o_cenario_montado(conexao: psycopg.Connection) -> N
     _inserir_rejeitado(conexao, "real")
     _alerta_em(conexao, 0, origem="real")
 
-    estatisticas = calcular_estatisticas(conexao, origem="simulacao", parametros=_PARAMETROS)
+    estatisticas = calcular_estatisticas(conexao, origem="simulacao")
 
-    assert _sem_gerado_em(estatisticas) == {
+    assert _sem_instantes(estatisticas) == {
         "origem": "simulacao",
         "rotulo": "SIMULAÇÃO — dados sintéticos",
         "alertas": {
@@ -85,6 +99,7 @@ def test_contagens_batem_com_o_cenario_montado(conexao: psycopg.Connection) -> N
         "barreiras": {"total": 2, "pendentes": 1, "confirmadas": 1},
         "parametros": _PARAMETROS,
     }
+    assert datetime.fromisoformat(estatisticas["executado_em"]) == _agora(conexao)
 
 
 def test_recebidos_e_a_soma_de_todos_os_estagios(conexao: psycopg.Connection) -> None:
@@ -96,9 +111,7 @@ def test_recebidos_e_a_soma_de_todos_os_estagios(conexao: psycopg.Connection) ->
     _executar_pipeline(conexao)
     _alerta_em(conexao, 300)
 
-    estatisticas = calcular_estatisticas(conexao, origem="simulacao", parametros=_PARAMETROS)
-
-    alertas = estatisticas["alertas"]
+    alertas = calcular_estatisticas(conexao, origem="simulacao")["alertas"]
 
     assert alertas["recebidos"] == (
         alertas["rejeitados_schema"]
@@ -109,12 +122,57 @@ def test_recebidos_e_a_soma_de_todos_os_estagios(conexao: psycopg.Connection) ->
     )
 
 
+# --- parametros e executado_em: os da ÚLTIMA EXECUÇÃO (R14), não a configuração ---
+
+
+def test_parametros_sao_os_da_execucao_com_valores_fora_da_config(
+    conexao: psycopg.Connection,
+) -> None:
+    _executar_pipeline(conexao, parametros=_PARAMETROS_FORA_DA_CONFIG)
+
+    estatisticas = calcular_estatisticas(conexao, origem="simulacao")
+
+    assert estatisticas["parametros"] == _PARAMETROS_FORA_DA_CONFIG
+    assert datetime.fromisoformat(estatisticas["executado_em"]) == _agora(conexao)
+
+
+def test_origem_nunca_processada_tem_parametros_e_executado_em_nulos(
+    conexao: psycopg.Connection,
+) -> None:
+    estatisticas = calcular_estatisticas(conexao, origem="simulacao")
+
+    assert estatisticas["parametros"] is None
+    assert estatisticas["executado_em"] is None
+
+
+def test_segunda_execucao_atualiza_os_parametros(conexao: psycopg.Connection) -> None:
+    _executar_pipeline(conexao, parametros=_PARAMETROS)
+    _executar_pipeline(conexao, parametros=_PARAMETROS_FORA_DA_CONFIG)
+
+    estatisticas = calcular_estatisticas(conexao, origem="simulacao")
+
+    assert estatisticas["parametros"] == _PARAMETROS_FORA_DA_CONFIG
+
+
+def test_execucao_de_uma_origem_nao_aparece_na_outra(conexao: psycopg.Connection) -> None:
+    _executar_pipeline(conexao, origem="simulacao", parametros=_PARAMETROS_FORA_DA_CONFIG)
+
+    real = calcular_estatisticas(conexao, origem="real")
+    simulacao = calcular_estatisticas(conexao, origem="simulacao")
+
+    assert (real["parametros"], real["executado_em"]) == (None, None)
+    assert simulacao["parametros"] == _PARAMETROS_FORA_DA_CONFIG
+
+
+# --- rótulo, formato e validação ---
+
+
 @pytest.mark.parametrize(
     ("origem", "rotulo"),
     [("real", "Dados reais de campo"), ("simulacao", "SIMULAÇÃO — dados sintéticos")],
 )
 def test_rotulo_por_origem(conexao: psycopg.Connection, origem: str, rotulo: str) -> None:
-    estatisticas = calcular_estatisticas(conexao, origem=origem, parametros=_PARAMETROS)
+    estatisticas = calcular_estatisticas(conexao, origem=origem)
 
     assert estatisticas["origem"] == origem
     assert estatisticas["rotulo"] == rotulo
@@ -125,9 +183,9 @@ def test_toda_origem_valida_tem_rotulo() -> None:
 
 
 def test_banco_vazio_tem_fora_da_area_com_zero(conexao: psycopg.Connection) -> None:
-    estatisticas = calcular_estatisticas(conexao, origem="real", parametros=_PARAMETROS)
+    estatisticas = calcular_estatisticas(conexao, origem="real")
 
-    assert _sem_gerado_em(estatisticas) == {
+    assert _sem_instantes(estatisticas) == {
         "origem": "real",
         "rotulo": "Dados reais de campo",
         "alertas": {
@@ -139,12 +197,21 @@ def test_banco_vazio_tem_fora_da_area_com_zero(conexao: psycopg.Connection) -> N
             "agrupados": 0,
         },
         "barreiras": {"total": 0, "pendentes": 0, "confirmadas": 0},
-        "parametros": _PARAMETROS,
+        "parametros": None,
     }
+    assert list(estatisticas) == [
+        "origem",
+        "rotulo",
+        "alertas",
+        "barreiras",
+        "parametros",
+        "executado_em",
+        "gerado_em",
+    ]
 
 
 def test_gerado_em_e_iso_8601_com_fuso(conexao: psycopg.Connection) -> None:
-    estatisticas = calcular_estatisticas(conexao, origem="real", parametros=_PARAMETROS)
+    estatisticas = calcular_estatisticas(conexao, origem="real")
 
     gerado_em = datetime.fromisoformat(estatisticas["gerado_em"])
     assert gerado_em.tzinfo is not None
@@ -152,4 +219,4 @@ def test_gerado_em_e_iso_8601_com_fuso(conexao: psycopg.Connection) -> None:
 
 def test_origem_invalida_levanta_value_error(conexao: psycopg.Connection) -> None:
     with pytest.raises(ValueError):
-        calcular_estatisticas(conexao, origem="simulação", parametros=_PARAMETROS)
+        calcular_estatisticas(conexao, origem="simulação")
