@@ -1,11 +1,29 @@
 """Testes HTTP de `POST /alertas` (Contrato da API)."""
 
 import json
+from collections.abc import Iterator
 from uuid import uuid4
 
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+
+from app.config import obter_configuracoes
+from app.main import app
+
+
+@pytest.fixture
+def limite_de_corpo_alto() -> Iterator[None]:
+    """O aninhamento profundo só estoura o parser com ~200 KB, acima do limite
+    padrão de 16 KiB: aqui o limite sobe, para exercitar o parser."""
+    app.dependency_overrides[obter_configuracoes] = lambda: obter_configuracoes().model_copy(
+        update={"limite_corpo_bytes": 1_000_000}
+    )
+    try:
+        yield
+    finally:
+        del app.dependency_overrides[obter_configuracoes]
+
 
 _CORPO_DENTRO_DA_AREA = {
     "latitude": -23.5471938,
@@ -133,8 +151,7 @@ def _corpo_valido_com_descricao(descricao_em_json: str) -> bytes:
         (b'{"latitude": -Infinity}', _ERRO_JSON_MALFORMADO),
         (b'{"latitude": 1e999}', _ERRO_JSON_MALFORMADO),
         (b'{"descricao": "a\x00b"}', _ERRO_JSON_MALFORMADO),
-        # 5_000 níveis (10 KB, abaixo do limite de 16 KiB) já estouram a recursão do parser.
-        (b"[" * 5_000 + b"]" * 5_000, _ERRO_JSON_MALFORMADO),
+        (b"[" * 100_000 + b"]" * 100_000, _ERRO_JSON_MALFORMADO),
         (_corpo_valido_com_descricao("a\\u0000b"), _ERRO_CARACTERE_NAO_GRAVAVEL),
         (_corpo_valido_com_descricao("a\\ud800b"), _ERRO_CARACTERE_NAO_GRAVAVEL),
         (b'{"a\\u0000": 1}', _ERRO_CARACTERE_NAO_GRAVAVEL),
@@ -161,7 +178,11 @@ def _corpo_valido_com_descricao(descricao_em_json: str) -> bytes:
     ],
 )
 def test_post_alertas_corpo_limite_devolve_422_e_conta_o_rejeitado(
-    cliente: TestClient, conexao: psycopg.Connection, corpo: bytes, erro_esperado: dict
+    cliente: TestClient,
+    limite_de_corpo_alto: None,
+    conexao: psycopg.Connection,
+    corpo: bytes,
+    erro_esperado: dict,
 ) -> None:
     """Achado da revisão final: estes corpos davam 500 (ou 422 com `campo` vazio)
     e a rejeição não era contada no funil. Todos são reprovados no estágio 1."""
@@ -186,7 +207,7 @@ def test_post_alertas_corpo_limite_devolve_422_e_conta_o_rejeitado(
         ({"severidade": "2"}, "severidade", "Deve ser um número inteiro."),
         ({"severidade": 2.5}, "severidade", "Deve ser um número inteiro."),
     ],
-    ids=["latitude_true", "longitude_texto", "severidade_true", "severidade_texto", "severidade_2_5"],
+    ids=["latitude_true", "longitude_texto", "sev_true", "sev_texto", "sev_2_5"],
 )
 def test_post_alertas_tipo_estrito_devolve_422_e_registra_rejeitado(
     cliente: TestClient, conexao: psycopg.Connection, sobrescritas: dict, campo: str, erro: str
