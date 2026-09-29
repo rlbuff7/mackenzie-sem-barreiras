@@ -21,7 +21,16 @@ jobs, na ordem em que dependem uns dos outros:
 `ponta-a-ponta` só roda se os dois primeiros passarem: é o job mais lento (builda
 imagens Docker e sobe uma pilha completa), então não vale a pena rodá-lo se algo mais
 básico já quebrou. Um `concurrency` por branch cancela a execução anterior quando chega
-um push novo, para não gastar minutos de runner numa versão já ultrapassada.
+um push novo, para não gastar minutos de runner numa versão já ultrapassada — **exceto**
+em `main` e em tag de versão (`v*`), onde a execução anterior nunca é cancelada, só fica
+na fila atrás da nova (ver §2, "Por que a publicação nunca é cancelada").
+
+**Um branch com pull request aberto para `main` roda a suíte duas vezes** — uma pelo
+gatilho `push` (todo commit novo no branch) e outra pelo gatilho `pull_request` (o
+merge simulado contra `main`). Isso é esperado, não duplicação por engano: são grupos de
+`concurrency` diferentes (`refs/heads/<branch>` vs. `refs/pull/<n>/merge`), então as duas
+execuções não se cancelam uma à outra, e cada uma cobre uma pergunta diferente ("o branch
+sozinho passa?" vs. "o branch integrado a `main` passa?").
 
 ## 2. O que roda só em `main` (CD)
 
@@ -39,6 +48,15 @@ versão (`v*`) — **nunca** em `pull_request`, nunca em branch de feature. Ele:
 
 Fora de `main`/tag, o job aparece **pulado** (skipped) na aba Actions — isso é o
 esperado, não uma falha.
+
+### Por que a publicação nunca é cancelada
+
+O `concurrency` do workflow cancela a execução anterior do mesmo grupo (mesmo branch)
+quando chega um push novo — mas só fora de `main`/tag. Em `main` e em tag `v*`,
+`cancel-in-progress` é `false`: um push novo enfileira atrás do que já está rodando, em
+vez de cancelá-lo. Sem essa exceção, um segundo push logo depois do primeiro poderia
+cancelar o `publicar-imagens` bem no meio do envio ao GHCR, e a imagem daquele commit
+nunca sairia publicada — um problema encontrado na revisão da Task 7 (rodada 1).
 
 ### `VITE_API_URL` da imagem publicada
 
@@ -111,3 +129,20 @@ docker run --rm -v "$PWD":/repo --workdir /repo rhysd/actionlint:latest -color
 remover `if: false` do job `implantar` (é uma condição sempre falsa, na visão do
 linter) — mas esse `if: false` é exatamente o que a Seção 2 pede, um job pronto e
 inofensivo até a hospedagem ser escolhida. Nenhuma outra regra é ignorada.
+
+## 6. Runner e versões das actions (R20)
+
+Todo job fixa `runs-on: ubuntu-24.04`, não `ubuntu-latest`. O motivo: o GitHub avisou
+que `ubuntu-latest` passa a apontar para o Ubuntu 26 a partir de 19/10/2026, e o TCC II
+não pode se dar ao luxo de um runner novo (com pacotes/versões diferentes) quebrar o CI
+no meio da entrega. Fica fixo em `ubuntu-24.04` por enquanto; a equipe pode migrar para
+`ubuntu-latest` (ou para a versão que suceder o 24.04) com calma, depois da entrega.
+
+Todas as actions usadas (`actions/checkout`, `astral-sh/setup-uv`, `actions/setup-node`,
+`docker/login-action`, `docker/setup-buildx-action`, `docker/metadata-action`,
+`docker/build-push-action`) estão fixadas na primeira major de cada uma que já roda em
+Node.js 24 (`runs.using: node24` no `action.yml` da action) — o GitHub vem avisando, nas
+execuções, que o Node.js 20 (usado pelas majors anteriores) está sendo descontinuado
+para rodar actions. Conferido em 29/09/2026 com `git ls-remote --tags` (para achar a
+major mais recente de cada action) e lendo o `action.yml` de cada uma (para confirmar
+`node24`); os detalhes de qual major ficou em qual estão no relatório da Task 7.
