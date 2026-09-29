@@ -2,8 +2,9 @@
 
 SIMULAÇÃO: todo dado gerado aqui é sintético e gravado com `origem='simulacao'` (G10).
 
-Cobre `scripts/gerar_dados_sinteticos.py`: geração determinística, distâncias mínimas,
-geofence, inválidos, limpeza, avaliação e um teste de eficácia ponta a ponta.
+Cobre `scripts/gerar_dados_sinteticos.py` (geração determinística, distâncias mínimas,
+geofence, inválidos, limpeza, avaliação e um teste de eficácia ponta a ponta) e
+`scripts/analisar_sensibilidade.py` (cada rodada da grade é desfeita).
 """
 
 import math
@@ -17,6 +18,7 @@ from app.config import obter_configuracoes
 from app.validacao.entrada import ResultadoEntrada, registrar_alerta
 from app.validacao.geofence import ponto_dentro_da_area
 from app.validacao.pipeline import executar_pipeline
+from scripts.analisar_sensibilidade import analisar_grade, distancias_de_referencia
 from scripts.gerar_dados_sinteticos import (
     CATEGORIAS,
     CENTRO_LATITUDE,
@@ -554,3 +556,85 @@ def test_ponta_a_ponta_pequena_acerta_100_por_cento_em_cada_categoria(
     assert resumo.ruido_isolado == 5
     origens = conexao.execute("SELECT DISTINCT origem FROM alertas").fetchall()
     assert origens == [("simulacao",)]
+
+
+# --- análise de sensibilidade ---
+
+
+def test_analisar_grade_desfaz_cada_rodada_e_mede_cada_combinacao(
+    conexao: psycopg.Connection,
+) -> None:
+    config = obter_configuracoes()
+    registrados = registrar_populacoes(conexao, _gerar(_OPCOES_PEQUENAS), config=config)
+
+    rodadas = analisar_grade(
+        conexao,
+        registrados,
+        grade_eps_metros=(2, 8),
+        grade_min_confirmacoes=(3, 5),
+        min_pontos=_MIN_PONTOS,
+        srid_calculo=_SRID_CALCULO,
+        srid_armazenamento=_SRID_ARMAZENAMENTO,
+    )
+
+    assert [(r.eps_metros, r.min_confirmacoes) for r in rodadas] == [
+        (2, 3),
+        (2, 5),
+        (8, 3),
+        (8, 5),
+    ]
+    rodada_padrao = rodadas[2].avaliacao
+    assert rodada_padrao.por_categoria["aglomerado"].taxa == 1.0
+    # min_confirmacoes = 5 com 4 sessões por aglomerado: nenhum se confirma.
+    assert rodadas[3].avaliacao.barreiras_obtidas == {"confirmada": 0, "pendente": 5}
+    # Nada ficou gravado: cada rodada foi desfeita.
+    assert conexao.execute(
+        "SELECT count(*) FROM barreiras WHERE origem = 'simulacao'"
+    ).fetchone() == (0,)
+    assert conexao.execute("SELECT count(*) FROM execucoes_pipeline").fetchone() == (0,)
+    assert conexao.execute(
+        "SELECT DISTINCT status FROM alertas WHERE origem = 'simulacao' ORDER BY 1"
+    ).fetchall() == [("bruto",), ("descartado",)]
+
+
+def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
+    """Com minpoints = 2, um grupo continua inteiro enquanto eps cobre o maior salto
+    da sua árvore geradora mínima (0 → 4 → 8: salto 4, embora os extremos distem 8);
+    a primeira fusão possível é a menor distância entre grupos do mesmo tipo; o
+    primeiro ruído a ganhar vizinho é o mais próximo de outro ponto do mesmo tipo."""
+
+    def item(categoria: str, grupo: int | None, norte: float, tipo: str = "degrau") -> ItemGerado:
+        return ItemGerado(
+            categoria=categoria,
+            grupo=grupo,
+            variacao=None,
+            norte_metros=norte,
+            leste_metros=0.0,
+            payload={"tipo": tipo},
+        )
+
+    itens = [
+        item("aglomerado", 0, 8.0),
+        item("aglomerado", 0, 0.0),
+        item("aglomerado", 0, 4.0),
+        item("aglomerado", 1, 40.0),
+        item("sessao_repetida", 0, 46.0),
+        item("sessao_repetida", 0, 47.0),
+        item("ruido", None, 100.0),
+        item("ruido", None, 60.0, tipo="obstaculo"),  # sozinho no tipo: não conta
+        item("fora_da_area", None, 48.0),  # descartado no geofence: não conta
+    ]
+
+    referencias = distancias_de_referencia(itens)
+
+    assert referencias.maior_salto_dentro_de_grupo_metros == pytest.approx(4.0)
+    assert referencias.menor_entre_grupos_metros == pytest.approx(6.0)
+    assert referencias.menor_do_ruido_metros == pytest.approx(53.0)
+
+
+def test_distancias_de_referencia_sem_pares_ficam_indefinidas() -> None:
+    referencias = distancias_de_referencia([])
+
+    assert referencias.maior_salto_dentro_de_grupo_metros is None
+    assert referencias.menor_entre_grupos_metros is None
+    assert referencias.menor_do_ruido_metros is None
