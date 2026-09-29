@@ -52,16 +52,17 @@ vale avisar o grupo para não estranhar se isso acontecer.
 
 - **Uma barreira, um relato por sessão.** Se o grupo já reportou aquele degrau
   específico nesta sessão, não reportar de novo — isso não vira uma "segunda
-  confirmação" (o pipeline conta *sessões distintas*, D1/D4), só infla `recebidos` sem
+  confirmação" (o pipeline conta *sessões distintas*: D1 / estágio 4), só infla `recebidos` sem
   ajudar a promoção.
 - **Sessões diferentes SIM ajudam.** O valor de uma barreira ser vista por pessoas
   diferentes é exatamente o que a promoção mede (`MIN_CONFIRMACOES` sessões distintas,
   hoje **[ORIENTADORA] #4** = 3). Se o grupo tem várias pessoas, é melhor cada uma abrir
   o mapa na própria sessão do que dividir uma sessão só entre todos.
 - **Relatar no exato ponto da barreira**, não num ponto aproximado a alguns metros —
-  o `DBSCAN_EPS_METROS` provisório (**[ORIENTADORA] #4**, hoje 8 m) foi calibrado com
-  dados sintéticos; erro de GPS maior que isso é justamente o que a calibração de campo
-  (§6) vai medir.
+  o `DBSCAN_EPS_METROS` (**[ORIENTADORA] #4**, hoje 8 m) é um valor de PROTÓTIPO, não
+  calibrado: a simulação só mostra em que faixa de eps o pipeline funciona sob erros de
+  posição supostos (`decisoes-pendentes.md` #4). O erro de GPS real é justamente o que a
+  calibração de campo (§7) vai medir.
 
 ## 3. Ética e LGPD
 
@@ -139,7 +140,7 @@ famílias de opção, sem escolher nenhuma aqui:
 
 | Opção | Como funciona | Vantagens | Desvantagens |
 |---|---|---|---|
-| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o container `frontend` local (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária; a API fica só na rede interna do compose, nunca exposta. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5; só um túnel (um endpoint), não dois. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel (fora do escopo de "nada é instalado direto na máquina" do resto do projeto — tabela isolada, não persistente). |
+| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o container `frontend` local (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária; a API fica só na rede interna do compose, nunca exposta. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5; só um túnel (um endpoint), não dois. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel no notebook de quem hospeda: uma exceção à regra "nada é instalado direto na máquina" do resto do projeto, restrita a esse notebook e ao dia da coleta. |
 | **Hospedagem gratuita** (ex.: um provedor de PaaS/estático com HTTPS incluso) | Sobe as duas imagens (`frontend` e `api`) para um serviço externo com HTTPS de fábrica; só o `frontend` precisa de URL pública, a `api` só precisa ser alcançável pelo `frontend` na rede interna do provedor. | URL estável, reutilizável em coletas futuras; não depende do notebook de ninguém durante a coleta; sem CORS para configurar (mesma origem). | Ainda expõe o banco (ou um banco gerenciado) e o `TOKEN_ADMIN` (hoje provisório) precisa estar configurado antes de publicar; dependendo do provedor, custo ou limite de uso; mais um passo de configuração para manter. |
 
 Qualquer que seja a escolha, ela não muda o contrato da API nem o pipeline — só onde
@@ -187,14 +188,14 @@ Durante a coleta:
 - [ ] Reportar sempre no local (§2).
 - [ ] Anotar (fora do sistema, num papel/app qualquer da equipe) observações que não
       cabem no formulário — por exemplo, comparar o GPS do celular com a posição real,
-      para alimentar a calibração do §6.
+      para alimentar a calibração do §7.
 
 Depois da coleta (mesmo dia ou no seguinte, com a stack ainda de pé):
 
 - [ ] Rodar o pipeline sobre os dados reais: `POST /validacao/executar?origem=real`
       (com `X-Token-Admin` se `TOKEN_ADMIN` estiver configurado, D7).
 - [ ] Conferir o funil: `GET /validacao/estatisticas?origem=real`.
-- [ ] Gerar a figura (§7).
+- [ ] Gerar a figura (§6).
 
 ## 6. Rodando o pipeline e a figura com dados reais
 
@@ -223,8 +224,11 @@ comparação.
 
 ## 7. Calibração com dados reais
 
-A análise de sensibilidade (`backend/scripts/analisar_sensibilidade.py`) hoje só mede
-CONTROLE sintético (ver `decisoes-pendentes.md` #4). Depois da primeira coleta real, o
+A análise de sensibilidade (`backend/scripts/analisar_sensibilidade.py`) usa só dados
+sintéticos: além do CONTROLE, mede o encadeamento com sequências de barreiras vizinhas
+(T5) e o efeito de `min_confirmacoes` com aglomerados de 2 a 5 sessões (ver
+`decisoes-pendentes.md` #4 e T5). Nenhum desses números vem de campo. Depois da primeira
+coleta real, o
 procedimento para revisitar `DBSCAN_EPS_METROS`/`MIN_CONFIRMACOES`
 (**[ORIENTADORA] #4**) é:
 
