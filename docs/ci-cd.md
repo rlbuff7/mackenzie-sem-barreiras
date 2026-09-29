@@ -77,6 +77,10 @@ HTTPS (necessária para a geolocalização do navegador — ver
 técnica em [`decisoes-pendentes.md`](decisoes-pendentes.md)). Passo a passo para
 ativar, depois que a equipe escolher a hospedagem:
 
+0. **Definir `TOKEN_ADMIN` na hospedagem ANTES de expor o frontend.** Pelo proxy
+   same-origin (R19), toda rota da API responde por `/api/` na URL pública, inclusive
+   `/api/validacao/executar` (apaga e recria as barreiras da origem, D6) e `/api/docs`.
+   Com `TOKEN_ADMIN` vazio, a execução do pipeline fica aberta a quem tiver a URL (D7).
 1. Confirmar que a hospedagem aceita um "deploy hook" HTTP (webhook que ela expõe e
    que, ao ser chamado, puxa a imagem mais recente do GHCR e reinicia o serviço) — é o
    formato mais comum em PaaS. Se a hospedagem escolhida usar outro mecanismo (CLI
@@ -105,6 +109,10 @@ docker pull ghcr.io/rlbuff7/mackenzie-sem-barreiras-frontend:latest
 
 Também existem tags pelo sha curto do commit (`ghcr.io/.../mackenzie-sem-barreiras-api:<sha>`)
 e, a partir de uma tag `vX.Y.Z` no repositório, tags semver (`:vX.Y.Z`, `:vX.Y`).
+
+Antes de expor o frontend dessas imagens na internet, defina `TOKEN_ADMIN` no ambiente
+da API: o proxy `/api/` torna públicos `/api/validacao/executar` e `/api/docs` (ver o
+passo 0 da implantação, acima).
 
 ### Visibilidade do pacote
 

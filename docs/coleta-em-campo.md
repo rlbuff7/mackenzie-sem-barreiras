@@ -135,13 +135,20 @@ própria nem de CORS liberado para o domínio da coleta; o navegador do voluntá
 fala com o container do frontend, que fala com a API por dentro da rede do compose. Ou
 seja, expor **um único endpoint HTTPS** (o frontend), não dois.
 
+**Consequência: toda a API fica pública junto com o mapa.** A porta da API nunca é
+exposta, mas qualquer rota dela responde por `/api/` na URL da coleta, inclusive
+`/api/validacao/executar` (que apaga e recria as barreiras reais, D6) e a documentação
+interativa em `/api/docs`. **Defina `TOKEN_ADMIN` no `.env` ANTES de expor o
+frontend**, em qualquer das opções abaixo; com ele vazio, a execução do pipeline fica
+aberta a quem tiver a URL (D7).
+
 **Isto ainda não está decidido — decidir com a equipe antes do dia da coleta.** Duas
 famílias de opção, sem escolher nenhuma aqui:
 
 | Opção | Como funciona | Vantagens | Desvantagens |
 |---|---|---|---|
-| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o container `frontend` local (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária; a API fica só na rede interna do compose, nunca exposta. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5; só um túnel (um endpoint), não dois. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel no notebook de quem hospeda: uma exceção à regra "nada é instalado direto na máquina" do resto do projeto, restrita a esse notebook e ao dia da coleta. |
-| **Hospedagem gratuita** (ex.: um provedor de PaaS/estático com HTTPS incluso) | Sobe as duas imagens (`frontend` e `api`) para um serviço externo com HTTPS de fábrica; só o `frontend` precisa de URL pública, a `api` só precisa ser alcançável pelo `frontend` na rede interna do provedor. | URL estável, reutilizável em coletas futuras; não depende do notebook de ninguém durante a coleta; sem CORS para configurar (mesma origem). | Ainda expõe o banco (ou um banco gerenciado) e o `TOKEN_ADMIN` (hoje provisório) precisa estar configurado antes de publicar; dependendo do provedor, custo ou limite de uso; mais um passo de configuração para manter. |
+| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o container `frontend` local (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária; a porta da API fica só na rede interna do compose, mas as rotas dela respondem por `/api/` na mesma URL: `TOKEN_ADMIN` definido ANTES de abrir o túnel. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5; só um túnel (um endpoint), não dois. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel no notebook de quem hospeda: uma exceção à regra "nada é instalado direto na máquina" do resto do projeto, restrita a esse notebook e ao dia da coleta. |
+| **Hospedagem gratuita** (ex.: um provedor de PaaS/estático com HTTPS incluso) | Sobe as duas imagens (`frontend` e `api`) para um serviço externo com HTTPS de fábrica; só o `frontend` precisa de URL pública, a `api` só precisa ser alcançável pelo `frontend` na rede interna do provedor. | URL estável, reutilizável em coletas futuras; não depende do notebook de ninguém durante a coleta; sem CORS para configurar (mesma origem). | Ainda expõe o banco (ou um banco gerenciado), e `TOKEN_ADMIN` precisa estar definido ANTES de publicar (pelo proxy, `/api/validacao/executar` e `/api/docs` ficam públicos); dependendo do provedor, custo ou limite de uso; mais um passo de configuração para manter. |
 
 Qualquer que seja a escolha, ela não muda o contrato da API nem o pipeline — só onde
 `frontend`/`api` ficam acessíveis. Registrar a decisão final em
@@ -153,12 +160,18 @@ Antes de ir a campo:
 
 - [ ] **[EQUIPE]** Decidir e testar a opção de HTTPS (§4) — validar o botão de
       geolocalização num celular de verdade, não só no navegador do notebook.
+- [ ] **Definir `TOKEN_ADMIN` no `.env` ANTES de expor o frontend** (túnel ou
+      hospedagem, §4): pelo proxy, `/api/validacao/executar` e `/api/docs` ficam
+      públicos junto com o mapa. Um valor longo e aleatório, por exemplo
+      `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`, e depois
+      `docker compose up -d` para a API recarregar o `.env`.
 - [ ] Confirmar que a stack sobe do zero: `docker compose up -d --build --wait`
       (`docker compose ps` — os três serviços `healthy`).
 - [ ] `./db/banco.sh migrar` já aplicado (tabelas, seeds e, principalmente, o polígono
       da área de estudo atual).
-- [ ] `./scripts/ponta-a-ponta.sh` verde (prova que a cadeia inteira responde por HTTP
-      antes de sair a campo).
+- [ ] `./scripts/ponta-a-ponta.sh` verde com o `TOKEN_ADMIN` definido (prova que a
+      cadeia inteira responde por HTTP antes de sair a campo e que a execução sem o
+      header é recusada com 401).
 - [ ] Cada integrante com o celular carregado e a URL de coleta salva/testada.
 - [ ] Combinar quem faz o quê em campo (ver **[ORIENTADORA] #5**, ainda em aberto —
       na falta de uma divisão formal, combinar informalmente para o dia).
