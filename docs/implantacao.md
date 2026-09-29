@@ -134,6 +134,10 @@ Só com o checklist todo `[ok]` (e a URL do túnel impressa) entregue a URL ao M
   abrir a coleta ou com o frontend parado. Se a troca for interrompida (Ctrl-C, erro),
   o script devolve o banco original; se nem isso der, imprime o SQL para recuperar à mão
   (os dados ficam em `<banco>_antigo_<data-hora>`).
+- **Não interrompa um `restaurar` em andamento.** Um sinal (Ctrl-C) durante um
+  `docker compose exec` só dispara a reversão depois que o processo filho termina,
+  então interromper não é livre de corrida. Se acontecer, siga o SQL de recuperação
+  que o script imprime.
 - As mensagens de recusa de `restaurar` e `zerar-real` mostram o alvo em palavras e o
   comando completo, já com `--prod`/`--teste`: confira o "Alvo:" antes de copiar.
 - Ensaie no banco de teste, sem `--prod`: `./db/banco.sh --teste backup` e

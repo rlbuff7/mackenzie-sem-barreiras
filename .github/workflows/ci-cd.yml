@@ -58,6 +58,9 @@ jobs:
       - name: Testes de schema (SQL, em transação desfeita)
         run: ./db/banco.sh testar
 
+      - name: Testes de segurança do banco.sh (backup e restauração, só o banco de teste)
+        run: ./db/tests/banco_sh_seguranca.sh
+
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
