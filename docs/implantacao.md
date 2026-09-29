@@ -236,7 +236,7 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
   `backup`, `restaurar` e `zerar-real`. `testar` e `preparar-teste` **recusam** `--prod`:
   os testes de schema gravam (e desfazem) dados, que disputariam com a coleta, e não se
   cria banco de teste no servidor de produção. `--teste` (banco `<POSTGRES_DB>_teste`)
-  vale para `testar`, `backup`, `restaurar` e `zerar-real`. Testes de segurança
+  vale para `psql`, `testar`, `backup`, `restaurar` e `zerar-real`. Testes de segurança
   do script: `./db/tests/banco_sh_seguranca.sh`.
 
 ## 10. Derrubar (fim do dia)

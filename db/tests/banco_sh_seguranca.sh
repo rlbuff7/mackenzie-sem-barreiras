@@ -4,7 +4,7 @@
 #   ./db/tests/banco_sh_seguranca.sh
 #  1. as mensagens de recusa de `restaurar` e `zerar-real` carregam as opções
 #     (--teste, --prod) e nomeiam o alvo certo; `testar` e `preparar-teste`
-#     recusam --prod;
+#     recusam --prod; `--teste psql` abre o banco de teste;
 #  2. restaurar bom funciona e dump corrompido aborta com o original intacto;
 #  3. se a 2ª troca de nomes falha, o banco original é devolvido;
 #  4. se a 1ª chamada da troca para NO MEIO (depois de fechar as conexões), o
@@ -58,6 +58,9 @@ igual "testar --prod recusado (rc)" "$?" "2"
 contem "testar --prod: explica a recusa" "$msg" "testar não roda na pilha de produção"
 TOKEN_ADMIN=x ./db/banco.sh --prod preparar-teste > /dev/null 2>&1
 igual "preparar-teste --prod recusado (rc)" "$?" "2"
+# --teste psql abre o banco de teste (só um SELECT, pelo stdin).
+msg="$(echo 'SELECT current_database();' | ./db/banco.sh --teste psql 2>&1)"
+contem "psql --teste abre o banco de teste" "$msg" " $teste"
 
 echo "== 2. restaurar bom e dump corrompido"
 psql_teste "INSERT INTO tipos_barreira(codigo,nome) VALUES ('zz','zz')" || abortar "INSERT de preparo falhou"

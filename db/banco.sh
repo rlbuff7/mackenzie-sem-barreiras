@@ -3,7 +3,7 @@
 #
 #   ./db/banco.sh migrar           aplica migrations pendentes e reaplica os seeds
 #   ./db/banco.sh testar           roda db/tests/*.sql (em transação, sem deixar dados)
-#   ./db/banco.sh psql             abre um console psql
+#   ./db/banco.sh psql             abre um console psql no banco alvo (--teste: o de teste)
 #   ./db/banco.sh preparar-teste   apaga e recria "${POSTGRES_DB}_teste" do zero e
 #                                  roda migrations + seeds nele (usado pelos testes
 #                                  do backend, via backend/tests/conftest.py)
@@ -162,6 +162,12 @@ pilha_do_arquivo() {
     if [[ "$nome" =~ ^(dev|prod|teste)- ]]; then
         echo "${BASH_REMATCH[1]}"
     fi
+}
+
+# Como abrir o psql no banco "postgres" (as trocas de nome à mão precisam estar fora
+# dos bancos trocados; o `psql` deste script abre o banco alvo).
+comando_psql_postgres() {
+    printf 'docker compose %sexec db psql -U %s -d postgres' "${COMPOSE_FILE:+-f $COMPOSE_FILE }" "$POSTGRES_USER"
 }
 
 psql_no_container() {
@@ -434,7 +440,7 @@ restaurar() {
             # ALLOW_CONNECTIONS false e antes do RENAME: reabre o original.
             "${admin[@]}" -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" > /dev/null 2>&1 || {
                 ok=0
-                echo "NÃO consegui reabrir as conexões de ${BANCO_ALVO}. No psql do banco postgres: ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true;" >&2
+                echo "NÃO consegui reabrir as conexões de ${BANCO_ALVO}. No psql do banco postgres ($(comando_psql_postgres)): ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true;" >&2
             }
         fi
         if [[ $afastado -eq 1 ]]; then
@@ -448,7 +454,7 @@ restaurar() {
             echo "erro: troca desfeita; $BANCO_ALVO é o banco original." >&2
         else
             {
-                echo "NÃO consegui devolver o banco. Seus dados estão em ${antigo}. Para recuperar à mão, no psql do banco postgres:"
+                echo "NÃO consegui devolver o banco. Seus dados estão em ${antigo}. Para recuperar à mão, no psql do banco postgres ($(comando_psql_postgres)):"
                 echo "  ALTER DATABASE ${BANCO_ALVO} RENAME TO ${BANCO_ALVO}_descartado;  -- só se ${BANCO_ALVO} existir"
                 echo "  ALTER DATABASE ${antigo} RENAME TO ${BANCO_ALVO};"
                 echo "  ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true;"
@@ -508,7 +514,7 @@ preparar_teste() {
 case "${1:-}" in
     migrar)         migrar ;;
     testar)         testar ;;
-    psql)           docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" ;;
+    psql)           docker compose exec db psql -U "$POSTGRES_USER" -d "$BANCO_ALVO" ;;
     preparar-teste) preparar_teste ;;
     zerar-real)     zerar_real "${2:-}" ;;
     backup)         backup ;;
