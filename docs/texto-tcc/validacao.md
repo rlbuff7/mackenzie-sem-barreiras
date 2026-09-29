@@ -58,6 +58,13 @@ A tabela à parte existe porque um relato reprovado não cabe em `alertas`: uma 
 fora da faixa ou um tipo inexistente violariam as restrições `geom NOT NULL` e a chave
 estrangeira do tipo. Guardá-lo mesmo assim permite que o funil conte o estágio 1 (T1).
 
+Duas recusas acontecem **antes** do estágio 1 e ficam fora do funil. Um corpo maior que
+16 KiB é recusado com HTTP 413 (pelo nginx do frontend e, com o mesmo limite, pela
+própria API), e envios em rajada acima do limite do nginx recebem HTTP 429. Nenhum dos
+dois é validado nem gravado: não entram em `alertas_rejeitados` e não contam em
+`recebidos`. São proteção contra abuso (um relato de verdade tem cerca de 400 bytes e
+leva dezenas de segundos para ser preenchido), não parte da validação do conteúdo.
+
 ## 4 Estágio 2: geofence
 
 O ponto é testado com `ST_Within` contra o polígono da tabela `area_estudo`. Pela

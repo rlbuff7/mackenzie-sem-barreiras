@@ -22,6 +22,9 @@ camada de validação, e um banco de dados espacial.
  Voluntário (navegador)
         │  HTTPS (exigido pela geolocalização do navegador)
         ▼
+ Cloudflare (Quick Tunnel): o TLS termina aqui
+        │  túnel até o serviço `tunel` (cloudflared), só na pilha de produção
+        ▼
  ┌───────────────────────────┐   /api/ (mesma origem)   ┌──────────────────────────┐
  │ frontend (nginx)          │ ───────────────────────▶ │ api (FastAPI)            │
  │ TypeScript + Leaflet      │                          │ routers/  schemas/       │
@@ -41,6 +44,16 @@ Os três componentes rodam como serviços de um único `docker-compose.yml` (`db
 `frontend`); nada é instalado diretamente na máquina de quem desenvolve. O navegador só
 fala com o `frontend`, que encaminha as requisições `/api/` para a API dentro da rede do
 Compose (R19). Assim, para a coleta em campo, basta expor um único endereço HTTPS.
+
+Para a coleta há uma segunda pilha, a de **produção** (`docker-compose.prod.yml`): os
+mesmos três serviços, a partir das imagens que o CI publica no GitHub Container Registry,
+com volume e portas próprios, token de administrador obrigatório e a documentação
+interativa da API desligada. Ela tem um quarto serviço, opcional, `tunel`: o
+`cloudflared` do Quick Tunnel da Cloudflare, que expõe só o frontend numa URL HTTPS
+pública e temporária, sem conta nem domínio (R30). O TLS termina na Cloudflare, que é,
+portanto, um intermediário: vê o IP do voluntário e o conteúdo do relato antes de ele
+chegar ao `frontend` (ver [`ameacas-validade.md`](ameacas-validade.md) e
+[`coleta-em-campo.md`](../coleta-em-campo.md) §3).
 
 ## 2 Componentes
 

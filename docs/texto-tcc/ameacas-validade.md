@@ -20,8 +20,13 @@ navegador ou outro aparelho ganha uma sessão nova. Uma pessoa com três navegad
 confirma sozinha uma barreira com o valor atual (3).
 
 - **Por que não há defesa mais forte:** o sistema não pede cadastro e não grava IP, por
-  decisão de privacidade (LGPD). Conta de usuário, limite por IP ou identificação do
-  aparelho reduziriam o risco em troca de dados pessoais; nenhuma delas está no escopo.
+  decisão de privacidade (LGPD). Conta de usuário ou identificação do aparelho
+  reduziriam o risco em troca de dados pessoais; nenhuma delas está no escopo. O nginx
+  do frontend limita os envios por IP (30 por minuto, com rajada de 20), mas como
+  proteção contra abuso por script, não contra o ataque Sybil: o IP fica só em memória,
+  e atrás do túnel da coleta todos os voluntários chegam ao nginx com o mesmo endereço
+  (o do container do túnel). O limite vira **coletivo**, um só balde para a equipe
+  inteira, e não distingue pessoas.
 - **Mitigação atual:** o protocolo de coleta orienta "uma barreira, um relato por sessão"
   e cada pessoa na própria sessão (`coleta-em-campo.md` §2); a coleta é organizada pela
   equipe, com roteiro e checklist (§2 e §5).
