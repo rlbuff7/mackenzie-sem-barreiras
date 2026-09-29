@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Teste ponta a ponta (E2E), M5: sobe uma pilha ISOLADA do docker compose
+# (COMPOSE_PROJECT_NAME=msb-e2e, portas 55434/58000/58080, volume próprio),
+# aplica migrations+seeds nela, roda o contrato inteiro da API por HTTP
+# (backend/scripts/ponta_a_ponta.py) e SEMPRE derruba a pilha isolada no fim
+# — sucesso, falha ou Ctrl-C — sem tocar a pilha principal nem o banco dela.
+#
+#   ./scripts/ponta-a-ponta.sh
+#
+# Depuração (prova de que uma falha deliberada também limpa e sai != 0), sem
+# editar código: ESPERADO_BARREIRAS_CONFIRMADAS=2 ./scripts/ponta-a-ponta.sh
+set -euo pipefail
+
+raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$raiz"
+
+if [[ ! -f .env ]]; then
+    echo "erro: .env não encontrado. Rode: cp .env.example .env" >&2
+    exit 1
+fi
+
+# Projeto e portas isolados. Exportados ANTES de qualquer `docker compose` ou
+# `./db/banco.sh`: são variáveis de ambiente do shell, então têm prioridade
+# sobre o .env na interpolação do docker-compose.yml (${VAR:-padrão}).
+# COMPOSE_PROJECT_NAME não existe no .env, então sobrevive ao `source .env`
+# que db/banco.sh faz internamente — e `docker compose exec` (usado por
+# banco.sh) identifica o container pelo nome do SERVIÇO dentro do projeto,
+# não por porta de host, então POSTGRES_PORTA_HOST voltar a valer o do .env
+# dentro do banco.sh não tem efeito nenhum sobre qual container é alcançado.
+export COMPOSE_PROJECT_NAME=msb-e2e
+export POSTGRES_PORTA_HOST=55434
+export API_PORTA_HOST=58000
+export FRONTEND_PORTA_HOST=58080
+
+derrubar_pilha_isolada() {
+    local codigo=$?
+    echo
+    echo "== derrubando a pilha isolada (projeto $COMPOSE_PROJECT_NAME) =="
+    docker compose down --volumes --remove-orphans || true
+    exit "$codigo"
+}
+trap derrubar_pilha_isolada EXIT INT TERM
+
+echo "== confirmando que o projeto ativo é '$COMPOSE_PROJECT_NAME' (isolado da pilha principal) =="
+docker compose config --format json | grep -q "\"name\": \"${COMPOSE_PROJECT_NAME}\"" || {
+    echo "erro: docker compose não resolveu o projeto isolado '$COMPOSE_PROJECT_NAME'." >&2
+    exit 1
+}
+
+echo "== subindo a pilha isolada em 127.0.0.1:${POSTGRES_PORTA_HOST}/${API_PORTA_HOST}/${FRONTEND_PORTA_HOST} =="
+docker compose up -d --build --wait
+
+echo "== aplicando migrations e seeds na pilha isolada =="
+./db/banco.sh migrar
+
+echo "== rodando o teste ponta a ponta por HTTP =="
+(
+    cd backend
+    uv run python -m scripts.ponta_a_ponta \
+        "http://localhost:${API_PORTA_HOST}" \
+        "http://localhost:${FRONTEND_PORTA_HOST}"
+)
