@@ -26,7 +26,7 @@ BEGIN
 END $$;
 
 -- Executa o comando e exige que ele seja rejeitado com o SQLSTATE indicado.
--- 23502 not_null | 23503 foreign_key | 23514 check | 22023 parâmetro inválido
+-- 23502 not_null | 23503 foreign_key | 23505 unique | 23514 check | 22023 parâmetro inválido
 CREATE FUNCTION pg_temp.deve_rejeitar(caso text, comando text, sqlstate_esperado text)
 RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -225,6 +225,44 @@ SELECT pg_temp.afirmar('alertas_rejeitados.origem padrão é ''real''',
 SELECT pg_temp.deve_rejeitar('alertas_rejeitados com origem ''teste'' inválida',
     $q$INSERT INTO alertas_rejeitados (payload, erros, origem)
        VALUES ('{}', '[]', 'teste')$q$, '23514');
+
+-- ---------------------------------------------------------------------------
+-- execucoes_pipeline (R14): parâmetros da última execução, por origem — migration 003
+-- ---------------------------------------------------------------------------
+
+SELECT pg_temp.afirmar('tabela execucoes_pipeline existe',
+    to_regclass('execucoes_pipeline') IS NOT NULL);
+
+INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+VALUES ('real', 8, 2, 3, 31983);
+SELECT pg_temp.afirmar('execução válida é aceita, com executado_em preenchido',
+    (SELECT executado_em IS NOT NULL FROM execucoes_pipeline WHERE origem = 'real'));
+
+SELECT pg_temp.deve_rejeitar('segunda linha para a mesma origem (uma linha por origem)',
+    $q$INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+       VALUES ('real', 4, 2, 3, 31983)$q$, '23505');
+
+SELECT pg_temp.deve_rejeitar('execucoes_pipeline com origem ''teste'' inválida',
+    $q$INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+       VALUES ('teste', 8, 2, 3, 31983)$q$, '23514');
+
+SELECT pg_temp.deve_rejeitar('eps_metros ' || e,
+    format($q$INSERT INTO execucoes_pipeline
+                  (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+              VALUES ('simulacao', %s, 2, 3, 31983)$q$, e), '23514')
+FROM unnest(ARRAY[0, -1]) AS e;
+
+SELECT pg_temp.deve_rejeitar('min_pontos 0',
+    $q$INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+       VALUES ('simulacao', 8, 0, 3, 31983)$q$, '23514');
+
+SELECT pg_temp.deve_rejeitar('min_confirmacoes 0',
+    $q$INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+       VALUES ('simulacao', 8, 2, 0, 31983)$q$, '23514');
+
+SELECT pg_temp.deve_rejeitar('execução sem srid_calculo',
+    $q$INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
+       VALUES ('simulacao', 8, 2, 3, NULL)$q$, '23502');
 
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
