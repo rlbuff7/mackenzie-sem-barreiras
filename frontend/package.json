@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "verificar": "tsc --noEmit"
+    "verificar": "tsc --noEmit",
+    "testar": "node --experimental-strip-types --test src/itens.test.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4"

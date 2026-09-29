@@ -107,6 +107,10 @@ jobs:
         working-directory: frontend
         run: npm run verificar
 
+      - name: Testes do frontend (node:test)
+        working-directory: frontend
+        run: npm run testar
+
       - name: Build de produção (Vite)
         working-directory: frontend
         run: npm run build
