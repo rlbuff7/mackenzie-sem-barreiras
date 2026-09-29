@@ -79,10 +79,13 @@ Os scripts ficam em `backend/scripts/` e rodam contra o banco do `.env` (banco r
 #    cada categoria com o destino esperado.
 uv run python -m scripts.gerar_dados_sinteticos --limpar --executar-pipeline --avaliar
 
-# 2. Sensibilidade: mede eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4}
-#    sobre a mesma simulação. Cada rodada é desfeita; no fim só a rodada com os
-#    parâmetros do .env fica gravada.
+# 2. Sensibilidade: mede eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4}.
+#    Além do controle, liga por padrão aglomerados de 2 a 5 sessões e 5 sequências
+#    de barreiras distintas a 15 m (encadeamento, T5). Cada rodada é desfeita; no fim
+#    só a rodada com os parâmetros do .env fica gravada.
 uv run python -m scripts.analisar_sensibilidade
+
+# (a sensibilidade deixa no banco os dados dela; para voltar ao canônico, repita o 1.)
 
 # 3. Figura do funil (docs/figuras/funil-simulacao.svg e .png), a partir das
 #    estatísticas do banco. O matplotlib fica num grupo opcional.
@@ -94,12 +97,18 @@ uv run python -m scripts.gerar_figura_funil --origem simulacao
   antigos e a avaliação sai distorcida (o script avisa).
 - `--help` lista as opções de geração (`--semente`, `--aglomerados`,
   `--pontos-por-aglomerado`, `--dispersao-metros`, `--sessao-repetida`, `--ruido`,
-  `--fora-da-area`, `--invalidos`). A análise de sensibilidade aceita as mesmas.
+  `--fora-da-area`, `--invalidos`, `--sessoes-variaveis`, `--sequencias`,
+  `--barreiras-por-sequencia`, `--espacamento-sequencia-metros`). A análise de
+  sensibilidade aceita as mesmas, com padrões próprios.
 - Saídas: tabelas no console e `backend/scripts/saida/simulacao-semente-<N>.json` e
-  `sensibilidade-semente-<N>.csv` (não versionados; rode de novo para regerar).
-- Com os padrões (semente 42), o teste de eficácia acerta 100% em cada categoria. Os
-  resultados da sensibilidade estão em [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md)
-  (#4 e T5).
+  `sensibilidade-semente-<N>.csv` (não versionados; rode de novo para regerar). Com
+  opções fora do padrão, o nome ganha um sufixo (ex.: `-dispersao-metros-10`), e o
+  arquivo canônico nunca é sobrescrito.
+- Com os padrões (semente 42), o teste de eficácia acerta 100% em cada categoria.
+  **Isso confere a implementação, não a robustez:** o cenário é bem separado de
+  propósito, e as "0 fusões" do controle acontecem por construção. A robustez está na
+  análise de sensibilidade, cujos resultados estão em
+  [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md) (#4 e T5).
 - No mapa, as barreiras simuladas só aparecem pedindo `origem=simulacao` em
   `GET /barreiras`; o padrão é `real`.
 

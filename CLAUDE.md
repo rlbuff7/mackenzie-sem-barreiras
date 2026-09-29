@@ -335,8 +335,8 @@ Trabalhe **um marco por vez**. Não antecipe marcos futuros sem pedido explícit
 
 ## 9. Dados sintéticos
 
-`backend/scripts/gerar_dados_sinteticos.py` gera **cinco** populações (D8), cada uma com
-o destino conhecido de antemão, para que o pipeline possa ser avaliado:
+`backend/scripts/gerar_dados_sinteticos.py` gera **cinco** populações de CONTROLE (D8),
+cada uma com o destino conhecido de antemão, para que o pipeline possa ser avaliado:
 
 | População | O que é | Destino esperado | Estágio que prova |
 |---|---|---|---|
@@ -346,6 +346,21 @@ o destino conhecido de antemão, para que o pipeline possa ser avaliado:
 | **Fora da área** (`fora_da_area`) | relatos válidos fora do polígono de estudo | `descartado` (`fora_da_area`) | 2 |
 | **Inválidos** (`invalido`) | payloads com um defeito cada: latitude fora da faixa, tipo inexistente, severidade 7, campo faltando, campo extra | `alertas_rejeitados` | 1 |
 
+O status esperado de cada grupo segue a regra do estágio 4, escrita à parte do pipeline:
+`confirmada` se o grupo tem pelo menos `MIN_CONFIRMACOES` sessões distintas, `pendente` se
+não. Um grupo com algum relato reprovado na entrada nunca conta como acerto.
+
+Duas opções de ESTRESSE, desligadas no gerador e ligadas por padrão na análise de
+sensibilidade (R16):
+
+- `--sessoes-variaveis`: cada aglomerado sorteia de 2 a 5 sessões distintas, então uns
+  passam e outros não passam de `min_confirmacoes`.
+- `--sequencias N` (população `sequencia`): linhas retas de `--barreiras-por-sequencia`
+  barreiras DISTINTAS do mesmo tipo, a `--espacamento-sequencia-metros` (15 m) umas das
+  outras, cada uma com `--pontos-por-aglomerado` sessões. Ficam a 4 × o maior eps usado
+  de todo o resto, então só se fundem entre si. Esperado: cada barreira separada. É a
+  população que mede o encadeamento (T5).
+
 Regras da geração:
 
 - Todo payload passa por `registrar_alerta(..., origem="simulacao")`, o mesmo caminho de
@@ -354,7 +369,9 @@ Regras da geração:
   400 m dele; "fora da área", entre 700 e 1500 m (o polígono provisório tem 500 m).
 - Separação mínima de 4 × eps (`DBSCAN_EPS_METROS`): entre os centros de dois grupos
   quaisquer e entre cada ruído e qualquer outro ponto do mesmo tipo (amostragem com
-  rejeição). `--dispersao-metros` é o raio MÁXIMO em torno do centro do grupo.
+  rejeição). `--dispersao-metros` é o raio MÁXIMO em torno do centro do grupo. Relatos de
+  grupos vizinhos ficam a ≥ 4 × eps − 2 × dispersão; os scripts avisam quando isso já
+  está ao alcance do eps (dispersão ≥ 1,5 × eps no gerador).
 - Os pontos são sorteados em metros num plano local e convertidos para graus pelos raios
   de curvatura do WGS84 na latitude do campus. Erro medido contra `geography`: no máximo
   0,002% a 1,5 km (o teste exige < 0,1%).
@@ -368,7 +385,8 @@ Comandos (a partir de `backend/`):
 # de até 3 m, 5 sessões repetidas, 40 ruídos, 30 fora da área, 10 inválidos)
 uv run python -m scripts.gerar_dados_sinteticos --limpar --executar-pipeline --avaliar
 
-# análise de sensibilidade: eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4}
+# análise de sensibilidade: eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4},
+# com --sessoes-variaveis e 5 sequências por padrão
 uv run python -m scripts.analisar_sensibilidade
 
 # figura do funil (matplotlib num grupo opcional)
@@ -382,13 +400,20 @@ mostra a matriz categoria → destino final (em alertas), as barreiras esperadas
 e a taxa de acerto por categoria. Um grupo só conta como acerto se TODOS os seus alertas
 estiverem numa mesma barreira, com o status esperado e sem nenhum alerta de fora do grupo.
 Com os padrões, o resultado é 100% em cada categoria: é o cenário bem separado de
-propósito. Relatório completo em `backend/scripts/saida/simulacao-semente-<N>.json`.
+propósito. **Esses 100% conferem que a implementação está correta; não são evidência de
+robustez** (por construção, grupos vizinhos ficam fora do alcance do DBSCAN, e as "0
+fusões" do controle não medem nada). A robustez é o que a análise de sensibilidade
+mede. Relatório completo em `backend/scripts/saida/simulacao-semente-<N>.json`.
 
 A análise de sensibilidade gera a simulação uma vez (com commit), roda cada combinação da
 grade numa transação **desfeita** e, no fim, confirma só a rodada com os parâmetros do
 `.env`. Assim o banco, `execucoes_pipeline`, as estatísticas e a figura correspondem
-sempre à configuração, nunca a uma combinação da grade. Resultado em
-`backend/scripts/saida/sensibilidade-semente-<N>.csv`; leitura dos números em
+sempre à configuração, nunca a uma combinação da grade. Ela avalia à parte o controle
+(efeito de `min_confirmacoes` em confirmadas × pendentes) e as sequências (barreiras
+verdadeiras × obtidas, fusões, por eps). Os dados que ficam no banco são os DELA
+(com sequências); para voltar ao canônico, rode o gerador com `--limpar` de novo.
+Resultado em `backend/scripts/saida/sensibilidade-semente-<N>.csv` (o nome ganha as
+opções fora do padrão, para nunca sobrescrever o canônico); leitura dos números em
 `docs/decisoes-pendentes.md` (#4 e T5).
 
 A figura (`docs/figuras/funil-<origem>.svg|png`) lê `calcular_estatisticas`. Ela tem um
