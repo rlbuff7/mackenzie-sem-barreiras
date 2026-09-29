@@ -15,7 +15,9 @@
 #     apagados e de que data a que data, e manda para --reabrir quem já abriu a coleta;
 #  7. o backup diz de que pilha veio (nome e "Alvo:"); restaurar recusa um dump de
 #     outra pilha (ou de pilha desconhecida) sem --sim-pilha-diferente; no --prod o
-#     banco anterior fica guardado; o dump nasce com permissão 600 (umask 077).
+#     banco anterior fica guardado; o dump nasce com permissão 600 (umask 077);
+#  8. um dump que passa no --list mas cujo pg_restore falha no meio deixa o
+#     original intacto e o banco temporário apagado.
 set -uo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$raiz"
@@ -90,8 +92,19 @@ for i in "\${!args[@]}"; do
         # 4: o RENAME que afasta o original vira erro, DEPOIS de fechar as conexões
         "ALTER DATABASE ${teste} RENAME TO ${teste}_antigo_"*)
             [[ "\$MODO_SHIM" == primeira ]] && args[\$i]="SELECT 1/0" ;;
+        # 8: o pg_restore de verdade (não o --list) restaura só o esquema e "falha"
+        "--exit-on-error")
+            [[ "\$MODO_SHIM" == restore_meio ]] && { args[\$i]="--section=pre-data"; falhar_depois=1; } ;;
     esac
 done
+if [[ -n "\${falhar_depois:-}" ]]; then
+    "$real_docker" "\${args[@]}" || exit 1
+    # Prova de que a falha veio DEPOIS de começar: o temporário já tem tabelas.
+    "$real_docker" compose exec -T db psql -q -At -U "\$POSTGRES_USER" -d "${teste}_restaurando" \
+        -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'" > "$tmp/tabelas_no_temporario"
+    echo "falha simulada no meio do pg_restore" >&2
+    exit 1
+fi
 exec "$real_docker" "\${args[@]}"
 SHIM
 chmod +x "$tmp/shim/docker"
@@ -181,5 +194,15 @@ guardado="$(bancos_de_sobra)"
 casa "--prod: o banco anterior continua existindo" "$guardado" "^${teste}_antigo_[0-9]{14}$"
 [[ "$guardado" =~ ^${teste}_antigo_[0-9]{14}$ ]] && docker compose exec -T db psql -q -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE ${guardado}" > /dev/null
 igual "banco guardado apagado no fim do teste" "$(bancos_de_sobra)" ""
+
+echo "== 8. pg_restore que falha no meio: original intacto, temporário apagado"
+psql_teste "INSERT INTO tipos_barreira(codigo,nome) VALUES ('xx','xx')" || abortar "INSERT de preparo falhou"
+antes="$(contar)"
+msg="$(MODO_SHIM=restore_meio PATH="$tmp/shim:$PATH" ./db/banco.sh --teste restaurar "$dump" --sim-substituir-banco 2>&1)"
+igual "falha no meio do pg_restore (rc)" "$?" "1"
+casa "o dump passou no --list e o pg_restore chegou a criar tabelas no temporário" "$(cat "$tmp/tabelas_no_temporario" 2>/dev/null)" "^[1-9][0-9]*$"
+contem "mensagem: original não foi tocado" "$msg" "a restauração falhou; $teste não foi tocado e o temporário foi apagado"
+igual "original intacto (com a linha nova)" "$(contar)" "$antes"
+igual "temporário apagado" "$(bancos_de_sobra)" ""
 
 if [[ $falhas -eq 0 ]]; then echo "banco_sh_seguranca: todos os testes passaram"; else echo "banco_sh_seguranca: $falhas falha(s)"; exit 1; fi
