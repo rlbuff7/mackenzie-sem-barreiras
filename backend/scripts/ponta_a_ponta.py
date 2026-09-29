@@ -21,6 +21,12 @@ Variável de depuração: `ESPERADO_BARREIRAS_CONFIRMADAS` força o número
 esperado de barreiras confirmadas (padrão 1) — existe só para provar, sem
 editar código, que uma falha deliberada faz o script sair com código != 0 e
 mesmo assim `scripts/ponta-a-ponta.sh` derruba a pilha isolada.
+
+R19: além de bater direto na API, o teste também passa PELO FRONTEND
+(`GET {url_frontend}/api/saude` e um `POST {url_frontend}/api/alertas`), a
+mesma origem que `frontend/nginx.conf` encaminha para o serviço `api` — se o
+proxy quebrar (por exemplo, uma mudança que troque o nome do serviço `api`
+no compose), esses dois passos falham mesmo que a API direta esteja saudável.
 """
 
 import argparse
@@ -142,7 +148,10 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
     token_admin = os.environ.get("TOKEN_ADMIN", "")
     esperado_confirmadas = int(os.environ.get("ESPERADO_BARREIRAS_CONFIRMADAS", "1"))
 
-    with httpx.Client(base_url=url_api, timeout=10.0) as api:
+    with (
+        httpx.Client(base_url=url_api, timeout=10.0) as api,
+        httpx.Client(base_url=url_frontend, timeout=10.0) as frontend,
+    ):
         resposta = pedir(api, "GET", "/saude")
         saude_ok = resposta.status_code == 200 and json_seguro(resposta) == {
             "status": "ok",
@@ -151,6 +160,20 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
         v.checar(
             "GET /saude responde 200 com o banco ok",
             saude_ok,
+            f"HTTP {resposta.status_code}: {resposta.text}",
+        )
+
+        # R19: a mesma checagem, mas pela origem do FRONTEND (`/api/saude`) —
+        # prova que `frontend/nginx.conf` encaminha para o serviço `api` de
+        # verdade, não só que a API responde direto.
+        resposta = pedir(frontend, "GET", "/api/saude")
+        saude_via_proxy_ok = resposta.status_code == 200 and json_seguro(resposta) == {
+            "status": "ok",
+            "banco": "ok",
+        }
+        v.checar(
+            "GET /api/saude pelo proxy do frontend responde 200 com o banco ok",
+            saude_via_proxy_ok,
             f"HTTP {resposta.status_code}: {resposta.text}",
         )
 
@@ -164,8 +187,14 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
         )
 
         # 3 alertas reais, de 3 sessões distintas, a ≤ 3 m entre si (diagonal
-        # ≈ 2,83 m): devem virar um único cluster (eps/min_pontos do .env).
+        # ≈ 2,83 m), direto na API + 1 alerta a mais (mesma vizinhança) PELA
+        # ORIGEM DO FRONTEND: os 4 devem virar um único cluster (eps/min_pontos
+        # do .env), e o quarto prova que o proxy aceita POST com corpo JSON
+        # (R19) — não só GET.
         pontos_do_aglomerado = [(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)]  # (norte_m, leste_m)
+        ponto_via_proxy = (1.0, 1.0)  # ainda a ≤ 3 m dos três acima
+        total_aglomerado = len(pontos_do_aglomerado) + 1
+
         aceitos = 0
         for norte_m, leste_m in pontos_do_aglomerado:
             payload = montar_payload_alerta(norte_metros=norte_m, leste_metros=leste_m)
@@ -173,10 +202,21 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             if resposta.status_code == 201 and json_seguro(resposta).get("status") == "bruto":
                 aceitos += 1
         v.checar(
-            f"POST /alertas aceita os {len(pontos_do_aglomerado)} relatos do aglomerado "
-            "(3 sessões distintas, status bruto)",
+            f"POST /alertas aceita os {len(pontos_do_aglomerado)} relatos diretos do "
+            "aglomerado (sessões distintas, status bruto)",
             aceitos == len(pontos_do_aglomerado),
             f"{aceitos} de {len(pontos_do_aglomerado)} aceitos como bruto",
+        )
+
+        payload_via_proxy = montar_payload_alerta(
+            norte_metros=ponto_via_proxy[0], leste_metros=ponto_via_proxy[1]
+        )
+        resposta = pedir(frontend, "POST", "/api/alertas", json=payload_via_proxy)
+        v.checar(
+            "POST /api/alertas pelo proxy do frontend aceita o relato extra do aglomerado "
+            "(status bruto)",
+            resposta.status_code == 201 and json_seguro(resposta).get("status") == "bruto",
+            f"HTTP {resposta.status_code}: {resposta.text}",
         )
 
         # 1 alerta válido, porém fora do círculo de 500 m da área de estudo.
@@ -213,9 +253,9 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             f"HTTP {resposta.status_code}: {resposta.text}",
         )
         v.checar(
-            f"POST /validacao/executar agrupa os {len(pontos_do_aglomerado)} relatos do "
-            "aglomerado num único cluster",
-            resumo.get("agrupados") == len(pontos_do_aglomerado),
+            f"POST /validacao/executar agrupa os {total_aglomerado} relatos do aglomerado "
+            "(diretos + via proxy) num único cluster",
+            resumo.get("agrupados") == total_aglomerado,
             f"agrupados={resumo.get('agrupados')!r}",
         )
         v.checar(
@@ -257,12 +297,12 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
         alertas_obtidos = stats.get("alertas", {})
         barreiras_obtidas = stats.get("barreiras", {})
         alertas_esperados = {
-            "recebidos": len(pontos_do_aglomerado) + 2,  # + fora_da_area + inválido
+            "recebidos": total_aglomerado + 2,  # + fora_da_area + inválido
             "rejeitados_schema": 1,
             "descartados": {"fora_da_area": 1},
             "aguardando_pipeline": 0,
             "ruido_isolado": 0,
-            "agrupados": len(pontos_do_aglomerado),
+            "agrupados": total_aglomerado,
         }
         barreiras_esperadas = {"total": 1, "pendentes": 0, "confirmadas": esperado_confirmadas}
         v.checar(
@@ -276,7 +316,6 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             f"obtido={barreiras_obtidas!r}, esperado={barreiras_esperadas!r}",
         )
 
-    with httpx.Client(base_url=url_frontend, timeout=10.0) as frontend:
         resposta = pedir(frontend, "GET", "/")
         v.checar(
             "GET / do frontend devolve o index.html (200)",
