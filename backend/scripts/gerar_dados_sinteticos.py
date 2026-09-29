@@ -730,8 +730,7 @@ def formatar_tabela(cabecalho: Sequence[str], linhas: Sequence[Sequence[object]]
     textos = [[str(c) for c in cabecalho]] + [[str(c) for c in linha] for linha in linhas]
     larguras = [max(len(linha[i]) for linha in textos) for i in range(len(cabecalho))]
     a_direita = [
-        indice > 0 and all(_e_numerico(linha[indice]) for linha in linhas)
-        for indice in range(len(cabecalho))
+        all(_e_numerico(linha[indice]) for linha in linhas) for indice in range(len(cabecalho))
     ]
 
     def formatar(linha: list[str]) -> str:
