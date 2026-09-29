@@ -22,8 +22,9 @@ jobs, na ordem em que dependem uns dos outros:
 imagens Docker e sobe uma pilha completa), então não vale a pena rodá-lo se algo mais
 básico já quebrou. Um `concurrency` por branch cancela a execução anterior quando chega
 um push novo, para não gastar minutos de runner numa versão já ultrapassada — **exceto**
-em `main` e em tag de versão (`v*`), onde a execução anterior nunca é cancelada, só fica
-na fila atrás da nova (ver §2, "Por que a publicação nunca é cancelada").
+em `main` e em tag de versão (`v*`), onde a execução EM ANDAMENTO nunca é cancelada: a
+nova espera na fila até ela terminar (ver §2, "Por que a publicação nunca é cancelada",
+inclusive o limite de uma execução pendente por grupo).
 
 **Um branch com pull request aberto para `main` roda a suíte duas vezes** — uma pelo
 gatilho `push` (todo commit novo no branch) e outra pelo gatilho `pull_request` (o
@@ -53,10 +54,19 @@ esperado, não uma falha.
 
 O `concurrency` do workflow cancela a execução anterior do mesmo grupo (mesmo branch)
 quando chega um push novo — mas só fora de `main`/tag. Em `main` e em tag `v*`,
-`cancel-in-progress` é `false`: um push novo enfileira atrás do que já está rodando, em
+`cancel-in-progress` é `false`: um push novo espera o que já está rodando terminar, em
 vez de cancelá-lo. Sem essa exceção, um segundo push logo depois do primeiro poderia
 cancelar o `publicar-imagens` bem no meio do envio ao GHCR, e a imagem daquele commit
 nunca sairia publicada — um problema encontrado na revisão da Task 7 (rodada 1).
+
+**Limite do GitHub: só UMA execução pendente por grupo.** A fila não guarda todos os
+pushes. Com uma execução rodando e outra pendente, um terceiro push rápido no `main`
+cancela a PENDENTE (a do meio) e fica no lugar dela. A execução em andamento termina e
+publica; a do terceiro push publica depois (com `latest` e a tag do sha dela); a do meio
+nunca roda, e a imagem com o sha daquele commit intermediário não é publicada. O
+conteúdo dele não se perde (está na imagem do push seguinte), só a tag do sha. Para ter
+a imagem de um commit específico, espere a execução anterior sair da fila antes do
+próximo push.
 
 ### `VITE_API_URL` da imagem publicada
 
