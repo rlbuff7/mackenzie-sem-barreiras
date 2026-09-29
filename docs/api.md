@@ -39,7 +39,8 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
 
     Nenhum corpo dá 500 no estágio 1 (`app/validacao/entrada.py::interpretar_corpo`).
 - `GET /barreiras?bbox=minLon,minLat,maxLon,maxLat[&status=pendente|confirmada][&origem=real|simulacao]`
-  `bbox` obrigatório (422 se ausente/malformado/min ≥ max/fora das faixas). `origem`
+  `bbox` obrigatório (422 se ausente/malformado/min ≥ max/fora das faixas, com
+  `campo: "bbox"`; formato abaixo). `origem`
   padrão `real`. Até `LIMITE_BARREIRAS_POR_CONSULTA` (config, padrão 1000) itens.
   → 200 GeoJSON `FeatureCollection` com o membro extra `rotulo` no topo (o mesmo texto
   das estatísticas para a origem: `"Dados reais de campo"` ou
@@ -75,6 +76,12 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `barreiras` conta barreiras.
 - Nas duas rotas de validação, `parametros.eps_metros` sai como número de ponto
   flutuante (ex.: `8.0`), como na configuração.
+- **422 de parâmetro inválido** (query: `bbox` ausente ou malformado, `status`/`origem`
+  fora das opções), em todas as rotas: `{"mensagem": "Requisição inválida.", "erros":
+  [{"campo": "origem", "erro": "Deve ser um destes valores: 'real' ou 'simulacao'."}]}`.
+  `campo` é o nome do parâmetro; as mensagens são as mesmas do `POST /alertas`
+  (`app/validacao/mensagens.py`). O 422 do `POST /alertas` continua o de cima
+  (`"Alerta inválido."`).
 
 ## Estado de implementação
 
