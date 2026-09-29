@@ -441,9 +441,7 @@ def test_registrar_alerta_tipo_estrito_reprova_no_estagio_1(
     assert conexao.execute("SELECT count(*) FROM alertas").fetchone()[0] == 0
 
 
-def test_registrar_alerta_coordenada_inteira_continua_aceita(
-    conexao: psycopg.Connection
-) -> None:
+def test_registrar_alerta_coordenada_inteira_continua_aceita(conexao: psycopg.Connection) -> None:
     """Inteiros seguem valendo para coordenadas (ponto fora da área, mas aceito)."""
     config = obter_configuracoes()
     resultado = registrar_alerta(
