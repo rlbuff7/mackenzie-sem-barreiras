@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import obter_configuracoes
-from app.db import obter_conexao
+from app.db import obter_conexao, obter_conexao_da_saude
 from app.main import app
 
 _RAIZ_REPO = Path(__file__).resolve().parent.parent.parent
@@ -24,11 +24,11 @@ _RAIZ_REPO = Path(__file__).resolve().parent.parent.parent
 def banco_de_teste() -> None:
     """Recria `<POSTGRES_DB>_teste` do zero e aponta a configuração para ele.
 
-    Roda ANTES de qualquer leitura "de verdade" da configuração (o `lifespan`
-    da app só cria o pool quando o `TestClient` é usado, na fixture `cliente`,
-    que depende desta): sobrescreve `POSTGRES_DB` no ambiente e limpa o cache
-    de `obter_configuracoes`, para que a primeira chamada real já enxergue o
-    banco de teste — nunca o banco de desenvolvimento.
+    Roda ANTES de qualquer leitura "de verdade" da configuração (a fixture
+    `cliente` nem roda o `lifespan`; só `test_db.py` cria um pool real, e
+    depende desta): sobrescreve `POSTGRES_DB` no ambiente e limpa o cache de
+    `obter_configuracoes`, para que a primeira chamada real já enxergue o banco
+    de teste — nunca o banco de desenvolvimento.
     """
     resultado = subprocess.run(
         [str(_RAIZ_REPO / "db" / "banco.sh"), "preparar-teste"],
@@ -76,8 +76,11 @@ def cliente(conexao: psycopg.Connection) -> Iterator[TestClient]:
         yield conexao
 
     app.dependency_overrides[obter_conexao] = _obter_conexao_de_teste
+    app.dependency_overrides[obter_conexao_da_saude] = _obter_conexao_de_teste
     try:
-        with TestClient(app) as client:
-            yield client
+        # Sem `with`: o `lifespan` (que abriria um pool real a cada teste) não
+        # roda, e não precisa — toda dependência de banco está substituída acima.
+        yield TestClient(app)
     finally:
         del app.dependency_overrides[obter_conexao]
+        del app.dependency_overrides[obter_conexao_da_saude]
