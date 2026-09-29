@@ -1,0 +1,556 @@
+"""Testes do experimento com dados sintéticos (Task 4; CLAUDE.md §9, D8).
+
+SIMULAÇÃO: todo dado gerado aqui é sintético e gravado com `origem='simulacao'` (G10).
+
+Cobre `scripts/gerar_dados_sinteticos.py`: geração determinística, distâncias mínimas,
+geofence, inválidos, limpeza, avaliação e um teste de eficácia ponta a ponta.
+"""
+
+import math
+from collections import Counter
+
+import psycopg
+import pytest
+from psycopg import sql
+
+from app.config import obter_configuracoes
+from app.validacao.entrada import ResultadoEntrada, registrar_alerta
+from app.validacao.geofence import ponto_dentro_da_area
+from app.validacao.pipeline import executar_pipeline
+from scripts.gerar_dados_sinteticos import (
+    CATEGORIAS,
+    CENTRO_LATITUDE,
+    CENTRO_LONGITUDE,
+    FATOR_SEPARACAO,
+    RAIO_FORA_MAXIMO_METROS,
+    RAIO_FORA_MINIMO_METROS,
+    RAIO_GERACAO_METROS,
+    VARIACOES_INVALIDAS,
+    EstadoAlerta,
+    EstadoFinal,
+    ItemGerado,
+    ItemRegistrado,
+    OpcoesGeracao,
+    avaliar,
+    deslocar_ponto,
+    gerar_populacoes,
+    ler_estado_final,
+    ler_tipos_ativos,
+    limpar_simulacao,
+    registrar_populacoes,
+)
+from tests.auxiliares import inserir_alerta
+
+# G8: valores de teste explícitos, sem passar por Configuracoes.
+_EPS_METROS = 8
+_MIN_PONTOS = 2
+_MIN_CONFIRMACOES = 3
+_SRID_CALCULO = 31983
+_SRID_ARMAZENAMENTO = 4326
+_SEPARACAO_METROS = FATOR_SEPARACAO * _EPS_METROS
+
+# Os quatro códigos do seed (db/seeds/001_tipos_barreira.sql), em ordem alfabética.
+_TIPOS = ("ausencia_rampa", "calcada_irregular", "degrau", "obstaculo")
+
+# Configuração pequena e bem separada para os testes que batem no banco.
+_OPCOES_PEQUENAS = OpcoesGeracao(
+    semente=7,
+    aglomerados=3,
+    pontos_por_aglomerado=4,
+    dispersao_metros=3,
+    sessao_repetida=2,
+    ruido=5,
+    fora_da_area=3,
+    invalidos=5,
+)
+
+
+def _gerar(opcoes: OpcoesGeracao | None = None) -> list[ItemGerado]:
+    """Gera sem banco, com os padrões da CLI quando `opcoes` é None."""
+    return gerar_populacoes(opcoes or OpcoesGeracao(), tipos=_TIPOS, eps_metros=_EPS_METROS)
+
+
+def _da_categoria(itens: list[ItemGerado], categoria: str) -> list[ItemGerado]:
+    return [item for item in itens if item.categoria == categoria]
+
+
+def _distancia_metros(a: ItemGerado, b: ItemGerado) -> float:
+    """Distância no plano local em que o gerador sorteia os pontos (metros)."""
+    return math.hypot(a.norte_metros - b.norte_metros, a.leste_metros - b.leste_metros)
+
+
+def _distancia_ao_centro_metros(item: ItemGerado) -> float:
+    return math.hypot(item.norte_metros, item.leste_metros)
+
+
+def _distancia_geodesica_metros(
+    conexao: psycopg.Connection, lat_a: float, lon_a: float, lat_b: float, lon_b: float
+) -> float:
+    """Distância no elipsoide (`geography`), independente da aproximação local."""
+    return conexao.execute(
+        """
+        SELECT ST_Distance(
+            ST_SetSRID(ST_MakePoint(%(lon_a)s, %(lat_a)s), 4326)::geography,
+            ST_SetSRID(ST_MakePoint(%(lon_b)s, %(lat_b)s), 4326)::geography
+        )
+        """,
+        {"lat_a": lat_a, "lon_a": lon_a, "lat_b": lat_b, "lon_b": lon_b},
+    ).fetchone()[0]
+
+
+# --- geração: determinismo e quantidades ---
+
+
+def test_mesma_semente_gera_as_mesmas_populacoes() -> None:
+    assert _gerar() == _gerar()
+
+
+def test_sementes_diferentes_geram_populacoes_diferentes() -> None:
+    assert _gerar(OpcoesGeracao(semente=1)) != _gerar(OpcoesGeracao(semente=2))
+
+
+def test_mudar_a_quantidade_de_ruido_nao_move_os_grupos() -> None:
+    """Cada categoria tem o seu próprio gerador aleatório: pedir mais ruído não
+    muda onde os aglomerados caem (os grupos são sorteados antes do ruído)."""
+    grupos_padrao = [i for i in _gerar() if i.grupo is not None]
+    grupos_com_mais_ruido = [i for i in _gerar(OpcoesGeracao(ruido=60)) if i.grupo is not None]
+
+    assert grupos_padrao == grupos_com_mais_ruido
+
+
+def test_quantidades_por_categoria_seguem_as_opcoes() -> None:
+    contagem = Counter(item.categoria for item in _gerar())
+
+    assert contagem == {
+        "aglomerado": 20 * 4,
+        "sessao_repetida": 5 * 4,
+        "ruido": 40,
+        "fora_da_area": 30,
+        "invalido": 10,
+    }
+    assert set(contagem) == set(CATEGORIAS)
+
+
+def test_aglomerado_tem_uma_sessao_por_relato_e_sessao_repetida_uma_so() -> None:
+    itens = _gerar()
+    for categoria, sessoes_esperadas in (("aglomerado", 4), ("sessao_repetida", 1)):
+        grupos: dict[int, list[ItemGerado]] = {}
+        for item in _da_categoria(itens, categoria):
+            grupos.setdefault(item.grupo, []).append(item)
+        for relatos in grupos.values():
+            assert len(relatos) == 4
+            assert len({r.payload["sessao_id"] for r in relatos}) == sessoes_esperadas
+            assert len({r.payload["tipo"] for r in relatos}) == 1
+
+
+def test_ruido_e_fora_da_area_tem_sessoes_distintas_e_sem_grupo() -> None:
+    itens = _da_categoria(_gerar(), "ruido") + _da_categoria(_gerar(), "fora_da_area")
+
+    assert all(item.grupo is None for item in itens)
+    assert len({item.payload["sessao_id"] for item in itens}) == len(itens)
+
+
+def test_todo_payload_valido_e_rotulado_como_simulacao() -> None:
+    for item in _gerar():
+        if item.categoria != "invalido":
+            assert item.payload["descricao"].startswith("SIMULAÇÃO")
+
+
+# --- geração: geometria ---
+
+
+def test_pontos_de_um_grupo_ficam_dentro_da_dispersao() -> None:
+    """Raio máximo `dispersao_metros` em torno do centro do grupo: dois relatos do
+    mesmo grupo ficam a no máximo 2 × dispersão um do outro (abaixo do eps)."""
+    itens = [i for i in _gerar() if i.grupo is not None]
+    for a in itens:
+        for b in itens:
+            if (a.categoria, a.grupo) == (b.categoria, b.grupo):
+                assert _distancia_metros(a, b) <= 2 * 3 + 1e-9
+
+
+def test_grupos_diferentes_ficam_separados_por_4_eps_entre_centros() -> None:
+    """Centros a ≥ 4 × eps: dois relatos de grupos diferentes (de qualquer tipo)
+    ficam a pelo menos 4 × eps − 2 × dispersão."""
+    itens = [i for i in _gerar() if i.grupo is not None]
+    for a in itens:
+        for b in itens:
+            if (a.categoria, a.grupo) != (b.categoria, b.grupo):
+                assert _distancia_metros(a, b) >= _SEPARACAO_METROS - 2 * 3
+
+
+def test_ruido_fica_a_4_eps_de_qualquer_outro_ponto_do_mesmo_tipo() -> None:
+    itens = _gerar()
+    dentro = [i for i in itens if i.categoria in ("aglomerado", "sessao_repetida", "ruido")]
+    for ruido in _da_categoria(itens, "ruido"):
+        for outro in dentro:
+            if outro is not ruido and outro.payload["tipo"] == ruido.payload["tipo"]:
+                assert _distancia_metros(ruido, outro) >= _SEPARACAO_METROS
+
+
+def test_grupos_e_ruido_ficam_a_ate_400_m_e_fora_da_area_entre_700_e_1500_m() -> None:
+    for item in _gerar():
+        distancia = _distancia_ao_centro_metros(item)
+        if item.categoria == "fora_da_area":
+            assert RAIO_FORA_MINIMO_METROS <= distancia <= RAIO_FORA_MAXIMO_METROS
+        elif item.categoria == "invalido":
+            assert distancia <= RAIO_GERACAO_METROS
+        else:
+            assert distancia <= RAIO_GERACAO_METROS + 3
+
+
+def test_amostragem_impossivel_falha_com_mensagem_clara() -> None:
+    """Com eps = 150 m, os centros precisariam de 600 m entre si num disco de 800 m
+    de diâmetro: dez grupos não cabem, e o gerador desiste em vez de travar."""
+    with pytest.raises(ValueError, match="não coube"):
+        gerar_populacoes(OpcoesGeracao(aglomerados=10), tipos=_TIPOS, eps_metros=150)
+
+
+@pytest.mark.parametrize(
+    "sobrescritas",
+    [
+        {"pontos_por_aglomerado": 1},
+        {"aglomerados": -1},
+        {"ruido": -1},
+        {"dispersao_metros": -0.5},
+    ],
+)
+def test_opcoes_sem_sentido_sao_recusadas(sobrescritas: dict) -> None:
+    with pytest.raises(ValueError):
+        gerar_populacoes(OpcoesGeracao(**sobrescritas), tipos=_TIPOS, eps_metros=_EPS_METROS)
+
+
+def test_sem_tipos_a_geracao_e_recusada() -> None:
+    with pytest.raises(ValueError, match="tipo"):
+        gerar_populacoes(OpcoesGeracao(), tipos=(), eps_metros=_EPS_METROS)
+
+
+@pytest.mark.parametrize("distancia_metros", [10, 400, 1500])
+@pytest.mark.parametrize("azimute_graus", [0, 45, 90, 135, 180, 270])
+def test_conversao_local_de_metros_para_graus_erra_menos_de_0_1_por_cento(
+    conexao: psycopg.Connection, distancia_metros: float, azimute_graus: float
+) -> None:
+    azimute = math.radians(azimute_graus)
+    latitude, longitude = deslocar_ponto(
+        CENTRO_LATITUDE,
+        CENTRO_LONGITUDE,
+        norte_metros=distancia_metros * math.cos(azimute),
+        leste_metros=distancia_metros * math.sin(azimute),
+    )
+
+    geodesica_metros = _distancia_geodesica_metros(
+        conexao, CENTRO_LATITUDE, CENTRO_LONGITUDE, latitude, longitude
+    )
+
+    assert abs(geodesica_metros - distancia_metros) / distancia_metros < 0.001
+
+
+def test_ruido_fica_a_4_eps_do_vizinho_mais_proximo_tambem_no_elipsoide(
+    conexao: psycopg.Connection,
+) -> None:
+    """A separação vale na distância geodésica, não só no plano local."""
+    itens = _gerar()
+    dentro = [i for i in itens if i.categoria in ("aglomerado", "sessao_repetida", "ruido")]
+    for ruido in _da_categoria(itens, "ruido"):
+        vizinho = min(
+            (o for o in dentro if o is not ruido and o.payload["tipo"] == ruido.payload["tipo"]),
+            key=lambda outro: _distancia_metros(ruido, outro),
+        )
+        local_metros = _distancia_metros(ruido, vizinho)
+        geodesica_metros = _distancia_geodesica_metros(
+            conexao,
+            ruido.payload["latitude"],
+            ruido.payload["longitude"],
+            vizinho.payload["latitude"],
+            vizinho.payload["longitude"],
+        )
+        assert abs(geodesica_metros - local_metros) / local_metros < 0.001
+        assert geodesica_metros >= _SEPARACAO_METROS * (1 - 0.001)
+
+
+# --- geração contra o banco: geofence real e schema real ---
+
+
+def test_pontos_fora_da_area_ficam_fora_pelo_geofence_real(conexao: psycopg.Connection) -> None:
+    for item in _gerar():
+        if item.categoria == "invalido":
+            continue
+        dentro = ponto_dentro_da_area(
+            conexao, item.payload["latitude"], item.payload["longitude"], _SRID_ARMAZENAMENTO
+        )
+        assert dentro is (item.categoria != "fora_da_area"), item
+
+
+def test_invalidos_cobrem_as_cinco_variacoes() -> None:
+    variacoes = Counter(item.variacao for item in _da_categoria(_gerar(), "invalido"))
+
+    assert variacoes == {variacao: 2 for variacao in VARIACOES_INVALIDAS}
+
+
+def test_invalidos_sao_reprovados_no_estagio_1_pelo_campo_da_variacao(
+    conexao: psycopg.Connection,
+) -> None:
+    campo_esperado = {
+        "latitude_fora_da_faixa": "latitude",
+        "tipo_inexistente": "tipo",
+        "severidade_invalida": "severidade",
+        "campo_faltando": "sessao_id",
+        "campo_extra": "campo_extra",
+    }
+    config = obter_configuracoes()
+
+    for item in _da_categoria(_gerar(), "invalido"):
+        resultado = registrar_alerta(conexao, item.payload, origem="simulacao", config=config)
+        assert resultado.aceito is False
+        assert [erro.campo for erro in resultado.erros] == [campo_esperado[item.variacao]]
+
+    rejeitados = conexao.execute(
+        "SELECT count(*) FROM alertas_rejeitados WHERE origem = 'simulacao'"
+    ).fetchone()[0]
+    assert rejeitados == 10
+
+
+def test_ler_tipos_ativos_devolve_os_codigos_do_seed_em_ordem(
+    conexao: psycopg.Connection,
+) -> None:
+    assert ler_tipos_ativos(conexao) == list(_TIPOS)
+
+
+# --- limpeza ---
+
+
+def test_limpar_simulacao_apaga_so_a_origem_simulacao(conexao: psycopg.Connection) -> None:
+    config = obter_configuracoes()
+    real_id = inserir_alerta(conexao, origem="real")
+    registrar_alerta(conexao, {"latitude": 999}, origem="real", config=config)
+    registrar_populacoes(conexao, _gerar(_OPCOES_PEQUENAS), config=config)
+    for origem in ("real", "simulacao"):
+        executar_pipeline(
+            conexao,
+            origem=origem,
+            eps_metros=_EPS_METROS,
+            min_pontos=_MIN_PONTOS,
+            min_confirmacoes=_MIN_CONFIRMACOES,
+            srid_calculo=_SRID_CALCULO,
+            srid_armazenamento=_SRID_ARMAZENAMENTO,
+        )
+
+    apagados = limpar_simulacao(conexao)
+
+    assert apagados["alertas"] == 3 * 4 + 2 * 4 + 5 + 3
+    assert apagados["alertas_rejeitados"] == 5
+    assert apagados["barreiras"] == 3 + 2
+    assert apagados["execucoes_pipeline"] == 1
+    for tabela in ("alertas", "alertas_rejeitados", "barreiras", "execucoes_pipeline"):
+        consulta = sql.SQL("SELECT origem, count(*) FROM {} GROUP BY origem").format(
+            sql.Identifier(tabela)
+        )
+        por_origem = dict(conexao.execute(consulta).fetchall())
+        assert "simulacao" not in por_origem, tabela
+    assert conexao.execute("SELECT status FROM alertas WHERE id = %s", (real_id,)).fetchone() == (
+        "ruido_isolado",
+    )
+    assert dict(
+        conexao.execute("SELECT origem, count(*) FROM alertas_rejeitados GROUP BY 1").fetchall()
+    ) == {"real": 1}
+    assert conexao.execute(
+        "SELECT count(*) FROM execucoes_pipeline WHERE origem = 'real'"
+    ).fetchone() == (1,)
+
+
+# --- avaliação (pura, com estados montados à mão) ---
+
+
+def _registrado(
+    alerta_id: int | None, categoria: str, grupo: int | None = None, tipo: str = "degrau"
+) -> ItemRegistrado:
+    item = ItemGerado(
+        categoria=categoria,
+        grupo=grupo,
+        variacao="campo_extra" if categoria == "invalido" else None,
+        norte_metros=0.0,
+        leste_metros=0.0,
+        payload={"tipo": tipo},
+    )
+    aceito = alerta_id is not None
+    return ItemRegistrado(
+        item=item,
+        resultado=ResultadoEntrada(
+            aceito=aceito,
+            id=alerta_id,
+            status="bruto" if aceito else None,
+            motivo_descarte=None,
+        ),
+    )
+
+
+def _agrupado(barreira_id: int) -> EstadoAlerta:
+    return EstadoAlerta(status="agrupado", motivo_descarte=None, barreira_id=barreira_id)
+
+
+_RUIDO = EstadoAlerta(status="ruido_isolado", motivo_descarte=None, barreira_id=None)
+_FORA = EstadoAlerta(status="descartado", motivo_descarte="fora_da_area", barreira_id=None)
+
+
+def _cenario_perfeito() -> tuple[list[ItemRegistrado], EstadoFinal]:
+    """Um aglomerado (alertas 1–3), uma sessão repetida (4–5), um ruído (6), um
+    fora da área (7) e um inválido: cada um no destino esperado."""
+    registrados = [
+        _registrado(1, "aglomerado", 0),
+        _registrado(2, "aglomerado", 0),
+        _registrado(3, "aglomerado", 0),
+        _registrado(4, "sessao_repetida", 0),
+        _registrado(5, "sessao_repetida", 0),
+        _registrado(6, "ruido"),
+        _registrado(7, "fora_da_area"),
+        _registrado(None, "invalido"),
+    ]
+    estado = EstadoFinal(
+        alertas={
+            1: _agrupado(10),
+            2: _agrupado(10),
+            3: _agrupado(10),
+            4: _agrupado(11),
+            5: _agrupado(11),
+            6: _RUIDO,
+            7: _FORA,
+        },
+        barreiras={10: "confirmada", 11: "pendente"},
+    )
+    return registrados, estado
+
+
+def test_avaliar_cenario_perfeito_acerta_tudo() -> None:
+    avaliacao = avaliar(*_cenario_perfeito())
+
+    assert {c: r.taxa for c, r in avaliacao.por_categoria.items()} == {
+        categoria: 1.0 for categoria in CATEGORIAS
+    }
+    assert avaliacao.por_categoria["aglomerado"].esperado == 1
+    assert avaliacao.por_categoria["aglomerado"].unidade == "grupos"
+    assert avaliacao.por_categoria["ruido"].unidade == "alertas"
+    assert avaliacao.barreiras_esperadas == {"confirmada": 1, "pendente": 1}
+    assert avaliacao.barreiras_obtidas == {"confirmada": 1, "pendente": 1}
+    assert (avaliacao.grupos_fragmentados, avaliacao.fusoes_indevidas) == (0, 0)
+    assert avaliacao.ruido_em_barreira == 0
+
+
+def test_avaliar_monta_a_matriz_categoria_para_destino_final() -> None:
+    avaliacao = avaliar(*_cenario_perfeito())
+
+    assert avaliacao.confusao == {
+        "aglomerado": {"barreira_confirmada": 3},
+        "sessao_repetida": {"barreira_pendente": 2},
+        "ruido": {"ruido_isolado": 1},
+        "fora_da_area": {"descartado:fora_da_area": 1},
+        "invalido": {"rejeitado_schema": 1},
+    }
+
+
+def test_avaliar_fusao_de_dois_grupos_nao_conta_acerto() -> None:
+    registrados = [
+        _registrado(1, "aglomerado", 0),
+        _registrado(2, "aglomerado", 0),
+        _registrado(3, "aglomerado", 1),
+        _registrado(4, "aglomerado", 1),
+    ]
+    estado = EstadoFinal(
+        alertas={i: _agrupado(10) for i in (1, 2, 3, 4)}, barreiras={10: "confirmada"}
+    )
+
+    avaliacao = avaliar(registrados, estado)
+
+    assert avaliacao.por_categoria["aglomerado"].obtido == 0
+    assert avaliacao.fusoes_indevidas == 1
+    assert avaliacao.grupos_fragmentados == 0
+
+
+def test_avaliar_grupo_fragmentado_nao_conta_acerto() -> None:
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2, 3, 4)]
+    estado = EstadoFinal(
+        alertas={1: _agrupado(10), 2: _agrupado(10), 3: _agrupado(11), 4: _RUIDO},
+        barreiras={10: "pendente", 11: "pendente"},
+    )
+
+    avaliacao = avaliar(registrados, estado)
+
+    assert avaliacao.por_categoria["aglomerado"].obtido == 0
+    assert avaliacao.grupos_fragmentados == 1
+    assert avaliacao.fusoes_indevidas == 0
+
+
+def test_avaliar_barreira_com_status_errado_nao_conta_acerto() -> None:
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
+    estado = EstadoFinal(alertas={1: _agrupado(10), 2: _agrupado(10)}, barreiras={10: "pendente"})
+
+    avaliacao = avaliar(registrados, estado)
+
+    assert avaliacao.por_categoria["aglomerado"].obtido == 0
+    assert avaliacao.barreiras_obtidas == {"confirmada": 0, "pendente": 1}
+
+
+def test_avaliar_barreira_com_alerta_estranho_ao_grupo_nao_conta_acerto() -> None:
+    """O alerta 99 não foi gerado nesta execução (sobra de outra, por exemplo): a
+    barreira não é só do grupo, então o grupo não foi recuperado sozinho."""
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
+    estado = EstadoFinal(
+        alertas={1: _agrupado(10), 2: _agrupado(10), 99: _agrupado(10)},
+        barreiras={10: "confirmada"},
+    )
+
+    assert avaliar(registrados, estado).por_categoria["aglomerado"].obtido == 0
+
+
+def test_avaliar_ruido_agrupado_conta_como_ruido_em_barreira() -> None:
+    registrados = [_registrado(1, "ruido"), _registrado(2, "ruido"), _registrado(3, "ruido")]
+    estado = EstadoFinal(
+        alertas={1: _agrupado(10), 2: _agrupado(10), 3: _RUIDO}, barreiras={10: "pendente"}
+    )
+
+    avaliacao = avaliar(registrados, estado)
+
+    assert avaliacao.ruido_em_barreira == 2
+    assert avaliacao.por_categoria["ruido"].obtido == 1
+    assert avaliacao.por_categoria["ruido"].taxa == pytest.approx(1 / 3)
+
+
+def test_avaliar_categoria_vazia_tem_taxa_indefinida() -> None:
+    avaliacao = avaliar([_registrado(1, "ruido")], EstadoFinal(alertas={1: _RUIDO}, barreiras={}))
+
+    assert avaliacao.por_categoria["aglomerado"].esperado == 0
+    assert avaliacao.por_categoria["aglomerado"].taxa is None
+
+
+# --- teste de eficácia ponta a ponta (banco de teste) ---
+
+
+def test_ponta_a_ponta_pequena_acerta_100_por_cento_em_cada_categoria(
+    conexao: psycopg.Connection,
+) -> None:
+    """Gerar → registrar (estágios 1 e 2) → pipeline (3 e 4) → avaliar, numa
+    configuração pequena e bem separada: cada categoria acerta 100%."""
+    config = obter_configuracoes()
+    itens = gerar_populacoes(
+        _OPCOES_PEQUENAS, tipos=ler_tipos_ativos(conexao), eps_metros=_EPS_METROS
+    )
+
+    registrados = registrar_populacoes(conexao, itens, config=config)
+    resumo = executar_pipeline(
+        conexao,
+        origem="simulacao",
+        eps_metros=_EPS_METROS,
+        min_pontos=_MIN_PONTOS,
+        min_confirmacoes=_MIN_CONFIRMACOES,
+        srid_calculo=_SRID_CALCULO,
+        srid_armazenamento=_SRID_ARMAZENAMENTO,
+    )
+    avaliacao = avaliar(registrados, ler_estado_final(conexao))
+
+    assert {c: r.taxa for c, r in avaliacao.por_categoria.items()} == {
+        categoria: 1.0 for categoria in CATEGORIAS
+    }
+    assert avaliacao.barreiras_obtidas == {"confirmada": 3, "pendente": 2}
+    assert (resumo.barreiras_confirmadas, resumo.barreiras_pendentes) == (3, 2)
+    assert resumo.ruido_isolado == 5
+    origens = conexao.execute("SELECT DISTINCT origem FROM alertas").fetchall()
+    assert origens == [("simulacao",)]
