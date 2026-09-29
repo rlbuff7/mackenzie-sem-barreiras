@@ -125,10 +125,11 @@ def test_origens_nao_se_misturam(conexao: psycopg.Connection) -> None:
 def test_encadeamento_alertas_a_cada_7_metros_viram_um_cluster(
     conexao: psycopg.Connection,
 ) -> None:
-    """Efeito de encadeamento do DBSCAN (T5, ainda em aberto): cada alerta está a
-    7 m do vizinho (< eps de 8 m), então os três formam UM cluster — embora os
-    extremos estejam a 14 m, bem acima de `eps`. Documenta o comportamento; a
-    discussão (e a medição com dados sintéticos) fica para a Task 4."""
+    """Efeito de encadeamento do DBSCAN (T5): cada alerta está a 7 m do vizinho
+    (< eps de 8 m), então os três formam UM cluster — embora os extremos estejam a
+    14 m, bem acima de `eps`. Documenta o comportamento; a medição com dados
+    sintéticos (análise de sensibilidade, população `sequencia`) está em
+    `docs/decisoes-pendentes.md` (T5)."""
     alertas = [_alerta_a(conexao, norte) for norte in (0, 7, 14)]
 
     rotulos = _rotular(conexao)

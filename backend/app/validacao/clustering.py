@@ -67,12 +67,15 @@ def rotular_clusters(
     é descarte: o alerta volta a ser avaliado em toda execução, porque pode
     ganhar vizinhos com os alertas que chegarem depois (T4, D6).
 
-    Efeito de encadeamento (T5, em aberto): o DBSCAN liga vizinhos de vizinhos.
-    Alertas a cada 7 m ao longo de uma calçada, com `eps` de 8 m, formam um único
-    cluster de comprimento arbitrário, embora os extremos fiquem longe um do
-    outro. Uma calçada inteira irregular pode virar uma só "barreira", com o
-    centroide no meio dela. O efeito será medido com dados sintéticos (Task 4)
-    e discutido no texto; aqui ele é aceito como propriedade do algoritmo.
+    Efeito de encadeamento (T5): o DBSCAN liga vizinhos de vizinhos. Alertas a
+    cada 7 m ao longo de uma calçada, com `eps` de 8 m, formam um único cluster de
+    comprimento arbitrário, embora os extremos fiquem longe um do outro. Uma
+    calçada inteira irregular pode virar uma só "barreira", com o centroide no
+    meio dela. O efeito foi MEDIDO com dados sintéticos na análise de
+    sensibilidade (população `sequencia`, Task 4): barreiras distintas a 15 m
+    ficam separadas com eps = 8 m e começam a se fundir a partir de ~10,3 m. Os
+    números e o que falta decidir estão em `docs/decisoes-pendentes.md` (T5).
+    Aqui o efeito é aceito como propriedade do algoritmo.
 
     Determinismo (`ORDER BY id` dentro do `OVER`): o DBSCAN percorre os alertas
     em ordem, e dois detalhes dependem dessa ordem. (1) A numeração dos clusters,
