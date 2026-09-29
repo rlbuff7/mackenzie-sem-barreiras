@@ -40,9 +40,18 @@ e da taxonomia). Contrato completo em [`docs/api.md`](docs/api.md); rápido:
 
 ```bash
 curl localhost:8000/tipos-barreira
+sessao_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 curl -X POST localhost:8000/alertas -H 'Content-Type: application/json' -d \
-  '{"latitude": -23.5472, "longitude": -46.6525, "tipo": "degrau", "sessao_id": "<uuid>"}'
+  '{"latitude": -23.5472, "longitude": -46.6525, "tipo": "degrau", "sessao_id": "'"$sessao_id"'"}'
 ```
+
+> **Atenção: todo POST na pilha principal grava dado REAL** (`origem='real'`): este
+> `curl`, um envio pelo mapa em http://localhost:8081 e até um corpo inválido (que vira
+> uma linha em `alertas_rejeitados`). Esses dados entram no funil da coleta em campo.
+> Para testar sem sujar nada, use `./scripts/ponta-a-ponta.sh` (pilha isolada). Antes
+> de abrir a coleta, limpe o que os testes deixaram com
+> `./db/banco.sh zerar-real --sim-apagar-dados-reais` (sem o argumento, só mostra o
+> que seria apagado); ver [`docs/coleta-em-campo.md`](docs/coleta-em-campo.md) §5.
 
 URLs (portas padrão; ajustáveis por `*_PORTA_HOST` no `.env`):
 

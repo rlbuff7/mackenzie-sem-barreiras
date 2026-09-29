@@ -60,7 +60,7 @@ mackenzie-sem-barreiras/
 ├── scripts/
 │   └── ponta-a-ponta.sh     # M5: pilha ISOLADA (msb-e2e) + teste E2E por HTTP + down -v sempre
 ├── db/
-│   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql|preparar-teste}
+│   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql|preparar-teste|zerar-real}
 │   ├── init/                # roda 1x com volume vazio: só habilita o postgis
 │   ├── migrations/          # SQL numerado, aplicado em ordem (schema_migrations)
 │   ├── seeds/               # upserts: tipos de barreira, polígono da área de estudo
