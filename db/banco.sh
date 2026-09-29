@@ -7,6 +7,11 @@
 #   ./db/banco.sh preparar-teste   apaga e recria "${POSTGRES_DB}_teste" do zero e
 #                                  roda migrations + seeds nele (usado pelos testes
 #                                  do backend, via backend/tests/conftest.py)
+#   ./db/banco.sh backup           pg_dump -Fc do banco alvo para backups/<banco>-<data>.dump
+#                                  (pasta ignorada pelo git)
+#   ./db/banco.sh restaurar ARQ --sim-substituir-banco
+#                                  APAGA o banco alvo e o recria a partir do dump ARQ
+#                                  (sem o argumento exato, só explica e sai com 1)
 #   ./db/banco.sh zerar-real       SÓ ANTES DA COLETA EM CAMPO: mostra quantas linhas
 #                                  origem='real' existem; com o argumento exato
 #                                  --sim-apagar-dados-reais, apaga essas linhas
@@ -23,6 +28,11 @@
 #
 # Usa o psql de dentro do container: nada precisa ser instalado na máquina.
 #
+# Pilha de produção (docker-compose.prod.yml, docs/implantacao.md): `--prod` como
+# PRIMEIRO argumento (ex.: ./db/banco.sh --prod migrar) ou COMPOSE_FILE=
+# docker-compose.prod.yml no ambiente. Sem isso, tudo vale para a pilha de
+# desenvolvimento, como sempre.
+#
 # BANCO_ALVO controla contra qual banco `migrar`, `zerar-real` e
 # `psql_no_container` operam (padrão: $POSTGRES_DB). É assim que `preparar-teste`
 # reaplica migrations e seeds no banco de teste sem duplicar essa lógica, e que
@@ -38,6 +48,16 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 set -a; source .env; set +a
+
+if [[ "${1:-}" == "--prod" ]]; then
+    shift
+    export COMPOSE_FILE=docker-compose.prod.yml
+fi
+# O compose de produção interpola TOKEN_ADMIN (obrigatório) mesmo em `exec`; as
+# operações do banco não usam o token, então um valor de enchimento basta aqui.
+if [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]]; then
+    export TOKEN_ADMIN="${TOKEN_ADMIN:-nao-usado-pelo-banco-sh}"
+fi
 
 # Sempre DEPOIS do source .env, para que o .env nunca sobrescreva um BANCO_ALVO
 # já definido na chamada (ex.: BANCO_ALVO="${POSTGRES_DB}_teste" ./db/banco.sh migrar).
@@ -144,6 +164,44 @@ zerar_real() {
     psql_no_container -c "$SQL_CONTAGENS_POR_ORIGEM"
 }
 
+# pg_dump no formato custom (-Fc): compacto e restaurável com pg_restore. Vai para
+# backups/, ignorada pelo git (contém dados de voluntários: docs/coleta-em-campo.md
+# §3). O dump sai pelo stdout do container, então nada fica dentro dele.
+backup() {
+    mkdir -p backups
+    local arquivo
+    arquivo="backups/${BANCO_ALVO}-$(date +%Y%m%d-%H%M%S).dump"
+    docker compose exec -T db \
+        pg_dump -Fc -U "$POSTGRES_USER" -d "$BANCO_ALVO" > "$arquivo.parcial"
+    mv "$arquivo.parcial" "$arquivo"
+    echo "backup: $arquivo ($(du -h "$arquivo" | cut -f1))"
+}
+
+# Substitui o banco alvo pelo conteúdo de um dump. Destrutivo: exige o argumento
+# literal. Encerra conexões abertas (WITH FORCE), recria o banco vazio e restaura.
+restaurar() {
+    local arquivo="${1:-}" confirmacao="${2:-}"
+    if [[ -z "$arquivo" || ! -f "$arquivo" ]]; then
+        echo "erro: informe um dump existente. Uso: $0 restaurar backups/ARQUIVO.dump --sim-substituir-banco" >&2
+        exit 2
+    fi
+    if [[ "$confirmacao" != "--sim-substituir-banco" ]]; then
+        {
+            echo "nada foi feito. Isto APAGA o banco $BANCO_ALVO e o recria a partir de $arquivo."
+            echo "Para continuar: $0 restaurar $arquivo --sim-substituir-banco"
+        } >&2
+        exit 1
+    fi
+    echo "restaurando $arquivo em $BANCO_ALVO (o banco atual será apagado)"
+    docker compose exec -T db \
+        psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+        -c "DROP DATABASE IF EXISTS ${BANCO_ALVO} WITH (FORCE)" \
+        -c "CREATE DATABASE ${BANCO_ALVO}"
+    docker compose exec -T db \
+        pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$BANCO_ALVO" < "$arquivo"
+    echo "restaurado: $BANCO_ALVO"
+}
+
 preparar_teste() {
     local banco_teste="${POSTGRES_DB}_teste"
     echo "recriando banco de teste: $banco_teste"
@@ -163,8 +221,10 @@ case "${1:-}" in
     psql)           docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" ;;
     preparar-teste) preparar_teste ;;
     zerar-real)     zerar_real "${2:-}" ;;
+    backup)         backup ;;
+    restaurar)      restaurar "${2:-}" "${3:-}" ;;
     *)
-        echo "uso: $0 {migrar|testar|psql|preparar-teste|zerar-real [--sim-apagar-dados-reais]}" >&2
+        echo "uso: $0 [--prod] {migrar|testar|psql|preparar-teste|backup|restaurar ARQ --sim-substituir-banco|zerar-real [--sim-apagar-dados-reais]}" >&2
         exit 2
         ;;
 esac
