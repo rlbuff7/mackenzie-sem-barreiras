@@ -51,7 +51,25 @@ fi
 # Capturado ANTES do source do .env: o que veio da chamada é o que as mensagens de
 # recusa precisam repetir no comando sugerido.
 banco_alvo_do_ambiente="${BANCO_ALVO:-}"
-set -a; source .env; set +a
+# Lê o .env sem sobrescrever o que o shell já exportou (mesma regra do docker
+# compose e de scripts/ponta-a-ponta.sh): `POSTGRES_DB=x ./db/banco.sh ...` vale.
+carregar_env_sem_sobrescrever_o_shell() {
+    local nome
+    local -A do_shell=()
+    while IFS= read -r nome; do
+        if [[ -v "$nome" ]]; then
+            do_shell["$nome"]="${!nome}"
+        fi
+    done < <(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' .env)
+    set -a
+    # shellcheck source=/dev/null
+    source .env
+    set +a
+    for nome in "${!do_shell[@]}"; do
+        export "$nome=${do_shell[$nome]}"
+    done
+}
+carregar_env_sem_sobrescrever_o_shell
 
 # Opções antes do subcomando (podem vir juntas):
 #   --prod   pilha de produção (docker-compose.prod.yml); recusado em preparar-teste

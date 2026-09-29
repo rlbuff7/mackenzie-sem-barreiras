@@ -100,7 +100,8 @@ migrations/seeds nela, roda `backend/scripts/ponta_a_ponta.py` (saúde, taxonomi
 entrada de alertas, pipeline em lote, consulta de barreiras, estatísticas, o
 proxy `/api/` do frontend — R19 — e o próprio frontend) e **sempre** derruba
 essa pilha no fim (`down -v`, mesmo em falha ou Ctrl-C) — nunca toca a pilha
-principal nem o banco dela.
+principal nem o banco dela. Requer bash >= 4.2 (arrays associativos e `[[ -v ]]`;
+o macOS traz o 3.2: instale um bash mais novo) e `python3` no PATH.
 
 ## Integração e entrega contínuas
 

@@ -7,7 +7,8 @@
 #  2. restaurar bom funciona e dump corrompido aborta com o original intacto;
 #  3. se a 2ª troca de nomes falha, o banco original é devolvido;
 #  4. se a 1ª chamada da troca para NO MEIO (depois de fechar as conexões), o
-#     original volta a aceitar conexões.
+#     original volta a aceitar conexões;
+#  5. variável já exportada no shell vale mais que o .env (POSTGRES_DB=x ...).
 set -uo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$raiz"
@@ -90,5 +91,11 @@ igual "1a chamada falha (rc)" "$?" "1"
 igual "original aceita conexões e mantém os dados" "$(contar)" "$antes"
 sobras="$(docker compose exec -T db psql -q -At -U "$POSTGRES_USER" -d postgres -c "SELECT datname FROM pg_database WHERE datname LIKE '${teste}_%'")"
 igual "sem bancos temporários sobrando (4)" "$sobras" ""
+
+echo "== 5. o shell tem prioridade sobre o .env"
+msg="$(POSTGRES_DB=zz_nao_existe ./db/banco.sh --teste backup 2>&1)"
+rc=$?
+igual "backup com POSTGRES_DB do shell falha (rc)" "$([[ $rc -ne 0 ]] && echo diferente_de_0)" "diferente_de_0"
+contem "backup usou o POSTGRES_DB do shell, não o do .env" "$msg" "zz_nao_existe_teste"
 
 if [[ $falhas -eq 0 ]]; then echo "banco_sh_seguranca: todos os testes passaram"; else echo "banco_sh_seguranca: $falhas falha(s)"; exit 1; fi

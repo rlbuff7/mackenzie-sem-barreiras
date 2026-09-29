@@ -48,11 +48,9 @@ carregar_env_sem_sobrescrever_o_shell
 # ANTES de qualquer `docker compose` ou `./db/banco.sh`: são variáveis de
 # ambiente do shell, então têm prioridade sobre o .env na interpolação do
 # docker-compose.yml (${VAR:-padrão}).
-# COMPOSE_PROJECT_NAME não existe no .env, então sobrevive ao `source .env`
-# que db/banco.sh faz internamente — e `docker compose exec` (usado por
-# banco.sh) identifica o container pelo nome do SERVIÇO dentro do projeto,
-# não por porta de host, então POSTGRES_PORTA_HOST voltar a valer o do .env
-# dentro do banco.sh não tem efeito nenhum sobre qual container é alcançado.
+# db/banco.sh também preserva o que o shell já exportou ao ler o .env; e
+# `docker compose exec` (usado por banco.sh) identifica o container pelo nome do
+# SERVIÇO dentro do projeto, não por porta de host.
 export COMPOSE_PROJECT_NAME=msb-e2e
 export POSTGRES_PORTA_HOST=55434
 export API_PORTA_HOST=58000
@@ -62,13 +60,19 @@ derrubar_pilha_isolada() {
     local codigo=$?
     echo
     echo "== derrubando a pilha isolada (projeto $COMPOSE_PROJECT_NAME) =="
-    docker compose down --volumes --remove-orphans || true
+    if ! docker compose down --volumes --remove-orphans; then
+        echo "aviso: 'docker compose down' falhou; a pilha isolada '$COMPOSE_PROJECT_NAME' pode ter ficado de pé (docker compose -p $COMPOSE_PROJECT_NAME down --volumes)." >&2
+    fi
     exit "$codigo"
 }
 trap derrubar_pilha_isolada EXIT INT TERM
 
 echo "== confirmando que o projeto ativo é '$COMPOSE_PROJECT_NAME' (isolado da pilha principal) =="
-docker compose config --format json | grep -q "\"name\": \"${COMPOSE_PROJECT_NAME}\"" || {
+# O JSON é lido por um parser (não por grep no texto): não depende de espaçamento.
+docker compose config --format json | python3 -c '
+import json, sys
+sys.exit(0 if json.load(sys.stdin).get("name") == sys.argv[1] else 1)
+' "$COMPOSE_PROJECT_NAME" || {
     echo "erro: docker compose não resolveu o projeto isolado '$COMPOSE_PROJECT_NAME'." >&2
     exit 1
 }
