@@ -7,6 +7,7 @@ from psycopg import Connection
 
 from app.config import Configuracoes, obter_configuracoes
 from app.db import ConexaoDaRequisicao
+from app.validacao.estatisticas import ROTULOS_POR_ORIGEM
 
 router = APIRouter()
 
@@ -50,6 +51,11 @@ def buscar_barreiras_no_bbox(
     srid_armazenamento: int,
 ) -> dict[str, Any]:
     """Barreiras dentro do bbox, como GeoJSON `FeatureCollection` (Contrato).
+
+    `rotulo`, no topo da coleção, é o mesmo texto das estatísticas para a origem
+    ("SIMULAÇÃO — dados sintéticos" ou "Dados reais de campo", G10). O GeoJSON
+    aceita membros extras no topo (RFC 7946, §6.1); quem não conhece o campo o
+    ignora.
 
     `geom && ST_MakeEnvelope(...)` é o operador de sobreposição de bounding
     box: usa o índice GiST (`idx_barreiras_geom`), mais barato que
@@ -102,7 +108,7 @@ def buscar_barreiras_no_bbox(
         }
         for id_, tipo, tipo_nome, confirmacoes, status_barreira, atualizado_em, geometria in linhas
     ]
-    return {"type": "FeatureCollection", "features": features}
+    return {"type": "FeatureCollection", "rotulo": ROTULOS_POR_ORIGEM[origem], "features": features}
 
 
 @router.get("/barreiras")

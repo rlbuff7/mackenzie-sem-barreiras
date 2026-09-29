@@ -3,6 +3,8 @@
 import psycopg
 from fastapi.testclient import TestClient
 
+from app.validacao.estatisticas import ROTULOS_POR_ORIGEM
+
 _BBOX_CAMPUS = "-46.66,-23.55,-46.64,-23.54"
 
 
@@ -120,3 +122,14 @@ def test_formato_geojson_da_feature(cliente: TestClient, conexao: psycopg.Connec
         "atualizado_em",
     }
     assert feature["properties"]["tipo"] == "degrau"
+
+
+def test_colecao_traz_o_rotulo_da_origem(cliente: TestClient) -> None:
+    """G10: a coleção diz de onde vêm as barreiras, com o mesmo texto das
+    estatísticas; um GeoJSON pode ter membros extras no topo (RFC 7946 §6.1)."""
+    real = cliente.get("/barreiras", params={"bbox": _BBOX_CAMPUS})
+    simulacao = cliente.get("/barreiras", params={"bbox": _BBOX_CAMPUS, "origem": "simulacao"})
+
+    assert real.json()["rotulo"] == ROTULOS_POR_ORIGEM["real"]
+    assert simulacao.json()["rotulo"] == ROTULOS_POR_ORIGEM["simulacao"]
+    assert simulacao.json()["rotulo"].startswith("SIMULAÇÃO")
