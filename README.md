@@ -1,5 +1,7 @@
 # Mackenzie sem Barreiras
 
+[![CI/CD](https://github.com/rlbuff7/mackenzie-sem-barreiras/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/rlbuff7/mackenzie-sem-barreiras/actions/workflows/ci-cd.yml)
+
 Mapeamento colaborativo de acessibilidade urbana no entorno da Universidade
 Presbiteriana Mackenzie. TCC, FCI/Mackenzie.
 
@@ -80,6 +82,14 @@ proxy `/api/` do frontend — R19 — e o próprio frontend) e **sempre** derrub
 essa pilha no fim (`down -v`, mesmo em falha ou Ctrl-C) — nunca toca a pilha
 principal nem o banco dela.
 
+## Integração e entrega contínuas
+
+Todo push (qualquer branch) e todo pull request para `main` rodam esses mesmos
+testes automaticamente no GitHub Actions — banco, backend, frontend e ponta a
+ponta. Todo push em `main` publica as imagens Docker da API e do frontend,
+prontas para implantar. Detalhes de cada job, como acompanhar as execuções e
+como usar as imagens publicadas: [`docs/ci-cd.md`](docs/ci-cd.md).
+
 ## Backend
 
 `docker compose up` já sobe a API (serviço `api`, build de `backend/Dockerfile`).
@@ -154,6 +164,9 @@ uv run python -m scripts.gerar_figura_funil --origem simulacao
 - [x] **M4**: frontend com mapa (Leaflet/OSM) e envio de alerta
 - [x] **M5**: integração ponta a ponta (`docker compose up` único, frontend
       containerizado, `scripts/ponta-a-ponta.sh`)
+- [ ] **M5.1**: CI/CD — **implementado**, aguardando a primeira execução real no
+      GitHub Actions. Todo push roda os testes; push no `main` publica as imagens
+      Docker no GHCR ([`docs/ci-cd.md`](docs/ci-cd.md))
 - [ ] **M6**: coleta em campo — **preparado**, não realizado. Protocolo, ética/LGPD,
       checklist e o que falta decidir com a equipe/orientadora:
       [`docs/coleta-em-campo.md`](docs/coleta-em-campo.md)
