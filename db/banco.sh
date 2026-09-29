@@ -12,10 +12,11 @@
 #   ./db/banco.sh restaurar ARQ --sim-substituir-banco
 #                                  APAGA o banco alvo e o recria a partir do dump ARQ
 #                                  (sem o argumento exato, só explica e sai com 1)
-#   ./db/banco.sh zerar-real       SÓ ANTES DA COLETA EM CAMPO: mostra quantas linhas
-#                                  origem='real' existem; com o argumento exato
+#   ./db/banco.sh zerar-real       SÓ ANTES DA PRIMEIRA ABERTURA DA COLETA: mostra quantas
+#                                  linhas origem='real' existem e quantos relatos reais,
+#                                  de que data a que data; com o argumento exato
 #                                  --sim-apagar-dados-reais, apaga essas linhas
-#                                  (docs/coleta-em-campo.md §5)
+#                                  (docs/implantacao.md §7; reabrir a coleta: §8)
 #
 # Migrations (db/migrations/NNN_*.sql) rodam UMA vez, em ordem, cada uma numa
 # transação; o controle fica na tabela schema_migrations. São imutáveis depois de
@@ -204,24 +205,62 @@ SELECT 'execucoes_pipeline', count(*) FILTER (WHERE origem = 'real'),
        count(*) FILTER (WHERE origem = 'simulacao')
 FROM execucoes_pipeline"
 
-# Apaga os dados REAIS (origem='real') que testes manuais deixaram na pilha
-# principal, para o funil da coleta começar do zero. Uso: SÓ antes de abrir a
-# coleta; depois disso, estes são os dados do TCC. Sem o argumento exato de
-# confirmação, só mostra o que seria apagado e sai com código 1.
+# Relatos reais (o `recebidos` do funil: aceitos em `alertas` + reprovados no
+# estágio 1 em `alertas_rejeitados`) e o intervalo em que chegaram, no horário de
+# São Paulo (o TZ do compose). Saída do psql -At: total|aceitos|rejeitados|primeiro|último.
+SQL_RELATOS_REAIS="
+WITH relatos AS (
+    SELECT 'aceito' AS destino, criado_em AS em FROM alertas WHERE origem = 'real'
+    UNION ALL
+    SELECT 'rejeitado', recebido_em FROM alertas_rejeitados WHERE origem = 'real'
+)
+SELECT count(*),
+       count(*) FILTER (WHERE destino = 'aceito'),
+       count(*) FILTER (WHERE destino = 'rejeitado'),
+       coalesce(to_char(min(em) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI'), '-'),
+       coalesce(to_char(max(em) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI'), '-')
+FROM relatos"
+
+# Uma linha: quantos relatos reais existem e de quando a quando. É o que impede
+# alguém de apagar dias de coleta achando que são só testes.
+resumo_dos_relatos_reais() {
+    local linha total aceitos rejeitados primeiro ultimo
+    linha="$(psql_no_container -At -c "$SQL_RELATOS_REAIS")"
+    IFS='|' read -r total aceitos rejeitados primeiro ultimo <<< "$linha"
+    if [[ "$total" == 0 ]]; then
+        echo "relatos reais: nenhum"
+    else
+        echo "relatos reais: $total ($aceitos aceitos + $rejeitados reprovados no estágio 1), de $primeiro a $ultimo (horário de São Paulo)"
+    fi
+}
+
+# Apaga os dados REAIS (origem='real') que testes manuais deixaram na pilha,
+# para o funil da coleta começar do zero. Uso: SÓ antes da PRIMEIRA abertura da
+# coleta; depois disso, estes são os dados do TCC (reabrir a coleta num dia
+# seguinte é `./scripts/preparar-coleta.sh --reabrir`, que nunca apaga nada).
+# Sem o argumento exato de confirmação, só mostra o que seria apagado (contagens,
+# quantos relatos e de quando) e sai com código 1.
 zerar_real() {
     local confirmacao="${1:-}"
     echo "banco $BANCO_ALVO, antes:"
     psql_no_container -c "$SQL_CONTAGENS_POR_ORIGEM"
+    local resumo
+    resumo="$(resumo_dos_relatos_reais)"
 
     if [[ "$confirmacao" != "--sim-apagar-dados-reais" ]]; then
         {
-            echo "nada foi apagado. Isto apaga TODOS os dados reais (origem='real') e"
-            echo "é só para ANTES da coleta em campo (docs/coleta-em-campo.md §5)."
+            echo "nada foi apagado. Isto apaga TODOS os dados reais (origem='real'):"
+            echo "  $resumo"
+            echo "É só para ANTES da PRIMEIRA abertura da coleta (docs/implantacao.md §7): aí"
+            echo "esses relatos são testes. Se a coleta já foi aberta alguma vez, eles são os"
+            echo "dados do TCC: NÃO apague. Para reabrir a coleta (dia 2 em diante, túnel que"
+            echo "caiu), use ./scripts/preparar-coleta.sh --reabrir (docs/implantacao.md §8)."
             descrever_alvo
             echo "Para apagar: $(prefixo_do_comando)zerar-real --sim-apagar-dados-reais"
         } >&2
         exit 1
     fi
+    echo "apagando do banco $BANCO_ALVO: $resumo"
 
     # Uma transação só (ON_ERROR_STOP): ou apaga tudo, ou nada. alertas antes
     # de barreiras, por causa da FK alertas.barreira_id. Nenhum WHERE toca

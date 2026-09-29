@@ -9,7 +9,9 @@
 #  4. se a 1ª chamada da troca para NO MEIO (depois de fechar as conexões), o
 #     original volta a aceitar conexões;
 #  5. POSTGRES_DB/USER/PASSWORD do shell NÃO valem sobre o .env (aviso em stderr);
-#     a lista permitida (ex.: BACKUP_DIR) vale.
+#     a lista permitida (ex.: BACKUP_DIR) vale;
+#  6. zerar-real (sem e com a confirmação) mostra quantos relatos reais serão
+#     apagados e de que data a que data, e manda para --reabrir quem já abriu a coleta.
 set -uo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$raiz"
@@ -105,5 +107,26 @@ contem "aviso nomeia POSTGRES_PASSWORD" "$msg" "aviso: POSTGRES_PASSWORD"
 nao_contem "aviso não mostra o valor da senha" "$msg" "outra-senha-secreta"
 msg="$(POSTGRES_DB="$POSTGRES_DB" ./db/banco.sh --teste backup 2>&1)"
 nao_contem "sem aviso quando o valor é igual ao do .env" "$msg" "aviso:"
+
+echo "== 6. zerar-real diz quantos relatos reais e de quando"
+# Relatos reais SIMULADOS no banco de TESTE, com datas conhecidas (horário de São Paulo).
+psql_teste "INSERT INTO alertas (geom, tipo_id, sessao_hash, criado_em, origem)
+    SELECT ST_SetSRID(ST_MakePoint(-46.6524631, -23.5471938), 4326), id, repeat('a', 64), t, 'real'
+    FROM tipos_barreira, (VALUES (timestamptz '2026-10-01 09:15:00-03'), ('2026-10-02 17:40:00-03')) AS d(t)
+    WHERE codigo = 'degrau'" || abortar "INSERT dos alertas reais de teste falhou"
+psql_teste "INSERT INTO alertas_rejeitados (payload, erros, recebido_em, origem)
+    VALUES ('{}', '[]', '2026-10-01 10:00:00-03', 'real')" || abortar "INSERT do rejeitado real de teste falhou"
+resumo_esperado="relatos reais: 3 (2 aceitos + 1 reprovados no estágio 1), de 01/10/2026 09:15 a 02/10/2026 17:40"
+msg="$(./db/banco.sh --teste zerar-real 2>&1)"
+igual "zerar-real sem confirmação (rc)" "$?" "1"
+contem "dry-run: contagem e intervalo de datas" "$msg" "$resumo_esperado"
+contem "dry-run: coleta já aberta = não apague" "$msg" "NÃO apague"
+contem "dry-run: aponta o --reabrir" "$msg" "preparar-coleta.sh --reabrir"
+reais() { docker compose exec -T db psql -q -At -U "$POSTGRES_USER" -d "$teste" -c "SELECT (SELECT count(*) FROM alertas WHERE origem = 'real') + (SELECT count(*) FROM alertas_rejeitados WHERE origem = 'real')" 2>&1; }
+igual "dry-run não apagou nada" "$(reais)" "3"
+msg="$(./db/banco.sh --teste zerar-real --sim-apagar-dados-reais 2>&1)"
+igual "zerar-real com confirmação (rc)" "$?" "0"
+contem "confirmação: contagem e datas antes de apagar" "$msg" "apagando do banco $teste: $resumo_esperado"
+igual "confirmação apagou os relatos reais do banco de teste" "$(reais)" "0"
 
 if [[ $falhas -eq 0 ]]; then echo "banco_sh_seguranca: todos os testes passaram"; else echo "banco_sh_seguranca: $falhas falha(s)"; exit 1; fi
