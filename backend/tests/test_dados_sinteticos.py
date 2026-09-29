@@ -18,6 +18,7 @@ from psycopg import sql
 
 from app.config import obter_configuracoes
 from app.validacao.entrada import ResultadoEntrada, registrar_alerta
+from app.validacao.estatisticas import ROTULOS_POR_ORIGEM
 from app.validacao.geofence import ponto_dentro_da_area
 from app.validacao.pipeline import executar_pipeline
 from scripts.analisar_sensibilidade import (
@@ -1067,10 +1068,10 @@ def test_sufixo_das_opcoes_so_aparece_fora_dos_padroes() -> None:
 # --- figura do funil (só a montagem dos estágios; o matplotlib não é testado) ---
 
 
-def _estatisticas(parametros: dict | None) -> dict:
+def _estatisticas(parametros: dict | None, origem: str = "simulacao") -> dict:
     return {
-        "origem": "simulacao",
-        "rotulo": "SIMULAÇÃO — dados sintéticos",
+        "origem": origem,
+        "rotulo": ROTULOS_POR_ORIGEM[origem],
         "alertas": {
             "recebidos": 180,
             "rejeitados_schema": 10,
@@ -1110,3 +1111,25 @@ def test_funil_monta_os_estagios_com_a_unidade_de_cada_um() -> None:
     assert "eps = 8 m" in funil.legenda
     assert "min_confirmacoes = 3" in funil.legenda
     assert "2026-09-29" in funil.legenda
+
+
+def test_funil_da_simulacao_avisa_que_as_proporcoes_sao_do_gerador() -> None:
+    """As proporções entre as barras da simulação (inválidos, fora da área, ruído,
+    grupos) são escolhas do gerador, não taxas observadas: a figura precisa dizer."""
+    parametros = {"eps_metros": 8.0, "min_pontos": 2, "min_confirmacoes": 3}
+
+    funil = montar_funil(_estatisticas(parametros))
+
+    assert funil.aviso is not None
+    assert "fixadas pelo gerador" in funil.aviso
+    assert "CONTROLE" in funil.aviso
+    assert "semente" in funil.aviso
+    assert "não são taxas observadas" in funil.aviso
+
+
+def test_funil_dos_dados_reais_nao_leva_o_aviso_do_gerador() -> None:
+    parametros = {"eps_metros": 8.0, "min_pontos": 2, "min_confirmacoes": 3}
+
+    funil = montar_funil(_estatisticas(parametros, origem="real"))
+
+    assert funil.aviso is None

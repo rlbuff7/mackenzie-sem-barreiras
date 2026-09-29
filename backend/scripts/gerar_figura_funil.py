@@ -21,7 +21,9 @@ Decisões da figura:
   origem (R14). Se a origem nunca foi processada, não há figura: o script para e
   pede para rodar o pipeline antes.
 - **Honestidade (G10).** Com `origem=simulacao` o título começa com "SIMULAÇÃO" e o
-  subtítulo diz que os dados são sintéticos.
+  subtítulo diz que os dados são sintéticos. O rodapé avisa que as proporções entre as
+  barras (inválidos, fora da área, ruído, grupos) foram escolhidas no gerador: são o
+  cenário de CONTROLE, não taxas observadas, e não podem ser lidas como tais.
 - **Cor = estágio.** Um só tom de azul, do claro (entrada) ao escuro (estágio 4),
   validado como rampa ordinal pelo validador da skill `dataviz`. "Agrupados" e
   "barreiras formadas" são o mesmo estágio 3 contado em duas unidades, e por isso
@@ -70,12 +72,15 @@ class Estagio:
 
 @dataclass(frozen=True)
 class Funil:
+    """`aviso` é a linha de rodapé só da simulação (ver a docstring do módulo)."""
+
     origem: str
     titulo: str
     subtitulo: str
     legenda: str
     fonte: str
     estagios: list[Estagio]
+    aviso: str | None = None
 
 
 def _numero(valor: int) -> str:
@@ -189,11 +194,17 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
         ),
     ]
 
+    aviso = None
     if origem == "simulacao":
         titulo = "SIMULAÇÃO — funil de validação dos alertas"
         subtitulo = (
             "Dados sintéticos (origem = simulacao), gerados para testar o pipeline.\n"
             "Não são resultado de coleta real."
+        )
+        aviso = (
+            "As proporções entre as barras (inválidos, fora da área, ruído, grupos) foram "
+            "fixadas pelo gerador de dados sintéticos (cenário de CONTROLE, semente fixa): "
+            "não são taxas observadas."
         )
     else:
         titulo = "Funil de validação dos alertas — dados reais de campo"
@@ -210,7 +221,7 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
         f"Fonte: GET /validacao/estatisticas?origem={origem}, consultado em "
         f"{_instante(estatisticas['gerado_em'])}."
     )
-    return Funil(origem, titulo, subtitulo, legenda, fonte, estagios)
+    return Funil(origem, titulo, subtitulo, legenda, fonte, estagios, aviso)
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +286,8 @@ def desenhar_funil(funil: Funil, caminho_base: Path) -> list[Path]:
         (funil.legenda, 7.5, _TINTA_SECUNDARIA, False, 105),
         (funil.fonte, 7, _TINTA_APAGADA, False, 112),
     ]
+    if funil.aviso is not None:
+        rodape.insert(0, (funil.aviso, 7.5, _TINTA_SECUNDARIA, False, 105))
     altura_dos_eixos = {
         unidade: sum(1 for e in funil.estagios if e.unidade == unidade) * _ALTURA_DA_LINHA_PT / 72
         for _, _, unidade in paineis
@@ -536,6 +549,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     print(funil.titulo)
+    if funil.aviso is not None:
+        print(funil.aviso)
     print(funil.legenda)
     for caminho in caminhos:
         print(f"Figura: {caminho.relative_to(_RAIZ_REPO)}")
