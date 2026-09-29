@@ -149,7 +149,9 @@ exposta, mas qualquer rota dela responde por `/api/` na URL da coleta, inclusive
 `/api/validacao/executar` (que apaga e recria as barreiras reais, D6) e a documentação
 interativa em `/api/docs`. **Defina `TOKEN_ADMIN` no `.env` ANTES de expor o
 frontend**, em qualquer das opções abaixo; com ele vazio, a execução do pipeline fica
-aberta a quem tiver a URL (D7).
+aberta a quem tiver a URL (D7). **Defina também `EXPOR_DOCS=false`**: a documentação
+interativa (`/docs`, `/redoc`, `/openapi.json`) deixa de existir (404) e o esquema da
+API não fica público.
 
 **Isto ainda não está decidido — decidir com a equipe antes do dia da coleta.** Duas
 famílias de opção, sem escolher nenhuma aqui:
@@ -174,6 +176,8 @@ Antes de ir a campo:
       públicos junto com o mapa. Um valor longo e aleatório, por exemplo
       `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`, e depois
       `docker compose up -d` para a API recarregar o `.env`.
+- [ ] **Definir `EXPOR_DOCS=false` no `.env` ANTES de expor o frontend**, junto com o
+      `TOKEN_ADMIN` (mesmo `docker compose up -d`). Conferir: `/api/docs` responde 404.
 - [ ] Confirmar que a stack sobe do zero: `docker compose up -d --build --wait`
       (`docker compose ps` — os três serviços `healthy`).
 - [ ] `./db/banco.sh migrar` já aplicado (tabelas, seeds e, principalmente, o polígono
