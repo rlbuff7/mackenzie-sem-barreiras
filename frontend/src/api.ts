@@ -20,7 +20,8 @@ const URL_BASE_API: string = (import.meta.env.VITE_API_URL ?? "http://localhost:
 export interface TipoBarreira {
   codigo: string;
   nome: string;
-  descricao: string;
+  /** `tipos_barreira.descricao` aceita NULL no banco. */
+  descricao: string | null;
 }
 
 /** Geometria de ponto em GeoJSON (coordinates = [longitude, latitude]). */
@@ -40,7 +41,8 @@ export interface FeatureAreaEstudo {
   type: "Feature";
   properties: {
     nome: string;
-    descricao: string;
+    /** `area_estudo.descricao` aceita NULL no banco. */
+    descricao: string | null;
   };
   geometry: GeometriaPoligono;
 }

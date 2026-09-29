@@ -66,7 +66,10 @@ export async function iniciarFormulario(
       const opcao = document.createElement("option");
       opcao.value = tipo.codigo;
       opcao.textContent = tipo.nome;
-      opcao.title = tipo.descricao;
+      // Sem descrição, nenhum `title`: atribuir null escreveria o texto "null".
+      if (tipo.descricao) {
+        opcao.title = tipo.descricao;
+      }
       campoTipo.appendChild(opcao);
     }
   } catch (erro) {
