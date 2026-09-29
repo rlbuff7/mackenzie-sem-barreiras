@@ -5,7 +5,16 @@
  * (docs/api.md). Nenhum campo é inventado ou omitido em relação ao contrato.
  */
 
-const URL_BASE_API: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// Duas formas possíveis (R19): absoluta (`http://localhost:8000`, o padrão do
+// servidor de dev do Vite — porta 5173 — que fala com a API por CORS) ou
+// relativa (`/api`, usada pela imagem de container: `frontend/nginx.conf`
+// encaminha `/api/` para o serviço `api` na mesma origem, sem precisar de
+// CORS). A barra final é removida nos dois casos: todo `caminho` abaixo já
+// começa com "/", então a concatenação nunca produz "//".
+const URL_BASE_API: string = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(
+  /\/+$/,
+  "",
+);
 
 /** Um tipo de barreira ativo, como devolvido por GET /tipos-barreira. */
 export interface TipoBarreira {
