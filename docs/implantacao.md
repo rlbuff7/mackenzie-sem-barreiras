@@ -190,18 +190,31 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
 ## 9. Backup e restauração
 
 ```bash
-./db/banco.sh --prod backup        # backups/<banco>-<data-hora>.dump (formato -Fc)
-./db/banco.sh --prod restaurar backups/ARQUIVO.dump --sim-substituir-banco
+./db/banco.sh --prod backup        # backups/prod-<banco>-<data-hora>.dump (formato -Fc)
+./db/banco.sh --prod restaurar backups/prod-ARQUIVO.dump --sim-substituir-banco
 ```
+
+- **O nome diz de onde o backup veio:** `<pilha>-<banco>-<data-hora>.dump`, com pilha
+  `prod` (`--prod`), `dev` (desenvolvimento) ou `teste` (`--teste`). O `backup` imprime
+  antes a linha "Alvo:" (banco e pilha); confira que é a de produção.
 
 - Faça backup **antes** de abrir a coleta, **ao fim de cada dia** e **depois** do
   último `executar`. A pasta `backups/` é ignorada pelo Git: os dumps contêm dados de
   voluntários ([`coleta-em-campo.md`](coleta-em-campo.md) §3); guarde-os em local
   privado, não em pasta pública.
 - `restaurar` valida o arquivo (`pg_restore --list`; recusa `.parcial`), restaura num
-  banco temporário e só então troca pelo banco alvo, apagando o antigo: um dump ruim
-  aborta com o banco original intacto. Sem o argumento literal `--sim-substituir-banco`
-  ele só explica e sai.
+  banco temporário e só então troca pelo banco alvo: um dump ruim aborta com o banco
+  original intacto. Sem o argumento literal `--sim-substituir-banco` ele só explica e sai.
+- **Pilha diferente é recusada.** O `restaurar` mostra de que pilha o arquivo veio (pelo
+  nome) e, se ela não for a do alvo (ex.: um `dev-….dump` na produção) ou se o nome não
+  disser (backups antigos, sem o prefixo), recusa e sai sem mudar nada. Só segue com
+  mais um argumento literal, `--sim-pilha-diferente`, para quando isso é de propósito
+  (ex.: ensaiar no banco de teste um backup da produção).
+- **Na produção, o banco anterior nunca é apagado.** Depois da troca, o `--prod` guarda o
+  banco de antes como `<banco>_antigo_<data-hora>` (fechado para conexões) e imprime como
+  apagá-lo: confira o restaurado (`./scripts/preparar-coleta.sh --reabrir`, contagens) e
+  só então, no `./db/banco.sh --prod psql`, `DROP DATABASE <banco>_antigo_<data-hora>;`.
+  Fora da produção o anterior é apagado no fim, como antes.
 - **Restaurar em `--prod` derruba as conexões da API por instantes** (entre as duas
   trocas de nome, `ALLOW_CONNECTIONS` fica desligado no banco atual): faça antes de
   abrir a coleta ou com o frontend parado. Se a troca for interrompida (Ctrl-C, erro),
@@ -214,7 +227,7 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
 - As mensagens de recusa de `restaurar` e `zerar-real` mostram o alvo em palavras e o
   comando completo, já com `--prod`/`--teste`: confira o "Alvo:" antes de copiar.
 - Ensaie no banco de teste, sem `--prod`: `./db/banco.sh --teste backup` e
-  `./db/banco.sh --teste restaurar backups/ARQUIVO.dump --sim-substituir-banco`
+  `./db/banco.sh --teste restaurar backups/teste-ARQUIVO.dump --sim-substituir-banco`
   (`--teste` aponta para `<POSTGRES_DB>_teste`; crie-o antes com
   `./db/banco.sh preparar-teste`, na pilha de desenvolvimento).
 - Opções de `banco.sh` (antes do subcomando): `--prod` vale para `migrar`, `testar`,

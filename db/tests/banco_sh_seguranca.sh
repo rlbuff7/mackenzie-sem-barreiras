@@ -11,7 +11,10 @@
 #  5. POSTGRES_DB/USER/PASSWORD do shell NÃO valem sobre o .env (aviso em stderr);
 #     a lista permitida (ex.: BACKUP_DIR) vale;
 #  6. zerar-real (sem e com a confirmação) mostra quantos relatos reais serão
-#     apagados e de que data a que data, e manda para --reabrir quem já abriu a coleta.
+#     apagados e de que data a que data, e manda para --reabrir quem já abriu a coleta;
+#  7. o backup diz de que pilha veio (nome e "Alvo:"); restaurar recusa um dump de
+#     outra pilha (ou de pilha desconhecida) sem --sim-pilha-diferente; no --prod o
+#     banco anterior fica guardado.
 set -uo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$raiz"
@@ -31,8 +34,8 @@ contar() { docker compose exec -T db psql -q -At -U "$POSTGRES_USER" -d "$teste"
 psql_teste() { docker compose exec -T db psql -q -U "$POSTGRES_USER" -d "$teste" -c "$1" > /dev/null; }
 
 ./db/banco.sh preparar-teste > /dev/null || abortar "preparar-teste falhou (a pilha de desenvolvimento está no ar?)"
-./db/banco.sh --teste backup > /dev/null || abortar "backup do banco de teste falhou"
-dump="$(ls -t "$BACKUP_DIR"/"${teste}"-*.dump 2>/dev/null | head -1)"
+saida_backup="$(./db/banco.sh --teste backup)" || abortar "backup do banco de teste falhou"
+dump="$(ls -t "$BACKUP_DIR"/teste-"${teste}"-*.dump 2>/dev/null | head -1)"
 [[ -n "$dump" && -s "$dump" ]] || abortar "o backup não produziu um dump em $BACKUP_DIR"
 
 echo "== 1. mensagens de recusa"
@@ -47,13 +50,17 @@ contem "zerar-real --teste: alvo nomeado" "$msg" "Alvo: banco $teste da pilha de
 msg="$(TOKEN_ADMIN=x ./db/banco.sh --prod restaurar "$dump" 2>&1)"
 contem "restaurar --prod: comando com --prod" "$msg" "banco.sh --prod restaurar"
 contem "restaurar --prod: alvo de produção" "$msg" "da pilha de PRODUÇÃO"
+contem "restaurar --prod de um dump de teste: avisa a pilha diferente" "$msg" "--sim-substituir-banco --sim-pilha-diferente"
 
 echo "== 2. restaurar bom e dump corrompido"
 psql_teste "INSERT INTO tipos_barreira(codigo,nome) VALUES ('zz','zz')" || abortar "INSERT de preparo falhou"
 antes="$(contar)"
-head -c 400 "$dump" > "$tmp/corrompido.dump"
-./db/banco.sh --teste restaurar "$tmp/corrompido.dump" --sim-substituir-banco > /dev/null 2>&1
+# Nome com o prefixo da pilha certa: a recusa tem de vir do pg_restore --list, não
+# da conferência da pilha.
+head -c 400 "$dump" > "$tmp/teste-corrompido.dump"
+msg="$(./db/banco.sh --teste restaurar "$tmp/teste-corrompido.dump" --sim-substituir-banco 2>&1)"
 igual "corrompido aborta (rc)" "$?" "1"
+contem "corrompido: recusado pela validação do dump" "$msg" "não é um dump válido"
 igual "corrompido: original intacto" "$(contar)" "$antes"
 ./db/banco.sh --teste restaurar "$dump" --sim-substituir-banco > /dev/null 2>&1
 igual "restauração boa volta ao estado do dump (rc)" "$?" "0"
@@ -128,5 +135,39 @@ msg="$(./db/banco.sh --teste zerar-real --sim-apagar-dados-reais 2>&1)"
 igual "zerar-real com confirmação (rc)" "$?" "0"
 contem "confirmação: contagem e datas antes de apagar" "$msg" "apagando do banco $teste: $resumo_esperado"
 igual "confirmação apagou os relatos reais do banco de teste" "$(reais)" "0"
+
+echo "== 7. backups dizem de que pilha vieram"
+casa() { if [[ "$2" =~ $3 ]]; then echo "ok   $1"; else echo "FALHA $1: '$2' não casa com '$3'"; falhas=$((falhas+1)); fi; }
+casa "nome do backup: teste-<banco>-<data>.dump" "$(basename "$dump")" "^teste-${teste}-[0-9]{8}-[0-9]{6}\.dump$"
+contem "backup imprime o alvo" "$saida_backup" "Alvo: banco $teste da pilha de desenvolvimento"
+bancos_de_sobra() { docker compose exec -T db psql -q -At -U "$POSTGRES_USER" -d postgres -c "SELECT datname FROM pg_database WHERE datname LIKE '${teste}_%' ORDER BY 1"; }
+antes="$(contar)"
+cp "$dump" "$tmp/dev-${teste}-20260101-000000.dump"
+msg="$(./db/banco.sh --teste restaurar "$tmp/dev-${teste}-20260101-000000.dump" --sim-substituir-banco 2>&1)"
+igual "dump do dev no banco de teste: recusado sem --sim-pilha-diferente (rc)" "$?" "1"
+contem "recusa nomeia a pilha do arquivo e a do alvo" "$msg" "backup da pilha dev (pelo nome); o alvo é da pilha teste"
+contem "recusa sugere --sim-pilha-diferente" "$msg" "--sim-substituir-banco --sim-pilha-diferente"
+igual "recusa por pilha: banco intacto" "$(contar)" "$antes"
+cp "$dump" "$tmp/sem-prefixo.dump"
+msg="$(./db/banco.sh --teste restaurar "$tmp/sem-prefixo.dump" --sim-substituir-banco 2>&1)"
+igual "dump sem pilha no nome: recusado sem --sim-pilha-diferente (rc)" "$?" "1"
+contem "recusa diz que a pilha é desconhecida" "$msg" "pilha de origem DESCONHECIDA"
+./db/banco.sh --teste restaurar "$tmp/sem-prefixo.dump" --sim-substitui 2>/dev/null
+igual "argumento desconhecido no restaurar (rc)" "$?" "2"
+./db/banco.sh --teste restaurar "$tmp/dev-${teste}-20260101-000000.dump" --sim-substituir-banco --sim-pilha-diferente > /dev/null 2>&1
+igual "com --sim-pilha-diferente restaura (rc)" "$?" "0"
+igual "sem bancos temporários sobrando (7)" "$(bancos_de_sobra)" ""
+# --prod guarda o antigo. O compose de produção é usado com o NOME DE PROJETO da
+# pilha de desenvolvimento, para o `exec` cair no container db que já está no ar;
+# com --teste, o alvo continua sendo só o banco de teste.
+projeto_dev="$(docker compose config --format json | python3 -c 'import json, sys; print(json.load(sys.stdin)["name"])')"
+msg="$(TOKEN_ADMIN=x COMPOSE_PROJECT_NAME="$projeto_dev" ./db/banco.sh --prod --teste restaurar "$dump" --sim-substituir-banco 2>&1)"
+igual "restaurar --prod (rc)" "$?" "0"
+contem "--prod: diz que o anterior NÃO foi apagado" "$msg" "NÃO foi apagado: ficou guardado como ${teste}_antigo_"
+contem "--prod: explica como apagar o guardado" "$msg" "banco.sh --prod --teste psql      e, no psql:  DROP DATABASE ${teste}_antigo_"
+guardado="$(bancos_de_sobra)"
+casa "--prod: o banco anterior continua existindo" "$guardado" "^${teste}_antigo_[0-9]{14}$"
+[[ "$guardado" =~ ^${teste}_antigo_[0-9]{14}$ ]] && docker compose exec -T db psql -q -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE ${guardado}" > /dev/null
+igual "banco guardado apagado no fim do teste" "$(bancos_de_sobra)" ""
 
 if [[ $falhas -eq 0 ]]; then echo "banco_sh_seguranca: todos os testes passaram"; else echo "banco_sh_seguranca: $falhas falha(s)"; exit 1; fi

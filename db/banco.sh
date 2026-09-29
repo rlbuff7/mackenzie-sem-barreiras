@@ -7,11 +7,15 @@
 #   ./db/banco.sh preparar-teste   apaga e recria "${POSTGRES_DB}_teste" do zero e
 #                                  roda migrations + seeds nele (usado pelos testes
 #                                  do backend, via backend/tests/conftest.py)
-#   ./db/banco.sh backup           pg_dump -Fc do banco alvo para backups/<banco>-<data>.dump
-#                                  (pasta ignorada pelo git)
-#   ./db/banco.sh restaurar ARQ --sim-substituir-banco
-#                                  APAGA o banco alvo e o recria a partir do dump ARQ
-#                                  (sem o argumento exato, só explica e sai com 1)
+#   ./db/banco.sh backup           pg_dump -Fc do banco alvo para
+#                                  backups/<pilha>-<banco>-<data>.dump, pilha = dev,
+#                                  prod ou teste (pasta ignorada pelo git)
+#   ./db/banco.sh restaurar ARQ --sim-substituir-banco [--sim-pilha-diferente]
+#                                  SUBSTITUI o banco alvo pelo conteúdo do dump ARQ
+#                                  (sem o argumento exato, só explica e sai com 1; um
+#                                  dump de outra pilha, pelo nome, exige também
+#                                  --sim-pilha-diferente; no --prod o banco anterior
+#                                  fica guardado, nunca é apagado)
 #   ./db/banco.sh zerar-real       SÓ ANTES DA PRIMEIRA ABERTURA DA COLETA: mostra quantas
 #                                  linhas origem='real' existem e quantos relatos reais,
 #                                  de que data a que data; com o argumento exato
@@ -129,10 +133,34 @@ prefixo_do_comando() {
     printf '%s' "$p"
 }
 
+pilha_de_producao() { [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]]; }
+
 descrever_alvo() {
     local pilha="desenvolvimento"
-    [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]] && pilha="PRODUÇÃO"
+    pilha_de_producao && pilha="PRODUÇÃO"
     echo "Alvo: banco $BANCO_ALVO da pilha de $pilha"
+}
+
+# A "pilha" que vai no nome do backup e que o restaurar confere: "teste" (o banco
+# <POSTGRES_DB>_teste, em qualquer pilha), "prod" (docker-compose.prod.yml) ou "dev".
+pilha_do_alvo() {
+    if [[ "$BANCO_ALVO" == "${POSTGRES_DB}_teste" ]]; then
+        echo teste
+    elif pilha_de_producao; then
+        echo prod
+    else
+        echo dev
+    fi
+}
+
+# De que pilha é um dump, pelo prefixo do nome (<pilha>-<banco>-<data>.dump). Vazio
+# se o nome não começa com dev-, prod- ou teste- (ex.: backups de antes deste padrão).
+pilha_do_arquivo() {
+    local nome
+    nome="$(basename "$1")"
+    if [[ "$nome" =~ ^(dev|prod|teste)- ]]; then
+        echo "${BASH_REMATCH[1]}"
+    fi
 }
 
 psql_no_container() {
@@ -279,14 +307,17 @@ zerar_real() {
 # backups/, ignorada pelo git (contém dados de voluntários: docs/coleta-em-campo.md
 # §3). O dump sai pelo stdout do container, então nada fica dentro dele. Grava em
 # .parcial e só renomeia se o pg_dump terminar bem; em falha ou Ctrl-C o .parcial
-# é removido.
+# é removido. O nome começa pela pilha (dev-, prod- ou teste-): um backup diz de
+# onde veio, e o restaurar recusa trocar a produção por um dump do dev sem que
+# isso seja pedido com todas as letras.
 arquivo_parcial=""
 backup() {
     # BACKUP_DIR só existe para os testes não tocarem a pasta real (backups/).
     local pasta="${BACKUP_DIR:-backups}"
     mkdir -p "$pasta"
+    descrever_alvo
     local arquivo
-    arquivo="${pasta}/${BANCO_ALVO}-$(date +%Y%m%d-%H%M%S).dump"
+    arquivo="${pasta}/$(pilha_do_alvo)-${BANCO_ALVO}-$(date +%Y%m%d-%H%M%S).dump"
     arquivo_parcial="$arquivo.parcial"
     trap '[[ -n "$arquivo_parcial" ]] && rm -f "$arquivo_parcial"' EXIT
     docker compose exec -T db \
@@ -299,11 +330,24 @@ backup() {
 # Substitui o banco alvo pelo conteúdo de um dump, sem nunca deixá-lo vazio ou
 # pela metade (R32): valida o arquivo (pg_restore --list), restaura num banco
 # temporário "<alvo>_restaurando" e SÓ se isso der certo troca os nomes (o antigo
-# vira "<alvo>_antigo_<data>" e é apagado no fim). Qualquer falha antes da troca
-# apaga só o temporário e o banco original fica como estava. Exige o argumento
-# literal --sim-substituir-banco.
+# vira "<alvo>_antigo_<data>"; fora da produção ele é apagado no fim, e no --prod
+# fica GUARDADO, para ser apagado à mão depois de conferir o restaurado). Qualquer
+# falha antes da troca apaga só o temporário e o banco original fica como estava.
+# Exige o argumento literal --sim-substituir-banco; se o nome do dump diz que ele
+# veio de outra pilha (ou não diz de qual veio), exige também --sim-pilha-diferente.
 restaurar() {
-    local arquivo="${1:-}" confirmacao="${2:-}"
+    local arquivo="${1:-}" confirmacao="" pilha_diferente_confirmada=0 argumento
+    shift || true
+    for argumento in "$@"; do
+        case "$argumento" in
+            --sim-substituir-banco) confirmacao="$argumento" ;;
+            --sim-pilha-diferente) pilha_diferente_confirmada=1 ;;
+            *)
+                echo "erro: argumento desconhecido: $argumento (nada foi feito). Uso: $0 restaurar backups/ARQUIVO.dump --sim-substituir-banco [--sim-pilha-diferente]" >&2
+                exit 2
+                ;;
+        esac
+    done
     if [[ -z "$arquivo" || ! -f "$arquivo" ]]; then
         echo "erro: informe um dump existente. Uso: $0 restaurar backups/ARQUIVO.dump --sim-substituir-banco" >&2
         exit 2
@@ -312,11 +356,33 @@ restaurar() {
         echo "erro: $arquivo é um backup incompleto (.parcial); recuse-o e refaça o backup." >&2
         exit 1
     fi
+    local pilha_alvo pilha_origem origem_do_arquivo
+    pilha_alvo="$(pilha_do_alvo)"
+    pilha_origem="$(pilha_do_arquivo "$arquivo")"
+    if [[ -n "$pilha_origem" ]]; then
+        origem_do_arquivo="Arquivo: backup da pilha $pilha_origem (pelo nome); o alvo é da pilha $pilha_alvo."
+    else
+        origem_do_arquivo="Arquivo: pilha de origem DESCONHECIDA (o nome não começa com dev-, prod- ou teste-); o alvo é da pilha $pilha_alvo."
+    fi
+    local extra=""
+    [[ "$pilha_origem" != "$pilha_alvo" ]] && extra=" --sim-pilha-diferente"
     if [[ "$confirmacao" != "--sim-substituir-banco" ]]; then
         {
             echo "nada foi feito. Isto SUBSTITUI o banco $BANCO_ALVO pelo conteúdo de $arquivo."
             descrever_alvo
-            echo "Para continuar: $(prefixo_do_comando)restaurar $arquivo --sim-substituir-banco"
+            echo "$origem_do_arquivo"
+            [[ -n "$extra" ]] && echo "ATENÇÃO: a pilha do arquivo não é a do alvo; só siga se for de propósito (ex.: ensaiar no banco de teste um backup da produção)."
+            echo "Para continuar: $(prefixo_do_comando)restaurar $arquivo --sim-substituir-banco$extra"
+        } >&2
+        exit 1
+    fi
+    if [[ -n "$extra" && $pilha_diferente_confirmada -eq 0 ]]; then
+        {
+            echo "nada foi feito: $origem_do_arquivo"
+            descrever_alvo
+            echo "Trocar um banco por um backup de outra pilha (ex.: a produção por um dump do"
+            echo "desenvolvimento) apagaria dados reais. Se é isso mesmo, acrescente --sim-pilha-diferente:"
+            echo "  $(prefixo_do_comando)restaurar $arquivo --sim-substituir-banco --sim-pilha-diferente"
         } >&2
         exit 1
     fi
@@ -391,9 +457,22 @@ restaurar() {
     fi
     "${admin[@]}" -c "ALTER DATABASE ${temporario} RENAME TO ${BANCO_ALVO}"
     trap - INT TERM ERR
-    if [[ -n "$existe" ]] && ! "${admin[@]}" -c "DROP DATABASE IF EXISTS ${antigo} WITH (FORCE)"; then
+    if [[ -z "$existe" ]]; then
+        echo "restaurado: $BANCO_ALVO"
+        return
+    fi
+    # O `psql` do banco.sh abre o banco alvo; dali dá para apagar OUTRO banco, como o antigo.
+    if pilha_de_producao; then
+        # Na produção o banco anterior pode ter dias de coleta: nunca é apagado aqui.
+        echo "restaurado: $BANCO_ALVO."
+        echo "O banco anterior NÃO foi apagado: ficou guardado como ${antigo} (fechado para conexões)."
+        echo "Confira o restaurado (./scripts/preparar-coleta.sh --reabrir, contagens) e só então apague o guardado:"
+        echo "  $(prefixo_do_comando)psql      e, no psql:  DROP DATABASE ${antigo};"
+        return
+    fi
+    if ! "${admin[@]}" -c "DROP DATABASE IF EXISTS ${antigo} WITH (FORCE)"; then
         echo "restaurado: $BANCO_ALVO. Mas o banco antigo ficou como ${antigo}; apague depois com:" >&2
-        echo "  $(prefixo_do_comando)psql   e   DROP DATABASE ${antigo} WITH (FORCE);  (no banco postgres)" >&2
+        echo "  $(prefixo_do_comando)psql      e, no psql:  DROP DATABASE ${antigo} WITH (FORCE);" >&2
         exit 0
     fi
     echo "restaurado: $BANCO_ALVO"
@@ -423,9 +502,9 @@ case "${1:-}" in
     preparar-teste) preparar_teste ;;
     zerar-real)     zerar_real "${2:-}" ;;
     backup)         backup ;;
-    restaurar)      restaurar "${2:-}" "${3:-}" ;;
+    restaurar)      restaurar "${@:2}" ;;
     *)
-        echo "uso: $0 [--prod] [--teste] {migrar|testar|psql|preparar-teste|backup|restaurar ARQ --sim-substituir-banco|zerar-real [--sim-apagar-dados-reais]}" >&2
+        echo "uso: $0 [--prod] [--teste] {migrar|testar|psql|preparar-teste|backup|restaurar ARQ --sim-substituir-banco [--sim-pilha-diferente]|zerar-real [--sim-apagar-dados-reais]}" >&2
         exit 2
         ;;
 esac
