@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg import Connection
 
 from app.config import Configuracoes, obter_configuracoes
-from app.db import obter_conexao
+from app.db import ConexaoDaRequisicao
 
 router = APIRouter()
 
@@ -108,9 +108,9 @@ def buscar_barreiras_no_bbox(
 @router.get("/barreiras")
 def listar_barreiras(
     bbox: str,
+    conexao: ConexaoDaRequisicao,
     status: Literal["pendente", "confirmada"] | None = None,
     origem: Literal["real", "simulacao"] = "real",
-    conexao: Connection = Depends(obter_conexao),
     config: Configuracoes = Depends(obter_configuracoes),
 ) -> dict[str, Any]:
     try:

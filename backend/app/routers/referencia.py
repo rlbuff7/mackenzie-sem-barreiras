@@ -7,16 +7,15 @@ geográficas em GeoJSON (D5), sempre com dados reais do banco (CLAUDE.md §7).
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends
-from psycopg import Connection
+from fastapi import APIRouter
 
-from app.db import obter_conexao
+from app.db import ConexaoDaRequisicao
 
 router = APIRouter()
 
 
 @router.get("/saude")
-def saude(conexao: Connection = Depends(obter_conexao)) -> dict[str, str]:
+def saude(conexao: ConexaoDaRequisicao) -> dict[str, str]:
     """Confirma que a API está de pé e que o banco responde a uma consulta trivial.
 
     Se o banco não responder, `obter_conexao` já devolve 503 antes de chegar
@@ -27,7 +26,7 @@ def saude(conexao: Connection = Depends(obter_conexao)) -> dict[str, str]:
 
 
 @router.get("/tipos-barreira")
-def tipos_barreira(conexao: Connection = Depends(obter_conexao)) -> list[dict[str, Any]]:
+def tipos_barreira(conexao: ConexaoDaRequisicao) -> list[dict[str, Any]]:
     """Taxonomia ativa de barreiras (CLAUDE.md §4), para o formulário do frontend."""
     linhas = conexao.execute(
         """
@@ -44,7 +43,7 @@ def tipos_barreira(conexao: Connection = Depends(obter_conexao)) -> list[dict[st
 
 
 @router.get("/area-estudo")
-def area_estudo(conexao: Connection = Depends(obter_conexao)) -> dict[str, Any]:
+def area_estudo(conexao: ConexaoDaRequisicao) -> dict[str, Any]:
     """Polígono(s) da área de estudo (CLAUDE.md §4), contra o qual o geofence roda."""
     linhas = conexao.execute(
         """

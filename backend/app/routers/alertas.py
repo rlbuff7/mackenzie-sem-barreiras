@@ -13,10 +13,9 @@ import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
-from psycopg import Connection
 
 from app.config import Configuracoes, obter_configuracoes
-from app.db import obter_conexao
+from app.db import ConexaoDaRequisicao
 from app.schemas.alerta import AlertaRegistrado
 from app.validacao.entrada import CorpoInvalido, registrar_alerta
 
@@ -35,7 +34,7 @@ _MENSAGENS_POR_STATUS = {
 @router.post("/alertas", status_code=201, response_model=AlertaRegistrado)
 async def criar_alerta(
     request: Request,
-    conexao: Connection = Depends(obter_conexao),
+    conexao: ConexaoDaRequisicao,
     config: Configuracoes = Depends(obter_configuracoes),
 ) -> AlertaRegistrado | JSONResponse:
     corpo_bruto = await request.body()

@@ -12,10 +12,9 @@ from datetime import UTC
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from psycopg import Connection
 
 from app.config import Configuracoes, obter_configuracoes
-from app.db import obter_conexao
+from app.db import ConexaoDaRequisicao
 from app.validacao.estatisticas import calcular_estatisticas
 from app.validacao.pipeline import executar_pipeline
 
@@ -55,8 +54,8 @@ def exigir_token_admin(
 
 @router.post("/executar", dependencies=[Depends(exigir_token_admin)])
 def executar(
+    conexao: ConexaoDaRequisicao,
     origem: Literal["real", "simulacao"] = "real",
-    conexao: Connection = Depends(obter_conexao),
     config: Configuracoes = Depends(obter_configuracoes),
 ) -> dict[str, Any]:
     """Roda o pipeline (estágios 3 e 4) sobre a origem pedida (padrão `real`), com
@@ -79,8 +78,8 @@ def executar(
 
 @router.get("/estatisticas")
 def estatisticas(
+    conexao: ConexaoDaRequisicao,
     origem: Literal["real", "simulacao"] = "real",
-    conexao: Connection = Depends(obter_conexao),
 ) -> dict[str, Any]:
     """Contagens do funil da origem pedida (padrão `real`). Rota pública, só leitura.
 
