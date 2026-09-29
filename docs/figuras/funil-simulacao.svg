@@ -3282,7 +3282,7 @@ z
     <use xlink:href="#DejaVuSans-3" transform="translate(4669.59375 0)"/>
     <use xlink:href="#DejaVuSans-16" transform="translate(4701.375 0)"/>
    </g>
-   <!-- Execução de 2026-09-29 03:19 UTC, a que produziu os números acima. -->
+   <!-- Execução de 2026-09-29 03:24 UTC, a que produziu os números acima. -->
    <g style="fill: #52514e" transform="translate(12.96 383.437031) scale(0.075 -0.075)">
     <defs>
      <path id="DejaVuSans-28" d="M 628 4666 
@@ -3431,8 +3431,8 @@ z
     <use xlink:href="#DejaVuSans-13" transform="translate(1278.15625 0)"/>
     <use xlink:href="#DejaVuSans-16" transform="translate(1341.78125 0)"/>
     <use xlink:href="#DejaVuSans-1d" transform="translate(1405.40625 0)"/>
-    <use xlink:href="#DejaVuSans-14" transform="translate(1439.09375 0)"/>
-    <use xlink:href="#DejaVuSans-1c" transform="translate(1502.71875 0)"/>
+    <use xlink:href="#DejaVuSans-15" transform="translate(1439.09375 0)"/>
+    <use xlink:href="#DejaVuSans-17" transform="translate(1502.71875 0)"/>
     <use xlink:href="#DejaVuSans-3" transform="translate(1566.34375 0)"/>
     <use xlink:href="#DejaVuSans-38" transform="translate(1598.125 0)"/>
     <use xlink:href="#DejaVuSans-37" transform="translate(1671.3125 0)"/>
@@ -3474,7 +3474,7 @@ z
    </g>
   </g>
   <g id="text_40">
-   <!-- Fonte: GET /validacao/estatisticas?origem=simulacao, consultado em 2026-09-29 03:19 UTC. -->
+   <!-- Fonte: GET /validacao/estatisticas?origem=simulacao, consultado em 2026-09-29 03:24 UTC. -->
    <g style="fill: #898781" transform="translate(12.96 397.256563) scale(0.07 -0.07)">
     <defs>
      <path id="DejaVuSans-29" d="M 628 4666 
@@ -3637,8 +3637,8 @@ z
     <use xlink:href="#DejaVuSans-13" transform="translate(4135.90625 0)"/>
     <use xlink:href="#DejaVuSans-16" transform="translate(4199.53125 0)"/>
     <use xlink:href="#DejaVuSans-1d" transform="translate(4263.15625 0)"/>
-    <use xlink:href="#DejaVuSans-14" transform="translate(4296.84375 0)"/>
-    <use xlink:href="#DejaVuSans-1c" transform="translate(4360.46875 0)"/>
+    <use xlink:href="#DejaVuSans-15" transform="translate(4296.84375 0)"/>
+    <use xlink:href="#DejaVuSans-17" transform="translate(4360.46875 0)"/>
     <use xlink:href="#DejaVuSans-3" transform="translate(4424.09375 0)"/>
     <use xlink:href="#DejaVuSans-38" transform="translate(4455.875 0)"/>
     <use xlink:href="#DejaVuSans-37" transform="translate(4529.0625 0)"/>
