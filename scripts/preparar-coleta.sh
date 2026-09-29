@@ -8,8 +8,9 @@
 #                                            que caiu): os relatos reais são informação
 #   ./scripts/preparar-coleta.sh --dev ...   o mesmo na pilha de desenvolvimento (ensaio)
 #
-# Confere: TOKEN_ADMIN definido e EXPOR_DOCS=false (lidos do container da API, o
-# que de fato vale), serviços saudáveis, migrations aplicadas e o funil real.
+# Confere: TOKEN_ADMIN definido (avisa se tiver menos de 24 caracteres) e
+# EXPOR_DOCS=false (lidos do container da API, o que de fato vale), serviços
+# saudáveis, migrations aplicadas e o funil real.
 # Antes da primeira abertura o funil real tem de estar zerado (recebidos = 0); se
 # não estiver, diz quantos relatos reais há e de quando, e explica as duas saídas
 # (testes: backup e zerar-real; coleta já aberta: --reabrir). Com --reabrir, os
@@ -108,6 +109,15 @@ falha() {
     falhas=$((falhas + 1))
 }
 info()  { echo "  [info]   $1"; relatorio+=("info   $1"); }
+# aviso: algo a corrigir que não impede o PRONTO (nem apaga nada), só enfraquece.
+avisos=0
+aviso() {
+    echo "  [AVISO]  $1"
+    relatorio+=("AVISO  $1")
+    [[ -n "${2:-}" ]] && echo "           sugestão: $2"
+    avisos=$((avisos + 1))
+}
+comando_novo_token='python3 -c "import secrets; print(secrets.token_urlsafe(32))"'
 
 if [[ $reabrir -eq 1 ]]; then
     echo "== preparar-coleta --reabrir: pilha de $rotulo ($arquivo_compose), coleta EM ANDAMENTO =="
@@ -122,11 +132,17 @@ if [[ -z "$(docker compose ps -q api 2>/dev/null)" ]]; then
 else
     # printenv sai com 1 quando a variável não existe: isso é "sem token", não "sem container".
     token_no_container="$(docker compose exec -T api printenv TOKEN_ADMIN 2>/dev/null || true)"
-    if [[ -n "${token_no_container//[$'\r\n ']/}" ]]; then
+    token_no_container="${token_no_container//[$'\r\n ']/}"   # o valor nunca é impresso
+    if [[ -n "$token_no_container" ]]; then
         ok "TOKEN_ADMIN definido na API"
+        # Pela URL pública, qualquer um pode tentar adivinhar o token do executar.
+        if (( ${#token_no_container} < 24 )); then
+            aviso "TOKEN_ADMIN tem só ${#token_no_container} caracteres (menos de 24): fácil de adivinhar" \
+                  "gere um com $comando_novo_token, grave TOKEN_ADMIN=<valor> no .env e recrie a API (docker compose -f $arquivo_compose up -d)"
+        fi
     else
         falha "TOKEN_ADMIN ausente ou vazio na API: /validacao/executar ficaria aberto" \
-              "TOKEN_ADMIN=<segredo> docker compose -f $arquivo_compose up -d"
+              "gere um com $comando_novo_token, grave TOKEN_ADMIN=<valor> no .env e recrie a API (docker compose -f $arquivo_compose up -d)"
     fi
     expor_docs="$(docker compose exec -T api printenv EXPOR_DOCS 2>/dev/null | tr -d '\r\n ' | tr 'A-Z' 'a-z' || true)"
     if [[ "$expor_docs" == "false" ]]; then
@@ -256,15 +272,16 @@ saida="$pasta_registro/coleta-$([[ "$modo_dev" == 1 ]] && echo dev || echo prod)
     echo "commit: $commit$sujo"
     echo "seeds sha256: $hash_seeds"
     printf '%s\n' "${relatorio[@]}"
-    echo "resultado: $([[ $falhas -eq 0 ]] && echo PRONTO || echo "$falhas item(ns) com falha")"
+    echo "resultado: $([[ $falhas -eq 0 ]] && echo PRONTO || echo "$falhas item(ns) com falha")$([[ $avisos -gt 0 ]] && echo ", $avisos aviso(s)")"
 } > "$saida"
 echo
 echo "registro: $saida"
 if [[ $falhas -eq 0 ]]; then
+    ressalva=""; [[ $avisos -gt 0 ]] && ressalva=" (com $avisos aviso(s) acima: corrija se puder)"
     if [[ $reabrir -eq 1 ]]; then
-        echo "PRONTO para reabrir: todos os itens conferem, e os relatos reais continuam no banco."
+        echo "PRONTO para reabrir: todos os itens conferem, e os relatos reais continuam no banco$ressalva."
     else
-        echo "PRONTO: todos os itens conferem."
+        echo "PRONTO: todos os itens conferem$ressalva."
     fi
 else
     echo "NÃO ESTÁ PRONTO: $falhas item(ns) com falha (nada foi alterado)."
