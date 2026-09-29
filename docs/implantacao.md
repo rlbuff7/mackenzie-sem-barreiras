@@ -84,8 +84,9 @@ Com a pilha recém-criada, tudo deve estar `[ok]` (o banco está vazio, então
 `recebidos = 0`) e o túnel aparece como inativo. Confere: `TOKEN_ADMIN` definido,
 `EXPOR_DOCS=false` (variável e efeito: `/api/docs` 404), db/api/frontend saudáveis,
 migrations aplicadas, funil real zerado, e registra commit, hash dos seeds e as imagens
-em execução (referência e digest) em `backend/scripts/saida/coleta-<data>.txt`
-(não versionado). **Só lê e relata**: quando algo falha, sugere o comando, que você
+em execução (referência, ID e RepoDigest do GHCR) em
+`backend/scripts/saida/coleta-<pilha>[-reabrir]-<data-hora>.txt` (não versionado; um
+arquivo por execução, nenhum sobrescreve o outro). **Só lê e relata**: quando algo falha, sugere o comando, que você
 decide rodar. Opções: `--prod` (padrão), `--dev` (ensaio na pilha de desenvolvimento) e
 `--reabrir` (coleta já em andamento, §8); qualquer outro argumento dá erro.
 
@@ -108,7 +109,8 @@ docker compose -f docker-compose.prod.yml logs tunel | grep -Eo 'https://[a-z0-9
 - A URL é **aleatória e muda a cada subida**; some quando o túnel cai. Use para coleta
   pontual, não como endereço permanente; avise o grupo a cada nova URL.
 - O túnel **não volta sozinho** (`restart: "no"`): depois de reiniciar a máquina ou o
-  Docker, ele só sobe se você repetir o comando acima, de propósito.
+  Docker, ele só sobe de propósito. Nos dias seguintes ao primeiro, use o comando do §8
+  (sobe só o túnel, sem recriar a pilha).
 - Logo após subir, o nome novo pode levar cerca de 30 s para resolver no DNS: se der
   "não foi possível resolver", espere e tente de novo.
 - **Privacidade:** a Cloudflare termina o TLS, então os relatos passam por um terceiro
@@ -162,9 +164,9 @@ seguinte, depois de reiniciar a máquina ou o Docker, ou quando o túnel cai no 
 
 ```bash
 cd ~/projetos/mackenzie-sem-barreiras                          # o checkout da máquina de produção
-docker compose -f docker-compose.prod.yml ps                   # db, api e frontend "healthy"?
-docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps tunel   # só o túnel: URL nova
-./scripts/preparar-coleta.sh --reabrir                         # confere tudo e imprime a URL nova
+docker compose -f docker-compose.prod.yml ps                   # 1. db, api e frontend "healthy"?
+docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps tunel   # 2. só o túnel: URL nova
+./scripts/preparar-coleta.sh --reabrir                         # 3. confere tudo e imprime a URL nova
 ```
 
 1. **A pilha continua de pé.** db, api e frontend voltam sozinhos quando a máquina ou o
@@ -172,21 +174,27 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
    mostrar algum fora do ar, suba com `docker compose -f docker-compose.prod.yml up -d
    --wait`, com o `TOKEN_ADMIN` do `.env` (§2): nunca com um token novo, e nunca com
    `down -v` (que apaga o volume). Se o `ps` responder "defina TOKEN_ADMIN", o token não
-   está no `.env` da máquina: veja o §2 antes de seguir.
+   está no `.env` da máquina: veja o §2 antes de seguir. Não rode `pull` no meio da
+   coleta: uma imagem nova mudaria o código que recebe os relatos entre um dia e outro
+   (para fixar a versão, `IMAGEM_TAG` no `.env`, §2).
 2. **Suba só o túnel.** O `--no-deps` garante que subir o túnel não recria nada da pilha.
    Se o container do túnel ainda estiver rodando mas a URL parou de responder, o `up` não
    faz nada: use `docker compose -f docker-compose.prod.yml --profile tunel restart tunel`
    (a URL muda do mesmo jeito).
 3. **Confira com `--reabrir`.** Nesse modo o item 4 só informa
    "coleta em andamento: N relatos reais, de <data> a <data>" e nunca sugere apagar nada.
-   Compare o N com o do dia anterior (o registro `coleta-prod-reabrir-*.txt` de ontem e
-   os números que o Maurício anotou no fim do dia, §11): ele só pode ter subido ou ficado
-   igual. Se aparecer "nenhum relato real" num dia em que já houve coleta, **pare**: o
-   banco pode ter sido recriado; restaure o backup do último dia (§9) antes de abrir. O
-   `PRONTO para reabrir` e a URL impressa são o sinal verde.
+   Compare o N com o do fim do dia anterior (o `coleta-prod-reabrir-*.txt` mais recente em
+   `backend/scripts/saida/`, gravado no passo 5, e os números que o Maurício anotou,
+   §11): ele só pode ter subido ou ficado igual. Se aparecer "nenhum relato real" num dia
+   em que já houve coleta, **pare**: o banco pode ter sido recriado; restaure o backup do
+   último dia (§9) antes de abrir. O `PRONTO para reabrir` e a URL impressa são o sinal
+   verde.
 4. **Passe a URL nova ao Maurício** (e ao grupo). Ele confere abrindo o mapa no celular,
    sem enviar relato.
-5. **No fim do dia:** backup (`./db/banco.sh --prod backup`, §9) e túnel derrubado (§10).
+5. **No fim do dia:** `./scripts/preparar-coleta.sh --reabrir` de novo (o registro guarda
+   quantos relatos reais o dia terminou com), backup (`./db/banco.sh --prod backup`, §9) e
+   túnel derrubado (§10). No fim do PRIMEIRO dia, faça o mesmo: é esse registro que o
+   dia 2 compara.
 
 ## 9. Backup e restauração
 
@@ -198,7 +206,6 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
 - **O nome diz de onde o backup veio:** `<pilha>-<banco>-<data-hora>.dump`, com pilha
   `prod` (`--prod`), `dev` (desenvolvimento) ou `teste` (`--teste`). O `backup` imprime
   antes a linha "Alvo:" (banco e pilha); confira que é a de produção.
-
 - Faça backup **antes** de abrir a coleta, **ao fim de cada dia** e **depois** do
   último `executar`. A pasta `backups/` é ignorada pelo Git: os dumps contêm dados de
   voluntários ([`coleta-em-campo.md`](coleta-em-campo.md) §3); guarde-os em local
@@ -241,8 +248,8 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
 
 ## 10. Derrubar (fim do dia)
 
-No fim de cada dia de coleta, depois do backup (§9), derrube o túnel. Num terminal
-novo não há nada a exportar: o token está no `.env` (§2).
+No fim de cada dia de coleta, depois do registro e do backup (§8, passo 5), derrube o
+túnel. Num terminal novo não há nada a exportar: o token está no `.env` (§2).
 
 ```bash
 cd ~/projetos/mackenzie-sem-barreiras
