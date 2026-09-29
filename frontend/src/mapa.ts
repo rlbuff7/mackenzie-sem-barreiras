@@ -6,6 +6,13 @@
  * As cores usadas aqui (COR_*) espelham os tokens definidos em estilos.css.
  * Ficam duplicadas como constantes porque os elementos SVG do Leaflet usam
  * atributos de apresentação (stroke/fill), que não resolvem `var(--...)`.
+ *
+ * Os marcadores de barreira ficam fora da ordem de tabulação
+ * (`keyboard: false`) para não criar uma fila de centenas de paradas de Tab
+ * quando a bbox tem muitos resultados. Em troca, `aoAtualizarBarreiras` expõe
+ * os mesmos dados como uma lista simples, para quem navega só por teclado ou
+ * leitor de tela conseguir inspecionar as barreiras sem precisar apontar
+ * para um marcador (ver main.ts, que renderiza essa lista).
  */
 
 import L from "leaflet";
@@ -24,6 +31,14 @@ export interface PontoSelecionado {
   longitude: number;
 }
 
+/** Uma barreira da bbox atual, com só o necessário para a lista acessível. */
+export interface ItemListaBarreira {
+  id: number;
+  tipoNome: string;
+  status: FeatureBarreira["properties"]["status"];
+  confirmacoes: number;
+}
+
 export interface ControladorMapa {
   /** Centro atual do mapa (para o botão "usar o centro do mapa"). */
   obterCentro(): PontoSelecionado;
@@ -33,6 +48,12 @@ export interface ControladorMapa {
   aoSelecionarPonto(ouvinte: (ponto: PontoSelecionado) => void): void;
   /** Remove o marcador do ponto selecionado (usado após o envio do alerta). */
   limparSelecao(): void;
+  /** Barreiras da última bbox carregada (para renderizar a lista já na primeira vez). */
+  obterItensAtuais(): ItemListaBarreira[];
+  /** Registra uma função chamada sempre que as barreiras da bbox atual mudarem. */
+  aoAtualizarBarreiras(ouvinte: (itens: ItemListaBarreira[]) => void): void;
+  /** Centraliza o mapa numa barreira e abre o popup dela (usado pela lista acessível). */
+  focarBarreira(id: number): void;
 }
 
 function debounce<Args extends unknown[]>(
@@ -91,6 +112,10 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
   const camadaBarreiras = L.layerGroup().addTo(mapa);
   let marcadorSelecao: L.CircleMarker | null = null;
   const ouvintesSelecao: Array<(ponto: PontoSelecionado) => void> = [];
+  const marcadoresPorId = new Map<number, L.Marker>();
+  const ouvintesAtualizacaoBarreiras: Array<(itens: ItemListaBarreira[]) => void> = [];
+  let itensAtuais: ItemListaBarreira[] = [];
+  let idBarreiraEmFoco: number | null = null;
 
   async function carregarAreaEstudo(): Promise<void> {
     try {
@@ -120,6 +145,8 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
     try {
       const colecao = await buscarBarreiras(bbox);
       camadaBarreiras.clearLayers();
+      marcadoresPorId.clear();
+      const itens: ItemListaBarreira[] = [];
       for (const feature of colecao.features) {
         const [longitude, latitude] = feature.geometry.coordinates;
         const marcador = L.marker([latitude, longitude], {
@@ -128,6 +155,24 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
         });
         marcador.bindPopup(conteudoPopupBarreira(feature));
         marcador.addTo(camadaBarreiras);
+        marcadoresPorId.set(feature.properties.id, marcador);
+        itens.push({
+          id: feature.properties.id,
+          tipoNome: feature.properties.tipo_nome,
+          status: feature.properties.status,
+          confirmacoes: feature.properties.confirmacoes,
+        });
+      }
+      // Se a barreira que a lista acessível centralizou por último ainda está
+      // nesta bbox, reabre o popup dela no marcador recém-criado — sem isso,
+      // o clique em "ver no mapa" abriria o popup só para ele sumir na
+      // próxima recarga (a cada moveend, mesmo sem o usuário mexer em nada).
+      if (idBarreiraEmFoco !== null) {
+        marcadoresPorId.get(idBarreiraEmFoco)?.openPopup();
+      }
+      itensAtuais = itens;
+      for (const ouvinte of ouvintesAtualizacaoBarreiras) {
+        ouvinte(itens);
       }
     } catch (erro) {
       console.error("Falha ao carregar barreiras da área visível:", erro);
@@ -138,6 +183,9 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
   mapa.on("moveend", carregarBarreirasComDebounce);
 
   function selecionarPonto(ponto: PontoSelecionado): void {
+    // Escolher um ponto para um alerta novo é uma ação diferente de inspecionar
+    // uma barreira existente: solta o "foco" para não reabrir um popup antigo.
+    idBarreiraEmFoco = null;
     const posicao: L.LatLngTuple = [ponto.latitude, ponto.longitude];
     if (marcadorSelecao) {
       marcadorSelecao.setLatLng(posicao);
@@ -176,6 +224,21 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
         mapa.removeLayer(marcadorSelecao);
         marcadorSelecao = null;
       }
+    },
+    obterItensAtuais(): ItemListaBarreira[] {
+      return itensAtuais;
+    },
+    aoAtualizarBarreiras(ouvinte: (itens: ItemListaBarreira[]) => void): void {
+      ouvintesAtualizacaoBarreiras.push(ouvinte);
+    },
+    focarBarreira(id: number): void {
+      const marcador = marcadoresPorId.get(id);
+      if (!marcador) {
+        return;
+      }
+      idBarreiraEmFoco = id;
+      mapa.setView(marcador.getLatLng(), Math.max(mapa.getZoom(), ZOOM_INICIAL));
+      marcador.openPopup();
     },
   };
 }
