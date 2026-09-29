@@ -90,7 +90,7 @@ mackenzie-sem-barreiras/
 │   └── pyproject.toml / uv.lock
 ├── frontend/                 # TypeScript + Vite + Leaflet, sem framework
 │   ├── Dockerfile             # M5: node:22-alpine (build) → nginx:alpine (serve dist/)
-│   ├── nginx.conf              # SPA + cache dos assets + proxy /api/ → api:8000 (R19, sem CORS)
+│   ├── nginx.conf              # SPA + cache dos assets + proxy /api/ → api:8000 (R19, sem CORS); log sem IP
 │   ├── index.html
 │   └── src/
 │       ├── main.ts             # ponto de entrada: liga mapa, formulário, sessão
