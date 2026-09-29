@@ -505,6 +505,19 @@ def test_avaliar_barreira_com_alerta_estranho_ao_grupo_nao_conta_acerto() -> Non
     assert avaliar(registrados, estado).por_categoria["aglomerado"].obtido == 0
 
 
+def test_avaliar_alerta_ausente_do_banco_conta_como_grupo_fragmentado() -> None:
+    """Um alerta do grupo sumiu do banco (apagado por fora entre a geração e a
+    leitura): o grupo não foi recuperado inteiro, e a avaliação não quebra."""
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
+    estado = EstadoFinal(alertas={1: _agrupado(10)}, barreiras={10: "confirmada"})
+
+    avaliacao = avaliar(registrados, estado)
+
+    assert avaliacao.por_categoria["aglomerado"].obtido == 0
+    assert avaliacao.grupos_fragmentados == 1
+    assert avaliacao.confusao["aglomerado"] == {"barreira_confirmada": 1, "ausente": 1}
+
+
 def test_avaliar_ruido_agrupado_conta_como_ruido_em_barreira() -> None:
     registrados = [_registrado(1, "ruido"), _registrado(2, "ruido"), _registrado(3, "ruido")]
     estado = EstadoFinal(

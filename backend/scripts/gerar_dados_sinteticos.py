@@ -674,7 +674,10 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
     acertos_de_grupo: Counter[str] = Counter()
     grupos_fragmentados = 0
     for (categoria, _), alerta_ids in alertas_do_grupo.items():
-        barreiras_do_grupo = {estado.alertas[i].barreira_id for i in alerta_ids}
+        # Alerta ausente do snapshot (apagado por fora) conta como fora de barreira.
+        barreiras_do_grupo = {
+            estado.alertas[i].barreira_id if i in estado.alertas else None for i in alerta_ids
+        }
         if len(barreiras_do_grupo) != 1 or None in barreiras_do_grupo:
             grupos_fragmentados += 1
             continue
