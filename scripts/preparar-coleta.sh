@@ -14,8 +14,9 @@
 # não estiver, diz quantos relatos reais há e de quando, e explica as duas saídas
 # (testes: backup e zerar-real; coleta já aberta: --reabrir). Com --reabrir, os
 # relatos reais são só informados (quantos e de quando) e o script NUNCA sugere
-# apagá-los. Registra commit, hash dos seeds e imagens em execução em
-# backend/scripts/saida/coleta-<data>.txt (não versionado). Se o túnel (profile
+# apagá-los. Registra commit, hash dos seeds e as imagens em execução (ID local e
+# RepoDigest do registro) em backend/scripts/saida/coleta-<pilha>[-reabrir]-<data-hora>.txt
+# (não versionado; um arquivo por execução, nunca sobrescrito). Se o túnel (profile
 # `tunel`) estiver no ar, imprime a URL pública lida dos logs da subida ATUAL do
 # cloudflared. Sai com código 1 se algum item falhou.
 set -uo pipefail
@@ -30,10 +31,11 @@ fi
 # .env é só configuração; o container é a fonte da verdade abaixo. Do shell só se
 # preserva a mesma LISTA PERMITIDA do db/banco.sh (R35), para o teste ponta a ponta
 # apontar este checklist para a pilha isolada: COMPOSE_PROJECT_NAME, IMAGEM_TAG,
-# *_PORTA_HOST e *_PORTA_PROD. Credenciais e nome do banco vêm SEMPRE do .env.
+# REGISTRO_DIR, *_PORTA_HOST e *_PORTA_PROD. Credenciais e nome do banco vêm
+# SEMPRE do .env.
 variavel_preservada_do_shell() {
     case "$1" in
-        COMPOSE_PROJECT_NAME|IMAGEM_TAG) return 0 ;;
+        COMPOSE_PROJECT_NAME|IMAGEM_TAG|REGISTRO_DIR) return 0 ;;
         *_PORTA_HOST|*_PORTA_PROD) return 0 ;;
         *) return 1 ;;
     esac
@@ -212,7 +214,15 @@ info "commit $commit$sujo; sha256 dos seeds $hash_seeds"
 for svc in api frontend; do
     cid="$(docker compose ps -q "$svc" 2>/dev/null)"
     if [[ -n "$cid" ]]; then
-        info "imagem $svc: $(docker inspect --format '{{.Config.Image}} {{.Image}}' "$cid")"
+        read -r referencia id_imagem <<< "$(docker inspect --format '{{.Config.Image}} {{.Image}}' "$cid")"
+        # O RepoDigest (ghcr.io/<dono>/<imagem>@sha256:...) identifica a imagem
+        # PUBLICADA, a mesma em qualquer máquina que a puxe; o ID é só local. Imagem
+        # construída na própria máquina (pilha de desenvolvimento, E2E) não veio de um
+        # registro: conforme o armazenamento de imagens do Docker, ela não tem
+        # RepoDigest (o `index` falha e fica registrado só o ID) ou tem um digest sem
+        # o nome do registro (<imagem>@sha256:...).
+        digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$id_imagem" 2>/dev/null || true)"
+        info "imagem $svc: $referencia; ID $id_imagem; ${digest:-sem RepoDigest (construída localmente, não veio de um registro)}"
     fi
 done
 
@@ -234,10 +244,15 @@ else
     info "túnel inativo (profile tunel): sem HTTPS público; o celular não libera a geolocalização"
 fi
 
-mkdir -p backend/scripts/saida
-saida="backend/scripts/saida/coleta-$(date +%Y-%m-%d).txt"
+# Um arquivo por execução, com a pilha, o modo e o horário no nome: o registro do
+# primeiro dia não é sobrescrito pelo da reabertura, nem o da produção pelo do
+# ensaio. REGISTRO_DIR só existe para o teste ponta a ponta não sujar a pasta real.
+pasta_registro="${REGISTRO_DIR:-backend/scripts/saida}"
+mkdir -p "$pasta_registro"
+saida="$pasta_registro/coleta-$([[ "$modo_dev" == 1 ]] && echo dev || echo prod)$([[ $reabrir -eq 1 ]] && echo -reabrir)-$(date +%Y-%m-%d-%H%M%S).txt"
 {
     echo "preparar-coleta ($rotulo$([[ $reabrir -eq 1 ]] && echo ", reabertura da coleta em andamento")) em $(date -Is)"
+    echo "projeto do compose: ${COMPOSE_PROJECT_NAME:-o do $arquivo_compose}"
     echo "commit: $commit$sujo"
     echo "seeds sha256: $hash_seeds"
     printf '%s\n' "${relatorio[@]}"
