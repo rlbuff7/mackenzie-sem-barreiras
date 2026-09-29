@@ -1016,14 +1016,18 @@ def test_funil_recusa_origem_nunca_processada() -> None:
 def test_funil_monta_os_estagios_com_a_unidade_de_cada_um() -> None:
     funil = montar_funil(_estatisticas({"eps_metros": 8.0, "min_pontos": 2, "min_confirmacoes": 3}))
 
-    assert [(e.valor, e.unidade) for e in funil.estagios] == [
-        (180, "alertas"),
-        (170, "alertas"),
-        (140, "alertas"),
-        (100, "alertas"),
-        (25, "barreiras"),
-        (20, "barreiras"),
+    # O primeiro estágio conta RELATOS: inclui os reprovados no schema, que nunca
+    # viram alerta. Ele fica no painel dos alertas, mas o rótulo diz "relatos".
+    assert [(e.valor, e.unidade, e.unidade_do_valor) for e in funil.estagios] == [
+        (180, "alertas", "relatos"),
+        (170, "alertas", "alertas"),
+        (140, "alertas", "alertas"),
+        (100, "alertas", "alertas"),
+        (25, "barreiras", "barreiras"),
+        (20, "barreiras", "barreiras"),
     ]
+    assert funil.estagios[0].rotulo == "Relatos recebidos"
+    assert "estágios 3 e 4" in funil.legenda
     assert "SIMULAÇÃO" in funil.titulo
     assert "eps = 8 m" in funil.legenda
     assert "min_confirmacoes = 3" in funil.legenda

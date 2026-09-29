@@ -54,13 +54,16 @@ class OrigemNaoProcessada(Exception):
 
 @dataclass(frozen=True)
 class Estagio:
-    """Uma barra do funil. `unidade` é "alertas" ou "barreiras"; `nota` diz o que
-    saiu neste estágio; `passo` (0 a 4) é o estágio do pipeline e escolhe a cor."""
+    """Uma barra do funil. `unidade` é o painel ("alertas" ou "barreiras");
+    `unidade_do_valor` é o que o número conta: "relatos" no primeiro estágio, que
+    inclui os payloads reprovados no schema (eles nunca viram alerta). `nota` diz o
+    que saiu neste estágio; `passo` (0 a 4) é o estágio do pipeline e escolhe a cor."""
 
     rotulo: str
     detalhe: str
     valor: int
     unidade: str
+    unidade_do_valor: str
     nota: str | None
     passo: int
 
@@ -129,11 +132,20 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
         )
 
     estagios = [
-        Estagio("Recebidos", "todos os relatos", alertas["recebidos"], "alertas", None, 0),
+        Estagio(
+            "Relatos recebidos",
+            "inclui os reprovados no schema",
+            alertas["recebidos"],
+            "alertas",
+            "relatos",
+            None,
+            0,
+        ),
         Estagio(
             "Passaram do schema",
             "estágio 1",
             passaram_schema,
+            "alertas",
             "alertas",
             f"−{_numero(alertas['rejeitados_schema'])} reprovados no schema",
             1,
@@ -143,6 +155,7 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
             "estágio 2 (geofence)",
             dentro_da_area,
             "alertas",
+            "alertas",
             ", ".join(saiu_no_geofence),
             2,
         ),
@@ -150,6 +163,7 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
             "Agrupados em clusters",
             "estágio 3 (DBSCAN)",
             alertas["agrupados"],
+            "alertas",
             "alertas",
             ", ".join(saiu_no_agrupamento),
             3,
@@ -159,6 +173,7 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
             "estágio 3 (uma por cluster)",
             barreiras["total"],
             "barreiras",
+            "barreiras",
             f"dos {_numero(alertas['agrupados'])} alertas agrupados",
             3,
         ),
@@ -166,6 +181,7 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
             "Barreiras confirmadas",
             "estágio 4 (sessões distintas)",
             barreiras["confirmadas"],
+            "barreiras",
             "barreiras",
             f"{_numero(barreiras['pendentes'])} pendentes "
             f"(menos de {parametros['min_confirmacoes']} sessões distintas)",
@@ -187,7 +203,8 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
         f"eps = {formatar_metros(parametros['eps_metros'])} · "
         f"minpoints = {parametros['min_pontos']} · "
         f"min_confirmacoes = {parametros['min_confirmacoes']}\n"
-        f"Execução de {_instante(estatisticas['executado_em'])}, a que produziu os números acima."
+        f"Execução de {_instante(estatisticas['executado_em'])}, que produziu os números dos "
+        "estágios 3 e 4."
     )
     fonte = (
         f"Fonte: GET /validacao/estatisticas?origem={origem}, consultado em "
@@ -242,7 +259,7 @@ def desenhar_funil(funil: Funil, caminho_base: Path) -> list[Path]:
     )
 
     paineis = [
-        ("ALERTAS", "cada barra conta alertas", "alertas"),
+        ("ALERTAS", "a primeira barra conta relatos recebidos; as outras, alertas", "alertas"),
         (
             "BARREIRAS",
             "cada barra conta barreiras; vários alertas agrupados formam uma barreira",
@@ -394,7 +411,7 @@ def _desenhar_painel(eixo: Any, estagios: Sequence[Estagio], canvas: Any) -> Non
             fontsize=7.5,
             color=_TINTA_SECUNDARIA,
         )
-        valor = _numero(estagio.valor) + (f" {estagio.unidade}" if linha == 0 else "")
+        valor = _numero(estagio.valor) + (f" {estagio.unidade_do_valor}" if linha == 0 else "")
         partes = [TextArea(valor, textprops={"fontsize": 9, "fontweight": "bold", "color": _TINTA})]
         if estagio.nota:
             partes.append(
