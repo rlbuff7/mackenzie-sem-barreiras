@@ -30,6 +30,7 @@ no compose), esses dois passos falham mesmo que a API direta esteja saudável.
 """
 
 import argparse
+import json
 import math
 import os
 import sys
@@ -51,6 +52,8 @@ CENTRO_LONGITUDE = -46.6524631
 # `gerar_dados_sinteticos.py::deslocar_ponto` (raios de curvatura + teste de
 # erro contra `geography`), que existe para SIMULAÇÃO em larga escala.
 _RAIO_TERRA_METROS = 6_371_000.0
+
+_CAMINHOS_DOCS = ("/docs", "/redoc", "/openapi.json")
 
 TIPO_DE_TESTE = "degrau"
 DESCRICAO_DE_TESTE = "[teste e2e] gerado por scripts/ponta_a_ponta.py — não é coleta real."
@@ -332,6 +335,77 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             resposta.status_code == 200 and "Mackenzie sem Barreiras" in resposta.text,
             f"HTTP {resposta.status_code}",
         )
+
+        _verificar_endurecimento(v, api, frontend)
+
+
+def _rejeitados_schema(api: httpx.Client) -> int | None:
+    resposta = pedir(api, "GET", "/validacao/estatisticas", params={"origem": "real"})
+    valor = json_seguro(resposta).get("alertas", {}).get("rejeitados_schema")
+    return valor if isinstance(valor, int) else None
+
+
+def _verificar_endurecimento(v: Verificador, api: httpx.Client, frontend: httpx.Client) -> None:
+    """Task 8: validação estrita, limite de corpo, documentação desligável e limite
+    de envios. Fica por ÚLTIMO de propósito: grava rejeitados (mudaria o funil
+    conferido acima) e a inundação do limite de envios deixa o nginx recusando
+    POST por um tempo."""
+    antes = _rejeitados_schema(api)
+
+    payload_booleano = montar_payload_alerta(norte_metros=0.0, leste_metros=0.0)
+    payload_booleano["latitude"] = True
+    resposta = pedir(api, "POST", "/alertas", json=payload_booleano)
+    v.checar(
+        "POST /alertas com latitude booleana é reprovado no estágio 1 (422), não vira fora da área",
+        resposta.status_code == 422,
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+
+    corpo_grande = json.dumps({"descricao": "a" * (17 * 1024)})
+    resposta_api = pedir(api, "POST", "/alertas", content=corpo_grande)
+    v.checar(
+        "POST /alertas com corpo de 17 KiB é recusado pela API (413)",
+        resposta_api.status_code == 413,
+        f"HTTP {resposta_api.status_code}: {resposta_api.text}",
+    )
+    resposta_proxy = pedir(frontend, "POST", "/api/alertas", content=corpo_grande)
+    v.checar(
+        "POST /api/alertas com corpo de 17 KiB é recusado pelo nginx (413)",
+        resposta_proxy.status_code == 413,
+        f"HTTP {resposta_proxy.status_code}",
+    )
+    depois = _rejeitados_schema(api)
+    v.checar(
+        "só a latitude booleana entrou em alertas_rejeitados; os 413 não gravaram nada",
+        antes is not None and depois == antes + 1,
+        f"antes={antes!r}, depois={depois!r}",
+    )
+
+    if os.environ.get("EXPOR_DOCS", "true").lower() == "false":
+        codigos = {caminho: pedir(api, "GET", caminho).status_code for caminho in _CAMINHOS_DOCS}
+        v.checar(
+            "com EXPOR_DOCS=false, /docs, /redoc e /openapi.json respondem 404",
+            set(codigos.values()) == {404},
+            f"{codigos}",
+        )
+
+    # Limite de envios (nginx: 30 r/min, burst 20, nodelay): 60 POSTs seguidos
+    # passam de qualquer rajada aceita; o corpo `{}` é barato (422 da API).
+    codigos_envio = [
+        pedir(frontend, "POST", "/api/alertas", content="{}").status_code for _ in range(60)
+    ]
+    primeiro_429 = codigos_envio.index(429) if 429 in codigos_envio else None
+    v.checar(
+        "POST /api/alertas em rajada de 60: as primeiras passam e depois vem 429 do nginx",
+        primeiro_429 is not None and primeiro_429 >= 20 and codigos_envio[0] == 422,
+        f"primeiro 429 na posição {primeiro_429!r}, primeiro código {codigos_envio[0]!r}",
+    )
+    resposta = pedir(frontend, "GET", "/api/saude")
+    v.checar(
+        "durante o limite de envios, GET /api/saude continua 200 (só o POST é limitado)",
+        resposta.status_code == 200,
+        f"HTTP {resposta.status_code}",
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
