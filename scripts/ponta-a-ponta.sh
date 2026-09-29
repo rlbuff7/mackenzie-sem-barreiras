@@ -48,9 +48,9 @@ carregar_env_sem_sobrescrever_o_shell
 # ANTES de qualquer `docker compose` ou `./db/banco.sh`: são variáveis de
 # ambiente do shell, então têm prioridade sobre o .env na interpolação do
 # docker-compose.yml (${VAR:-padrão}).
-# db/banco.sh também preserva o que o shell já exportou ao ler o .env; e
-# `docker compose exec` (usado por banco.sh) identifica o container pelo nome do
-# SERVIÇO dentro do projeto, não por porta de host.
+# db/banco.sh só preserva do shell uma lista permitida (COMPOSE_PROJECT_NAME e
+# *_PORTA_HOST entre elas); e `docker compose exec` (usado por banco.sh)
+# identifica o container pelo nome do SERVIÇO dentro do projeto, não por porta.
 export COMPOSE_PROJECT_NAME=msb-e2e
 export POSTGRES_PORTA_HOST=55434
 export API_PORTA_HOST=58000

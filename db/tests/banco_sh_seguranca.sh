@@ -8,7 +8,8 @@
 #  3. se a 2ª troca de nomes falha, o banco original é devolvido;
 #  4. se a 1ª chamada da troca para NO MEIO (depois de fechar as conexões), o
 #     original volta a aceitar conexões;
-#  5. variável já exportada no shell vale mais que o .env (POSTGRES_DB=x ...).
+#  5. POSTGRES_DB/USER/PASSWORD do shell NÃO valem sobre o .env (aviso em stderr);
+#     a lista permitida (ex.: BACKUP_DIR) vale.
 set -uo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$raiz"
@@ -92,10 +93,17 @@ igual "original aceita conexões e mantém os dados" "$(contar)" "$antes"
 sobras="$(docker compose exec -T db psql -q -At -U "$POSTGRES_USER" -d postgres -c "SELECT datname FROM pg_database WHERE datname LIKE '${teste}_%'")"
 igual "sem bancos temporários sobrando (4)" "$sobras" ""
 
-echo "== 5. o shell tem prioridade sobre o .env"
-msg="$(POSTGRES_DB=zz_nao_existe ./db/banco.sh --teste backup 2>&1)"
+echo "== 5. POSTGRES_* do shell não vencem o .env"
+msg="$(POSTGRES_DB=postgres ./db/banco.sh --teste backup 2>&1)"
 rc=$?
-igual "backup com POSTGRES_DB do shell falha (rc)" "$([[ $rc -ne 0 ]] && echo diferente_de_0)" "diferente_de_0"
-contem "backup usou o POSTGRES_DB do shell, não o do .env" "$msg" "zz_nao_existe_teste"
+igual "backup com POSTGRES_DB=postgres no shell segue (rc)" "$rc" "0"
+contem "aviso nomeia POSTGRES_DB" "$msg" "aviso: POSTGRES_DB está exportado no shell"
+nao_contem "backup não tocou o banco postgres" "$msg" "postgres-"
+contem "backup gravou o dump do banco _teste" "$(ls "$BACKUP_DIR")" "${teste}-"
+msg="$(POSTGRES_PASSWORD=outra-senha-secreta ./db/banco.sh --teste backup 2>&1)"
+contem "aviso nomeia POSTGRES_PASSWORD" "$msg" "aviso: POSTGRES_PASSWORD"
+nao_contem "aviso não mostra o valor da senha" "$msg" "outra-senha-secreta"
+msg="$(POSTGRES_DB="$POSTGRES_DB" ./db/banco.sh --teste backup 2>&1)"
+nao_contem "sem aviso quando o valor é igual ao do .env" "$msg" "aviso:"
 
 if [[ $falhas -eq 0 ]]; then echo "banco_sh_seguranca: todos os testes passaram"; else echo "banco_sh_seguranca: $falhas falha(s)"; exit 1; fi

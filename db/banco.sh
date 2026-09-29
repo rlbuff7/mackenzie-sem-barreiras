@@ -51,14 +51,31 @@ fi
 # Capturado ANTES do source do .env: o que veio da chamada é o que as mensagens de
 # recusa precisam repetir no comando sugerido.
 banco_alvo_do_ambiente="${BANCO_ALVO:-}"
-# Lê o .env sem sobrescrever o que o shell já exportou (mesma regra do docker
-# compose e de scripts/ponta-a-ponta.sh): `POSTGRES_DB=x ./db/banco.sh ...` vale.
-carregar_env_sem_sobrescrever_o_shell() {
+# Lê o .env. Do shell só se preserva uma LISTA PERMITIDA (o que o E2E, os testes e
+# a pilha de produção precisam mudar por chamada): COMPOSE_PROJECT_NAME,
+# COMPOSE_FILE, *_PORTA_HOST, *_PORTA_PROD, BANCO_ALVO, BACKUP_DIR, IMAGEM_TAG.
+# POSTGRES_DB/USER/PASSWORD vêm SEMPRE do .env: um POSTGRES_DB esquecido no shell
+# (a máquina tem outros projetos Postgres) faria backup/restaurar agir noutro
+# banco em silêncio. Se divergirem do .env, avisa em stderr (sem mostrar valores
+# de senha) e segue com o do .env.
+variavel_preservada_do_shell() {
+    case "$1" in
+        COMPOSE_PROJECT_NAME|COMPOSE_FILE|BANCO_ALVO|BACKUP_DIR|IMAGEM_TAG) return 0 ;;
+        *_PORTA_HOST|*_PORTA_PROD) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+carregar_env_preservando_lista_permitida() {
     local nome
     local -A do_shell=()
+    local -A protegidas_do_shell=()
     while IFS= read -r nome; do
         if [[ -v "$nome" ]]; then
-            do_shell["$nome"]="${!nome}"
+            if variavel_preservada_do_shell "$nome"; then
+                do_shell["$nome"]="${!nome}"
+            else
+                protegidas_do_shell["$nome"]="${!nome}"
+            fi
         fi
     done < <(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' .env)
     set -a
@@ -68,8 +85,13 @@ carregar_env_sem_sobrescrever_o_shell() {
     for nome in "${!do_shell[@]}"; do
         export "$nome=${do_shell[$nome]}"
     done
+    for nome in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
+        if [[ -v "protegidas_do_shell[$nome]" && "${protegidas_do_shell[$nome]}" != "${!nome}" ]]; then
+            echo "aviso: $nome está exportado no shell com valor diferente do .env; ignorado, usando o do .env." >&2
+        fi
+    done
 }
-carregar_env_sem_sobrescrever_o_shell
+carregar_env_preservando_lista_permitida
 
 # Opções antes do subcomando (podem vir juntas):
 #   --prod   pilha de produção (docker-compose.prod.yml); recusado em preparar-teste
