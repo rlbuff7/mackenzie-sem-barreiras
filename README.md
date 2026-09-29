@@ -12,21 +12,24 @@ Pontos em aberto: [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md).
 ## Estrutura
 
 ```
+scripts/     scripts de nível de repositório (M5: teste ponta a ponta)
 db/          migrations e seeds SQL
 backend/     API FastAPI e camada de validação (backend/app/validacao/)
-frontend/    mapa web (TypeScript + Leaflet)
-docs/        decisões pendentes e documentos acadêmicos (docs/academico/)
+frontend/    mapa web (TypeScript + Leaflet), com Dockerfile próprio (M5)
+docs/        contrato da API, decisões pendentes, protocolo de coleta e docs/academico/
 ```
+
+Árvore completa e comentada: [`CLAUDE.md` §3](CLAUDE.md).
 
 ## Rodando localmente
 
 Pré-requisito: Docker com Compose v2. Nada é instalado direto na máquina.
 
 ```bash
-cp .env.example .env      # primeira vez; troque a senha
-docker compose up -d --wait   # sobe db + api (aguarde os dois "healthy")
-./db/banco.sh migrar      # cria as tabelas e carrega os seeds
-./db/banco.sh testar      # confere tabelas, constraints e seeds
+cp .env.example .env               # primeira vez; troque a senha
+docker compose up -d --build --wait   # sobe db + api + frontend (aguarde os três "healthy")
+./db/banco.sh migrar               # cria as tabelas e carrega os seeds
+./db/banco.sh testar               # confere tabelas, constraints e seeds
 ```
 
 O `migrar` pode ser rodado quantas vezes quiser: só aplica as migrations novas
@@ -39,12 +42,35 @@ curl -X POST localhost:8000/alertas -H 'Content-Type: application/json' -d \
   '{"latitude": -23.5472, "longitude": -46.6525, "tipo": "degrau", "sessao_id": "<uuid>"}'
 ```
 
+URLs (portas padrão; ajustáveis por `*_PORTA_HOST` no `.env`):
+
+| Serviço | URL |
+|---|---|
+| Frontend (mapa) | http://localhost:8080 |
+| API | http://localhost:8000 |
+| Banco (psql/cliente gráfico) | `localhost:5434`, usuário e senha do `.env` |
+
 Conectar ao banco: `./db/banco.sh psql`, ou de um cliente gráfico (DBeaver,
 pgAdmin) em `localhost:5434`, com usuário e senha do `.env`.
 
 Parar sem perder dados: `docker compose down`.
 Apagar o banco e recomeçar do zero: `docker compose down -v`, depois `up` e
 `migrar` de novo.
+
+## Testes
+
+```bash
+./db/banco.sh testar          # schema, constraints e seeds (SQL, em transação desfeita)
+cd backend && uv run pytest   # API e validacao/, no banco de teste (${POSTGRES_DB}_teste)
+./scripts/ponta-a-ponta.sh    # M5: contrato inteiro por HTTP, numa pilha isolada (msb-e2e)
+```
+
+`scripts/ponta-a-ponta.sh` sobe uma pilha Docker Compose **isolada**
+(`COMPOSE_PROJECT_NAME=msb-e2e`, portas 55434/58000/58080, volume próprio), aplica
+migrations/seeds nela, roda `backend/scripts/ponta_a_ponta.py` (saúde, taxonomia,
+entrada de alertas, pipeline em lote, consulta de barreiras, estatísticas e o
+frontend) e **sempre** derruba essa pilha no fim (`down -v`, mesmo em falha ou
+Ctrl-C) — nunca toca a pilha principal nem o banco dela.
 
 ## Backend
 
@@ -117,6 +143,9 @@ uv run python -m scripts.gerar_figura_funil --origem simulacao
 - [x] **M1**: migrations e seeds
 - [x] **M2**: `POST /alertas` e `GET /barreiras`
 - [x] **M3**: dados sintéticos, pipeline de validação e estatísticas
-- [ ] **M4**: frontend com mapa
-- [ ] **M5**: integração ponta a ponta
-- [ ] **M6**: coleta em campo
+- [x] **M4**: frontend com mapa (Leaflet/OSM) e envio de alerta
+- [x] **M5**: integração ponta a ponta (`docker compose up` único, frontend
+      containerizado, `scripts/ponta-a-ponta.sh`)
+- [ ] **M6**: coleta em campo — **preparado**, não realizado. Protocolo, ética/LGPD,
+      checklist e o que falta decidir com a equipe/orientadora:
+      [`docs/coleta-em-campo.md`](docs/coleta-em-campo.md)

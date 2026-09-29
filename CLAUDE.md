@@ -49,9 +49,12 @@ outra ferramenta, sugira em texto e espere confirmação — não implemente.
 
 ```
 mackenzie-sem-barreiras/
-├── docker-compose.yml
+├── docker-compose.yml       # db + api + frontend
 ├── .env.example
 ├── CLAUDE.md
+├── README.md
+├── scripts/
+│   └── ponta-a-ponta.sh     # M5: pilha ISOLADA (msb-e2e) + teste E2E por HTTP + down -v sempre
 ├── db/
 │   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql|preparar-teste}
 │   ├── init/                # roda 1x com volume vazio: só habilita o postgis
@@ -59,6 +62,7 @@ mackenzie-sem-barreiras/
 │   ├── seeds/               # upserts: tipos de barreira, polígono da área de estudo
 │   └── tests/               # testes do schema em SQL, terminam em ROLLBACK
 ├── backend/
+│   ├── Dockerfile
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py        # lê .env, nada hardcoded
@@ -72,16 +76,29 @@ mackenzie-sem-barreiras/
 │   │       ├── clustering.py    # estágio 3
 │   │       ├── pipeline.py      # estágio 4 + execução em lote (D6)
 │   │       └── estatisticas.py  # contagens do funil
-│   ├── scripts/             # SIMULAÇÃO e figuras (§9); a sensibilidade nunca grava
+│   ├── scripts/             # SIMULAÇÃO, figuras e o E2E (§9, M5); a sensibilidade nunca grava
 │   │   ├── gerar_dados_sinteticos.py  # 5 populações + teste de eficácia
 │   │   ├── analisar_sensibilidade.py  # grade eps × min_confirmacoes
 │   │   ├── gerar_figura_funil.py      # docs/figuras/funil-<origem>.svg|png
+│   │   ├── ponta_a_ponta.py           # M5: contrato inteiro da API por HTTP (httpx)
 │   │   └── saida/                     # JSON e CSV gerados (não versionados)
 │   ├── tests/
 │   └── pyproject.toml / uv.lock
-├── frontend/
+├── frontend/                 # TypeScript + Vite + Leaflet, sem framework
+│   ├── Dockerfile             # M5: node:22-alpine (build) → nginx:alpine (serve dist/)
+│   ├── nginx.conf              # SPA (fallback index.html) + cache dos assets com hash
+│   ├── index.html
+│   └── src/
+│       ├── main.ts             # ponto de entrada: liga mapa, formulário, sessão
+│       ├── api.ts              # cliente HTTP tipado, um a um com docs/api.md
+│       ├── sessao.ts           # sessao_id (UUID) em localStorage (D1)
+│       ├── mapa.ts             # Leaflet: tiles OSM, área de estudo, barreiras por bbox
+│       ├── formulario.ts       # formulário de envio de alerta
+│       └── estilos.css
 └── docs/
+    ├── api.md                 # Contrato da API (fonte única, backend + frontend)
     ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
+    ├── coleta-em-campo.md     # M6: protocolo de coleta em campo
     ├── figuras/               # figuras geradas pelos scripts (funil)
     └── academico/             # pôster e artigo do TCC I (não é código)
 ```
