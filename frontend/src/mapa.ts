@@ -17,10 +17,19 @@
 
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { buscarAreaEstudo, buscarBarreiras, type FeatureBarreira } from "./api";
+import {
+  buscarAreaEstudo,
+  buscarBarreiras,
+  type ColecaoBarreiras,
+  type FeatureBarreira,
+} from "./api";
 
 const CENTRO_INICIAL: L.LatLngTuple = [-23.5471938, -46.6524631];
 const ZOOM_INICIAL = 17;
+// Com zoom menor que este, o mapa mostraria meia cidade ou mais: a lista ficaria
+// enorme e, afastando mais, o retângulo visível passaria de ±180° de longitude,
+// que GET /barreiras recusa com 422. 13 ainda mostra o entorno inteiro do campus.
+const ZOOM_MINIMO = 13;
 const ATRASO_DEBOUNCE_MS = 300;
 
 const COR_PRIMARIA = "#1B4B6B";
@@ -67,6 +76,27 @@ function debounce<Args extends unknown[]>(
     }
     temporizador = window.setTimeout(() => fn(...args), atrasoMs);
   };
+}
+
+function limitar(valor: number, minimo: number, maximo: number): number {
+  return Math.min(Math.max(valor, minimo), maximo);
+}
+
+/**
+ * Retângulo visível no formato de GET /barreiras (minLon, minLat, maxLon,
+ * maxLat), dentro de ±180/±90. O Leaflet deixa arrastar o mapa para além do
+ * antimeridiano, e aí os limites passam de 180; a API recusaria esse bbox. Se o
+ * que sobra depois de limitar não tem área (a vista inteira ficou fora do
+ * mundo), devolve `null`: não há barreira nenhuma para pedir.
+ */
+function bboxVisivel(limites: L.LatLngBounds): [number, number, number, number] | null {
+  const bbox: [number, number, number, number] = [
+    limitar(limites.getWest(), -180, 180),
+    limitar(limites.getSouth(), -90, 90),
+    limitar(limites.getEast(), -180, 180),
+    limitar(limites.getNorth(), -90, 90),
+  ];
+  return bbox[0] < bbox[2] && bbox[1] < bbox[3] ? bbox : null;
 }
 
 function escaparHtml(texto: string): string {
@@ -125,6 +155,7 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
   const mapa = L.map(elementoId, {
     center: CENTRO_INICIAL,
     zoom: ZOOM_INICIAL,
+    minZoom: ZOOM_MINIMO,
   });
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -159,15 +190,10 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
   }
 
   async function carregarBarreirasNaBbox(): Promise<void> {
-    const limites = mapa.getBounds();
-    const bbox: [number, number, number, number] = [
-      limites.getWest(),
-      limites.getSouth(),
-      limites.getEast(),
-      limites.getNorth(),
-    ];
+    const bbox = bboxVisivel(mapa.getBounds());
     try {
-      const colecao = await buscarBarreiras(bbox);
+      const colecao: Pick<ColecaoBarreiras, "features"> =
+        bbox === null ? { features: [] } : await buscarBarreiras(bbox);
       camadaBarreiras.clearLayers();
       marcadoresPorId.clear();
       const itens: ItemListaBarreira[] = [];
