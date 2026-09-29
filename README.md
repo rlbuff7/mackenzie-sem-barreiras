@@ -164,9 +164,9 @@ uv run python -m scripts.gerar_figura_funil --origem simulacao
 - [x] **M4**: frontend com mapa (Leaflet/OSM) e envio de alerta
 - [x] **M5**: integração ponta a ponta (`docker compose up` único, frontend
       containerizado, `scripts/ponta-a-ponta.sh`)
-- [ ] **M5.1**: CI/CD — **implementado**, aguardando a primeira execução real no
-      GitHub Actions. Todo push roda os testes; push no `main` publica as imagens
-      Docker no GHCR ([`docs/ci-cd.md`](docs/ci-cd.md))
+- [x] **M5.1**: CI/CD — rodou verde no GitHub Actions (banco, backend, frontend e
+      ponta a ponta) num push do branch `tcc2`; `publicar-imagens` roda pela primeira
+      vez só depois do merge deste branch em `main` ([`docs/ci-cd.md`](docs/ci-cd.md))
 - [ ] **M6**: coleta em campo — **preparado**, não realizado. Protocolo, ética/LGPD,
       checklist e o que falta decidir com a equipe/orientadora:
       [`docs/coleta-em-campo.md`](docs/coleta-em-campo.md)
