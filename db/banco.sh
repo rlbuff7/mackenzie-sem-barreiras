@@ -48,6 +48,9 @@ if [[ ! -f .env ]]; then
     echo "erro: .env não encontrado. Rode: cp .env.example .env" >&2
     exit 1
 fi
+# Capturado ANTES do source do .env: o que veio da chamada é o que as mensagens de
+# recusa precisam repetir no comando sugerido.
+banco_alvo_do_ambiente="${BANCO_ALVO:-}"
 set -a; source .env; set +a
 
 # Opções antes do subcomando (podem vir juntas):
@@ -55,7 +58,6 @@ set -a; source .env; set +a
 #   --teste  banco "${POSTGRES_DB}_teste" (resolvido aqui, com o .env), útil em backup/restaurar
 opcao_teste=0
 opcao_prod=0
-banco_alvo_do_ambiente="${BANCO_ALVO:-}"   # antes do source do .env
 while [[ "${1:-}" == --prod || "${1:-}" == --teste ]]; do
     case "$1" in
         --prod)  export COMPOSE_FILE=docker-compose.prod.yml; opcao_prod=1 ;;
@@ -201,9 +203,11 @@ zerar_real() {
 # é removido.
 arquivo_parcial=""
 backup() {
-    mkdir -p backups
+    # BACKUP_DIR só existe para os testes não tocarem a pasta real (backups/).
+    local pasta="${BACKUP_DIR:-backups}"
+    mkdir -p "$pasta"
     local arquivo
-    arquivo="backups/${BANCO_ALVO}-$(date +%Y%m%d-%H%M%S).dump"
+    arquivo="${pasta}/${BANCO_ALVO}-$(date +%Y%m%d-%H%M%S).dump"
     arquivo_parcial="$arquivo.parcial"
     trap '[[ -n "$arquivo_parcial" ]] && rm -f "$arquivo_parcial"' EXIT
     docker compose exec -T db \
@@ -266,6 +270,18 @@ restaurar() {
         echo >&2
         echo "interrompido durante a troca: tentando devolver o banco original..." >&2
         local ok=1
+        if [[ $afastado -eq 0 && -n "$existe" ]] \
+                && [[ -z "$("${admin[@]}" -At -c "SELECT 1 FROM pg_database WHERE datname = '${BANCO_ALVO}'" 2>/dev/null)" ]]; then
+            afastado=1   # o RENAME chegou a acontecer antes da interrupção
+        fi
+        if [[ $afastado -eq 0 && -n "$existe" ]]; then
+            # A chamada que afasta o original pode ter parado no meio, depois do
+            # ALLOW_CONNECTIONS false e antes do RENAME: reabre o original.
+            "${admin[@]}" -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" > /dev/null 2>&1 || {
+                ok=0
+                echo "NÃO consegui reabrir as conexões de ${BANCO_ALVO}. No psql do banco postgres: ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true;" >&2
+            }
+        fi
         if [[ $afastado -eq 1 ]]; then
             "${admin[@]}" -c "ALTER DATABASE ${BANCO_ALVO} RENAME TO ${temporario}_perdido" > /dev/null 2>&1 || true
             "${admin[@]}" -c "ALTER DATABASE ${antigo} RENAME TO ${BANCO_ALVO}" \
