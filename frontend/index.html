@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <title>Mackenzie sem Barreiras</title>
+    <meta
+      name="description"
+      content="Mapeamento colaborativo de barreiras de acessibilidade urbana no entorno do Mackenzie."
+    />
+  </head>
+  <body>
+    <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo principal</a>
+
+    <header class="cabecalho">
+      <p class="cabecalho__etiqueta">Trabalho de Conclusão de Curso — FCI/Mackenzie</p>
+      <h1 class="cabecalho__titulo">Mackenzie sem Barreiras</h1>
+      <p class="cabecalho__subtitulo">
+        Mapeamento colaborativo de acessibilidade urbana no entorno do campus
+      </p>
+    </header>
+
+    <main id="conteudo-principal" class="layout">
+      <section class="painel-mapa" aria-labelledby="titulo-mapa">
+        <h2 id="titulo-mapa" class="oculto-visualmente">Mapa de barreiras</h2>
+
+        <div id="mapa" class="mapa" aria-label="Mapa com a área de estudo e as barreiras reportadas"></div>
+
+        <div class="controles-mapa">
+          <button type="button" id="botao-localizacao" class="botao botao--secundaria">
+            Usar minha localização
+          </button>
+          <button type="button" id="botao-centro" class="botao botao--secundaria">
+            Usar o centro do mapa
+          </button>
+        </div>
+
+        <p id="ponto-selecionado" class="ponto-selecionado" aria-live="polite">
+          Nenhum ponto selecionado. Toque no mapa ou use um dos botões acima para escolher onde está a barreira.
+        </p>
+
+        <section class="lista-barreiras" aria-labelledby="titulo-lista-barreiras">
+          <h2 id="titulo-lista-barreiras">Barreiras nesta área do mapa</h2>
+          <p
+            id="contagem-barreiras"
+            class="lista-barreiras__contagem"
+            aria-live="polite"
+            tabindex="-1"
+          ></p>
+          <ul id="lista-barreiras" class="lista-barreiras__lista"></ul>
+        </section>
+      </section>
+
+      <aside class="painel-lateral">
+        <section class="legenda" aria-labelledby="titulo-legenda">
+          <h2 id="titulo-legenda">Legenda</h2>
+          <ul class="legenda__lista">
+            <li class="legenda__item">
+              <span class="marcador marcador--confirmada" aria-hidden="true"></span>
+              <span>Barreira confirmada — círculo cheio</span>
+            </li>
+            <li class="legenda__item">
+              <span class="marcador marcador--pendente" aria-hidden="true"></span>
+              <span>Barreira pendente — losango tracejado</span>
+            </li>
+            <li class="legenda__item">
+              <span class="marcador marcador--area" aria-hidden="true"></span>
+              <span>Área de estudo do projeto</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="formulario-secao" aria-labelledby="titulo-formulario">
+          <h2 id="titulo-formulario">Relatar barreira</h2>
+
+          <form id="formulario-alerta" novalidate>
+            <div class="campo">
+              <label for="campo-tipo">Tipo de barreira</label>
+              <select id="campo-tipo" name="tipo" required aria-describedby="campo-tipo-ajuda">
+                <option value="">Carregando tipos…</option>
+              </select>
+              <p id="campo-tipo-ajuda" class="ajuda">Escolha o tipo que melhor descreve o que você encontrou.</p>
+            </div>
+
+            <fieldset class="campo campo--fieldset">
+              <legend>Severidade (opcional)</legend>
+              <div class="severidade-opcoes">
+                <label class="severidade-opcao">
+                  <input type="radio" name="severidade" value="1" />
+                  <span>1 — Leve</span>
+                </label>
+                <label class="severidade-opcao">
+                  <input type="radio" name="severidade" value="2" />
+                  <span>2 — Moderada</span>
+                </label>
+                <label class="severidade-opcao">
+                  <input type="radio" name="severidade" value="3" />
+                  <span>3 — Grave</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="campo">
+              <label for="campo-descricao">Descrição (opcional)</label>
+              <textarea
+                id="campo-descricao"
+                name="descricao"
+                maxlength="500"
+                rows="3"
+                aria-describedby="contador-descricao"
+              ></textarea>
+              <p id="contador-descricao" class="contador">0 / 500 caracteres</p>
+            </div>
+
+            <button type="submit" class="botao botao--primaria">Enviar alerta</button>
+
+            <p id="status-envio" class="status-envio" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="rodape">
+      <p>
+        Projeto de TCC (FCI/Mackenzie). Os dados enviados passam por validação automática
+        antes de se tornarem uma barreira confirmada no mapa.
+      </p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

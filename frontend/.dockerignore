@@ -1,0 +1,9 @@
+# Contexto de build da imagem do frontend (docker-compose.yml, serviço
+# `frontend`): só o necessário para `npm ci && npm run build` entra na imagem
+# (ver Dockerfile). O resultado do build (dist/) é gerado DENTRO do container.
+
+node_modules
+dist
+.env
+.git
+README.md

@@ -1,0 +1,49 @@
+[project]
+name = "mackenzie-sem-barreiras-backend"
+version = "0.1.0"
+description = "API do Mackenzie sem Barreiras: entrada de alertas (schema + geofence), consulta de barreiras e pipeline de validação em lote (agrupamento DBSCAN + promoção) com estatísticas do funil."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "psycopg[binary,pool]",
+    "pydantic-settings",
+]
+
+[dependency-groups]
+# Só para a figura do funil (scripts/gerar_figura_funil.py): `uv sync --group analise`.
+# Não é grupo padrão, então não entra no `uv sync` comum nem na imagem da API.
+analise = [
+    "matplotlib",
+]
+dev = [
+    "pytest",
+    "httpx",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 ("no function call em default de argumento") falso positivo consagrado
+# com FastAPI: `Depends(...)` em default é o jeito idiomático de injetar
+# dependências (ex.: Depends(obter_conexao), Depends(obter_configuracoes)).
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "error",
+    # A starlette usada pela versão fixada de fastapi já depreca o TestClient
+    # baseado em `httpx` a favor de um pacote novo, `httpx2` — mas G3/o brief
+    # fixam `httpx` como dependência de teste deste projeto, então ignoramos só
+    # este aviso pontual em vez de trocar de dependência sem autorização.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated.*:starlette.exceptions.StarletteDeprecationWarning",
+]
+# Permite `import app` e, a partir do M3, `import scripts` a partir de backend/.
+pythonpath = ["."]

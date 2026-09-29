@@ -1,0 +1,244 @@
+# CI/CD do Mackenzie sem Barreiras (M5.1).
+#
+# CI: todo push (qualquer branch) e todo pull request para main rodam os testes
+# de banco, backend, frontend e ponta a ponta.
+# CD: todo push em main (ou tag v*) publica as imagens Docker da API e do
+# frontend no GHCR, prontas para implantar. A implantação em si NÃO é
+# automática (job `implantar`, desativado — ver docs/ci-cd.md).
+#
+# `runs-on: ubuntu-24.04` em todo job (não `ubuntu-latest`): o `ubuntu-latest`
+# passa a apontar para o Ubuntu 26 a partir de 19/10/2026, e não vale a pena
+# arriscar uma imagem nova de runner no meio do TCC II. Fixo por enquanto; a
+# equipe pode migrar depois da entrega, com calma (R20).
+name: CI/CD
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+# Cancela uma execução mais antiga do mesmo branch/PR quando chega um push novo:
+# evita gastar minutos de runner numa versão já ultrapassada. EXCEÇÃO: em main e
+# em tag de versão (v*), nunca cancela a que está em andamento — a nova espera
+# na fila (mesmo group, cancel-in-progress: false). Do contrário, um push rápido
+# logo depois de outro em main poderia cancelar o `publicar-imagens` no MEIO do
+# push pro GHCR, perdendo a imagem daquele commit (revisão da Task 7, rodada 1).
+# O GitHub guarda só UMA execução pendente por grupo: um terceiro push rápido
+# cancela a pendente, e a imagem daquele commit do meio não sai (docs/ci-cd.md §2).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') }}
+
+# Mínimo por padrão; o job de publicação eleva só o que precisa (packages: write).
+permissions:
+  contents: read
+
+jobs:
+  # Sobe o banco (PostGIS), aplica migrations/seeds, roda os testes de schema
+  # (db/tests/*.sql) e a suíte do backend (ruff + pytest, que bate no PostGIS
+  # real num banco de teste à parte — G8).
+  banco-e-backend:
+    name: Banco e backend
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # A senha de exemplo serve: o banco do CI é descartável, só escuta em
+      # 127.0.0.1 e morre com o runner.
+      - name: Preparar .env
+        run: cp .env.example .env
+
+      - name: Subir o banco (PostGIS)
+        run: docker compose up -d --wait db
+
+      - name: Aplicar migrations e seeds
+        run: ./db/banco.sh migrar
+
+      - name: Testes de schema (SQL, em transação desfeita)
+        run: ./db/banco.sh testar
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Instalar dependências do backend
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Lint (ruff check)
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Formatação (ruff format)
+        working-directory: backend
+        run: uv run ruff format --check .
+
+      # Recria "${POSTGRES_DB}_teste" sozinho (conftest.py chama
+      # ../db/banco.sh preparar-teste) — precisa do container `db` de pé e do
+      # .env na raiz, os dois já garantidos acima.
+      - name: Testes do backend (pytest)
+        working-directory: backend
+        run: uv run pytest
+
+  # Typecheck (tsc --noEmit, via "verificar") e build de produção do Vite.
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências do frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Verificar tipos (tsc --noEmit)
+        working-directory: frontend
+        run: npm run verificar
+
+      - name: Build de produção (Vite)
+        working-directory: frontend
+        run: npm run build
+
+  # Contrato inteiro da API por HTTP, numa pilha Docker Compose isolada
+  # (scripts/ponta-a-ponta.sh cria o projeto msb-e2e e sempre derruba no fim).
+  # Só roda depois que banco+backend e frontend passam isoladamente: é o mais
+  # caro e mais lento dos três, então não vale a pena rodá-lo se algo mais
+  # básico já quebrou.
+  ponta-a-ponta:
+    name: Ponta a ponta (E2E)
+    needs: [banco-e-backend, frontend]
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Preparar .env
+        run: cp .env.example .env
+
+      # scripts/ponta-a-ponta.sh chama `uv run` de dentro de backend/ para
+      # rodar backend/scripts/ponta_a_ponta.py — precisa do uv no PATH.
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Rodar o teste ponta a ponta
+        run: ./scripts/ponta-a-ponta.sh
+
+  # CD: publica as imagens da API e do frontend no GHCR. Só em push direto
+  # para main (nunca em pull_request) ou em tag de versão (v*) — nunca em
+  # branch de feature. `needs: [ponta-a-ponta]` já cobre banco-e-backend e
+  # frontend transitivamente: nada é publicado sem todos os testes verdes.
+  publicar-imagens:
+    name: Publicar imagens (GHCR)
+    needs: [ponta-a-ponta]
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # GHCR exige o nome da imagem em minúsculas; github.repository_owner
+      # pode não estar (o dono deste repo já é minúsculo, mas um fork com
+      # letra maiúscula quebraria em silêncio sem isto). Não há função
+      # toLower() nas expressions do GitHub Actions, daí o shell.
+      - name: Owner em minúsculas
+        id: owner
+        run: |
+          echo "minusculo=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Precisa vir ANTES do build-push-action: é o Buildx que sabe falar
+      # com o cache do tipo "gha".
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Metadados da imagem da API
+        id: meta-api
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ steps.owner.outputs.minusculo }}/mackenzie-sem-barreiras-api
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build e push da imagem da API
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Metadados da imagem do frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ steps.owner.outputs.minusculo }}/mackenzie-sem-barreiras-frontend
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build e push da imagem do frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          push: true
+          # R19 (CLAUDE.md §3/G12): mesma origem via proxy do nginx. Padrão
+          # "/api", não uma URL absoluta — sobrepõe o padrão do brief original
+          # (http://localhost:8000), que valia antes da decisão R19. Ajustável
+          # por uma variável de repositório (Settings → Variables → Actions),
+          # sem precisar mudar este workflow.
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || '/api' }}
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # Implantação contínua: DESATIVADA (if: false) até a equipe escolher a
+  # hospedagem com HTTPS (docs/coleta-em-campo.md §4; pendência técnica em
+  # docs/decisoes-pendentes.md). Fica pronta para a equipe só tirar o
+  # "if: false" quando a decisão for tomada.
+  #
+  # TODO(equipe): depois de escolher a hospedagem,
+  #   1. criar o secret DEPLOY_HOOK_URL (Settings → Secrets and variables →
+  #      Actions) com a URL do deploy hook daquela hospedagem;
+  #   2. remover a linha `if: false` abaixo;
+  #   3. ajustar o passo "Chamar o deploy hook" se a hospedagem escolhida
+  #      exigir outro formato de chamada (ex.: CLI própria em vez de curl).
+  implantar:
+    name: Implantar (desativado)
+    needs: [publicar-imagens]
+    if: false
+    runs-on: ubuntu-24.04  # ver nota no topo do arquivo (R20)
+    timeout-minutes: 10
+    steps:
+      - name: Chamar o deploy hook da hospedagem
+        run: curl -fsSL -X POST "${{ secrets.DEPLOY_HOOK_URL }}"

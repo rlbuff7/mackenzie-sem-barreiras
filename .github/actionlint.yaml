@@ -1,0 +1,12 @@
+# Configuração do actionlint (validação local descrita em docs/ci-cd.md).
+#
+# Nada aqui afrouxa checagem de sintaxe, contextos ou tipos — só silencia um
+# aviso de estilo sobre uma condição que É INTENCIONAL.
+paths:
+  .github/workflows/ci-cd.yml:
+    ignore:
+      # O job `implantar` fica propositalmente desativado (`if: false`) até a
+      # equipe escolher a hospedagem com HTTPS (ver o TODO no próprio job e
+      # docs/decisoes-pendentes.md). O actionlint sugere remover o `if:`, mas
+      # é exatamente esse `if: false` que mantém o job existente e inofensivo.
+      - 'constant expression "false" in condition\. remove the if: section'

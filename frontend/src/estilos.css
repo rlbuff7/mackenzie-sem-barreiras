@@ -1,0 +1,524 @@
+/*
+ * Paleta inspirada na calçada portuguesa (pedra calcária clara + basalto
+ * escuro, o próprio material das calçadas que este projeto mapeia) e na
+ * sinalização institucional de acessibilidade: azul de wayfinding para a
+ * marca e a área de estudo, verde para barreira confirmada, ocre envelhecido
+ * para pendente, laranja queimado para o ponto em seleção e para foco.
+ * Todas as combinações abaixo foram conferidas para contraste AA (WCAG).
+ */
+
+/*
+ * Public Sans (SIL Open Font License 1.1, texto em fontes/OFL.txt), escolhida pela
+ * legibilidade em tamanho pequeno no celular. Hospedada aqui, não no Google Fonts:
+ * a página não chama nenhum terceiro além dos tiles do mapa (o IP do voluntário,
+ * docs/coleta-em-campo.md §3) e não depende de internet boa em campo para a fonte.
+ * Um só arquivo: a versão variável com os pesos 400 a 700 (os únicos usados), só
+ * o subconjunto latino, que cobre o português; fora dele, vale a fonte do sistema.
+ */
+@font-face {
+  font-family: "Public Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fontes/public-sans-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --cor-fundo: #ede8dc;
+  --cor-superficie: #ffffff;
+  --cor-texto: #24262b;
+  --cor-texto-suave: #52514c;
+  --cor-primaria: #1b4b6b;
+  --cor-primaria-escura: #123449;
+  --cor-confirmada: #2f6e4f;
+  --cor-pendente: #8c6b28;
+  --cor-alerta: #b5501c;
+  --cor-borda: #d8d2c2;
+
+  /* Sem "Archivo Expanded": essa família não existe no Google Fonts (o link antigo
+     só trazia a Public Sans), então os títulos sempre usaram esta pilha. */
+  --fonte-exibicao: "Arial Narrow", sans-serif;
+  --fonte-texto: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+body {
+  font-family: var(--fonte-texto);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+h1,
+h2 {
+  font-family: var(--fonte-exibicao);
+  line-height: 1.15;
+  margin: 0;
+}
+
+p {
+  margin: 0 0 0.5rem;
+}
+
+/* Link de pular para o conteúdo: invisível até receber foco por teclado. */
+.pular-conteudo {
+  position: absolute;
+  left: 0.5rem;
+  top: -3.5rem;
+  z-index: 1000;
+  padding: 0.75rem 1rem;
+  background: var(--cor-primaria-escura);
+  color: #fff;
+  border-radius: 0 0 4px 4px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pular-conteudo:focus {
+  top: 0;
+}
+
+.oculto-visualmente {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Cabeçalho */
+.cabecalho {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 0;
+}
+
+.cabecalho__etiqueta {
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+}
+
+.cabecalho__titulo {
+  font-size: clamp(1.6rem, 5vw, 2.35rem);
+  font-weight: 800;
+  color: var(--cor-primaria-escura);
+  letter-spacing: 0.01em;
+}
+
+.cabecalho__subtitulo {
+  margin-top: 0.35rem;
+  color: var(--cor-texto-suave);
+  max-width: 42ch;
+}
+
+/* Único traço decorativo da página: faixa diagonal lembrando a sinalização
+   tátil de rampa de acesso, separando o cabeçalho do conteúdo. */
+.cabecalho::after {
+  content: "";
+  display: block;
+  height: 6px;
+  margin-top: 1.1rem;
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--cor-primaria) 0 10px,
+    var(--cor-pendente) 10px 20px
+  );
+}
+
+/* Layout principal: uma coluna no celular, mapa + painel lado a lado a
+   partir de telas largas. */
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 1rem;
+}
+
+.painel-mapa {
+  min-width: 0;
+}
+
+.mapa {
+  width: 100%;
+  height: 56vh;
+  height: 56dvh;
+  min-height: 320px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  background: var(--cor-borda);
+}
+
+.controles-mapa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.ponto-selecionado {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--cor-superficie);
+  border-left: 4px solid var(--cor-primaria);
+  border-radius: 4px;
+  color: var(--cor-texto-suave);
+  font-size: 0.95rem;
+}
+
+.painel-lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.legenda,
+.formulario-secao,
+.lista-barreiras {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-left: 4px solid var(--cor-primaria);
+  border-radius: 6px;
+  padding: 1rem 1.2rem 1.2rem;
+}
+
+.lista-barreiras {
+  margin-top: 1.25rem;
+}
+
+.legenda h2,
+.formulario-secao h2,
+.lista-barreiras h2 {
+  font-size: 1.15rem;
+  margin-bottom: 0.75rem;
+}
+
+.lista-barreiras__contagem {
+  font-size: 0.9rem;
+  color: var(--cor-texto-suave);
+}
+
+.lista-barreiras__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.item-barreira {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 4px;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item-barreira:hover {
+  background: rgba(27, 75, 107, 0.07);
+}
+
+.item-barreira__tipo {
+  font-weight: 600;
+}
+
+.item-barreira__detalhe {
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+}
+
+.item-barreira__acao {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--cor-primaria-escura);
+  margin-top: 0.15rem;
+}
+
+.item-barreira-vazio {
+  font-size: 0.9rem;
+  color: var(--cor-texto-suave);
+  padding: 0.4rem 0;
+}
+
+.legenda__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.legenda__item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.95rem;
+}
+
+/* Formas dos marcadores da legenda: a distinção nunca depende só da cor. */
+.marcador {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.marcador--confirmada {
+  border-radius: 50%;
+  background: var(--cor-confirmada);
+  border: 2px solid var(--cor-superficie);
+  box-shadow: 0 0 0 2px var(--cor-confirmada);
+}
+
+.marcador--pendente {
+  background: var(--cor-superficie);
+  border: 3px dashed var(--cor-pendente);
+  transform: rotate(45deg);
+}
+
+.marcador--area {
+  background: transparent;
+  border: 2px dashed var(--cor-primaria);
+  border-radius: 3px;
+}
+
+/* Formulário */
+.formulario-secao form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.campo--fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.campo label,
+.campo--fieldset legend {
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0;
+}
+
+.ajuda {
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+  margin: 0;
+}
+
+select#campo-tipo,
+textarea#campo-descricao {
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.65rem 0.7rem;
+  min-height: 44px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 4px;
+  background: var(--cor-superficie);
+  color: var(--cor-texto);
+}
+
+textarea#campo-descricao {
+  resize: vertical;
+}
+
+.contador {
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+  text-align: right;
+  margin: 0;
+}
+
+.severidade-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.severidade-opcao {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 4px;
+  font-weight: 400;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.severidade-opcao:has(input:checked) {
+  border-color: var(--cor-primaria);
+  background: rgba(27, 75, 107, 0.07);
+}
+
+.severidade-opcao input {
+  width: 20px;
+  height: 20px;
+}
+
+.status-envio {
+  min-height: 1.4em;
+  margin: 0;
+  font-weight: 600;
+  color: var(--cor-primaria-escura);
+}
+
+/* Botões */
+.botao {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.botao--secundaria {
+  background: var(--cor-superficie);
+  border-color: var(--cor-primaria);
+  color: var(--cor-primaria-escura);
+}
+
+.botao--secundaria:hover {
+  background: rgba(27, 75, 107, 0.07);
+}
+
+.botao--primaria {
+  background: var(--cor-primaria);
+  border-color: var(--cor-primaria-escura);
+  color: #fff;
+}
+
+.botao--primaria:hover {
+  background: var(--cor-primaria-escura);
+}
+
+.botao:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Foco visível em toda a página, com cor distinta da marca para se destacar
+   tanto sobre fundo claro quanto sobre os próprios botões. */
+:focus-visible {
+  outline: 3px solid var(--cor-alerta);
+  outline-offset: 2px;
+}
+
+/* Marcadores de barreira no mapa (Leaflet divIcon). */
+.icone-barreira {
+  display: block;
+  box-sizing: border-box;
+}
+
+.icone-barreira--confirmada {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--cor-confirmada);
+  border: 2px solid #fff;
+  box-shadow:
+    0 0 0 1px var(--cor-confirmada),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.icone-barreira--pendente {
+  width: 16px;
+  height: 16px;
+  margin: 2px;
+  background: var(--cor-superficie);
+  border: 3px dashed var(--cor-pendente);
+  transform: rotate(45deg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.popup-barreira__tipo {
+  font-weight: 700;
+  margin: 0 0 0.2rem;
+}
+
+.leaflet-popup-content p {
+  margin: 0.15rem 0;
+  font-size: 0.9rem;
+}
+
+.rodape {
+  max-width: 1200px;
+  margin: 2rem auto 1.25rem;
+  padding: 0 1rem;
+  font-size: 0.85rem;
+  color: var(--cor-texto-suave);
+}
+
+@media (min-width: 900px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+    align-items: start;
+    gap: 1.75rem;
+  }
+
+  .painel-mapa {
+    position: sticky;
+    top: 1.25rem;
+  }
+
+  .mapa {
+    height: 74vh;
+    height: 74dvh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
