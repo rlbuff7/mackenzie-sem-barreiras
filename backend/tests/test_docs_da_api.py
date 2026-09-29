@@ -2,6 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.config import Configuracoes
 from app.main import criar_app
@@ -41,7 +42,7 @@ def test_expor_docs_do_ambiente_aceita_booleano_sem_diferenciar_maiusculas(
 ) -> None:
     monkeypatch.setenv("EXPOR_DOCS", valor)
 
-    assert Configuracoes().expor_docs is esperado
+    assert Configuracoes(_env_file=None, **_ambiente_minimo()).expor_docs is esperado
 
 
 def test_expor_docs_liga_por_padrao(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,8 +54,10 @@ def test_expor_docs_liga_por_padrao(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_expor_docs_invalido_falha_ao_ler_a_configuracao(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXPOR_DOCS", "talvez")
 
-    with pytest.raises(ValueError):
-        Configuracoes()
+    with pytest.raises(ValidationError) as erro:
+        Configuracoes(_env_file=None, **_ambiente_minimo())
+
+    assert [e["loc"] for e in erro.value.errors()] == [("expor_docs",)]
 
 
 def _ambiente_minimo() -> dict:

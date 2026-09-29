@@ -275,7 +275,9 @@ def test_post_alertas_corpo_sem_content_length_acima_do_limite_devolve_413(
     assert _contagens(conexao) == antes
 
 
-def test_post_alertas_corpo_exatamente_no_limite_e_aceito(cliente: TestClient) -> None:
+def test_post_alertas_corpo_exatamente_no_limite_passa_pelo_tamanho_e_e_validado(
+    cliente: TestClient,
+) -> None:
     corpo = _corpo_com_tamanho(16 * 1024)
     # 500 caracteres é o máximo da descrição: acima disso o schema reprova (422),
     # o que prova que o corpo passou do limite de tamanho e chegou ao estágio 1.

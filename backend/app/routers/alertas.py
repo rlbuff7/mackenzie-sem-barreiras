@@ -1,7 +1,8 @@
 """`POST /alertas` (Contrato da API): estágios 1 (schema) e 2 (geofence) na entrada.
 
-Rota `async` porque precisa ler o CORPO CRU da requisição (`await
-request.body()`) antes de qualquer parse: um corpo que não é JSON válido ainda
+Rota `async` porque precisa ler o CORPO CRU da requisição, em fluxo com teto de
+`LIMITE_CORPO_BYTES` (`_ler_corpo_limitado`: confere o Content-Length e corta a
+leitura; acima do teto, 413), antes de qualquer parse: um corpo que não é JSON válido ainda
 precisa virar uma linha em `alertas_rejeitados` (contagem do funil), e o parse
 automático de corpo do FastAPI responderia 422 sozinho, sem passar por
 `registrar_alerta` — por isso a rota não declara `payload: AlertaEntrada` como
