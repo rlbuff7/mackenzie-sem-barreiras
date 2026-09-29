@@ -60,9 +60,11 @@ curl -X POST localhost:8000/alertas -H 'Content-Type: application/json' -d \
 > `curl`, um envio pelo mapa em http://localhost:8081 e até um corpo inválido (que vira
 > uma linha em `alertas_rejeitados`). Esses dados entram no funil da coleta em campo.
 > Para testar sem sujar nada, use `./scripts/ponta-a-ponta.sh` (pilha isolada). Antes
-> de abrir a coleta, limpe o que os testes deixaram com
+> da PRIMEIRA abertura da coleta, limpe o que os testes deixaram com
 > `./db/banco.sh zerar-real --sim-apagar-dados-reais` (sem o argumento, só mostra o
-> que seria apagado); ver [`docs/coleta-em-campo.md`](docs/coleta-em-campo.md) §5.
+> que seria apagado, quantos relatos e de quando). Depois de aberta, nunca: os relatos
+> reais são os dados do TCC, e reabrir a coleta num dia seguinte é
+> `./scripts/preparar-coleta.sh --reabrir` ([`docs/implantacao.md`](docs/implantacao.md) §8).
 
 URLs (portas padrão; ajustáveis por `*_PORTA_HOST` no `.env`):
 
@@ -98,7 +100,9 @@ cd backend && uv run pytest   # API e validacao/, no banco de teste (${POSTGRES_
 (`COMPOSE_PROJECT_NAME=msb-e2e`, portas 55434/58000/58080, volume próprio), aplica
 migrations/seeds nela, roda `backend/scripts/ponta_a_ponta.py` (saúde, taxonomia,
 entrada de alertas, pipeline em lote, consulta de barreiras, estatísticas, o
-proxy `/api/` do frontend — R19 — e o próprio frontend) e **sempre** derruba
+proxy `/api/` do frontend — R19 — e o próprio frontend), confere
+`scripts/preparar-coleta.sh` (normal e `--reabrir`) e o `zerar-real` sem confirmação
+com os relatos reais que o teste deixou, e **sempre** derruba
 essa pilha no fim (`down -v`, mesmo em falha ou Ctrl-C) — nunca toca a pilha
 principal nem o banco dela. Requer bash >= 4.2 (arrays associativos e `[[ -v ]]`;
 o macOS traz o 3.2: instale um bash mais novo) e `python3` no PATH.

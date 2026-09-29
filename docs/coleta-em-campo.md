@@ -198,15 +198,20 @@ Antes de ir a campo:
 - [ ] Combinar quem faz o quê em campo. A divisão geral está decidida
       (`decisoes-pendentes.md` #5, 29/09/2026: código = rlbuff7; infra = Victor (VSWH);
       dados reais = Maurício); falta só combinar os papéis de cada pessoa no dia.
-- [ ] **Zerar os dados reais de teste.** Todo POST na pilha principal grava
-      `origem='real'`: os testes manuais no mapa, o `curl` do README e até um corpo
-      inválido (que vira uma linha em `alertas_rejeitados`). Se houve testes, rode
-      `./db/banco.sh zerar-real --sim-apagar-dados-reais`. Sem o argumento, ele só
-      mostra quanto seria apagado; com ele, apaga as linhas `origem='real'` das quatro
-      tabelas numa transação e nunca toca a simulação. É SÓ para este momento: depois
-      de aberta a coleta, essas linhas são os dados do TCC.
+- [ ] **Só antes da PRIMEIRA abertura: zerar os dados reais de teste.** Todo POST na
+      pilha de coleta grava `origem='real'`: o relato de teste pelo celular, os testes
+      manuais no mapa e até um corpo inválido (que vira uma linha em
+      `alertas_rejeitados`). O passo a passo é o de
+      [`implantacao.md`](implantacao.md) §7: backup, `zerar-real` sem o argumento (mostra
+      as contagens e quantos relatos reais há, de que data a que data) e, se forem só os
+      testes de agora há pouco, `--sim-apagar-dados-reais` (apaga as linhas
+      `origem='real'` das quatro tabelas numa transação e nunca toca a simulação). É SÓ
+      para este momento, uma vez: depois de aberta a coleta, essas linhas são os dados do
+      TCC. Reabrir a coleta num dia seguinte, ou depois de o túnel cair, é o
+      [`implantacao.md`](implantacao.md) §8 (`./scripts/preparar-coleta.sh --reabrir`),
+      sem apagar nada.
 - [ ] Conferir `GET /validacao/estatisticas?origem=real` com `alertas.recebidos = 0`
-      logo antes de abrir a coleta.
+      logo antes da PRIMEIRA abertura. Nos dias seguintes, `recebidos` só pode crescer.
 - [ ] **Congelar os seeds (tipos e polígono) até o fim da coleta.** `./db/banco.sh
       migrar` reaplica `db/seeds/` a cada execução. Se o polígono mudasse no meio, o
       funil real misturaria relatos julgados por dois geofences diferentes (e uma troca
