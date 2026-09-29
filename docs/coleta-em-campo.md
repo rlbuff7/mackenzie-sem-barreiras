@@ -71,7 +71,15 @@ voluntário precisa saber para consentir (texto sugerido no fim da seção).
 
 **O que fica no banco, por relato:** o ponto (latitude e longitude, do GPS ou do toque
 no mapa), o tipo, a severidade e a descrição (as duas opcionais), a hora do envio
-(`criado_em`) e o `sessao_hash`. Nada mais (`db/migrations/`, `docs/api.md`).
+(`criado_em`) e o `sessao_hash`. Isso vale para os relatos **aceitos** (tabela
+`alertas`). Os relatos **reprovados no estágio 1** (formato inválido, campo extra, tipo
+inexistente) têm outro destino, a tabela `alertas_rejeitados`, que guarda o **corpo
+recebido inteiro** em `payload`: o `sessao_id` em UUID cru (não o hash), a descrição e
+qualquer campo extra que o cliente tenha mandado, mais a lista de erros
+(`db/migrations/`, `app/validacao/entrada.py`, `docs/api.md`). Para o voluntário, isso
+não muda nada que o identifique: o UUID é aleatório e só existe no aparelho dele, sem
+ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
+`alertas_rejeitados` também não deve ser publicado cru.
 
 - **Nenhum dado de identificação direta.** Não há campo de nome, e-mail, telefone ou
   documento no formulário. A descrição é texto livre: por isso o roteiro pede para não
@@ -89,8 +97,9 @@ no mapa), o tipo, a severidade e a descrição (as duas opcionais), a hora do en
   hospedagem escolhidos (§4) têm os próprios logs, fora do nosso controle. Conferir a
   política do serviço escolhido e citá-la no texto de consentimento.
 - **A sessão é um pseudônimo do aparelho, não anonimato.** O navegador gera um UUID
-  aleatório e o guarda no `localStorage` (D1); o servidor grava só `sha256(uuid)`,
-  nunca o UUID cru. O hash não diz quem é a pessoa, mas é o MESMO em todos os relatos
+  aleatório e o guarda no `localStorage` (D1); nos relatos aceitos o servidor grava só
+  `sha256(uuid)`, nunca o UUID cru (a exceção são os reprovados no estágio 1, que
+  guardam o corpo recebido, UUID cru incluso, em `alertas_rejeitados.payload`). O hash não diz quem é a pessoa, mas é o MESMO em todos os relatos
   daquele navegador: `sessao_hash` + `criado_em` + `geom` formam a **trajetória** do
   aparelho durante a coleta (onde esteve, em que ordem, a que horas). É dado
   pseudônimo: quem souber por outro meio por onde alguém andou pode reconhecer a

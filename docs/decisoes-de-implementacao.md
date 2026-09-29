@@ -1,7 +1,7 @@
 # Decisões de implementação (glossário)
 
 O código, os commits e os documentos citam identificadores curtos: **G1–G12**, **D1–D8**,
-**R1–R26** e "Task N". Eles vêm do plano de implementação do TCC II e do registro de
+**R1–R27** e "Task N". Eles vêm do plano de implementação do TCC II e do registro de
 decisões tomadas durante a execução dele, que ficaram fora do repositório (pasta
 `.superpowers/`, não versionada: `plano-tcc2.md`, `globais.md` e o registro de
 progresso). Este arquivo guarda o significado de cada um, uma linha por identificador,
@@ -57,7 +57,7 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 
 | Id | Decisão | Por quê |
 |---|---|---|
-| D1 | `sessao_id` é um UUID gerado no navegador (`localStorage`); o servidor grava só `sha256(uuid)` e nunca guarda IP. | Resolve T3: identifica relatos do mesmo aparelho sem dado de identificação. |
+| D1 | `sessao_id` é um UUID gerado no navegador (`localStorage`); o servidor grava só `sha256(uuid)` nos relatos aceitos e nunca guarda IP; relatos reprovados no estágio 1 guardam o corpo recebido inteiro (UUID cru, descrição e campos extras) em `alertas_rejeitados.payload` (R27). | Resolve T3: identifica relatos do mesmo aparelho sem dado de identificação; o UUID é aleatório e só existe no aparelho. |
 | D2 | Coluna `origem` (`real`\|`simulacao`) em `alertas`, `alertas_rejeitados` e `barreiras` (migration 002); pela HTTP é sempre `real`. | G10: separar simulação de coleta real no próprio dado. |
 | D3 | O tipo é enviado pelo `codigo` (ex.: `"degrau"`), não pelo id; tipo inexistente ou inativo reprova no estágio 1. | Contrato estável mesmo se os ids da taxonomia mudarem. |
 | D4 | Alerta válido fora da área: HTTP 201 com `status="descartado"` e `motivo_descarte="fora_da_area"`; reprovado no schema: HTTP 422. | O alerta fora da área foi registrado e conta no funil (estágio 2). |
@@ -96,3 +96,4 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 | R24 | Sem Google Fonts: fonte hospedada no próprio frontend. | Privacidade (IP do voluntário) e coleta sem depender de internet boa. | 29/09, revisão final |
 | R25 | Este glossário. | Tornar rastreáveis as cerca de 140 referências a G, D, R e Task. | 29/09, revisão final |
 | R26 | O minpoints do estágio 3 contar alertas, não sessões, vira pendência para a orientadora, sem implementação. | Mudança metodológica do núcleo do TCC não é decisão do orquestrador. | 29/09, revisão final |
+| R27 | O texto de privacidade diz que relatos reprovados no estágio 1 guardam o corpo recebido inteiro (com o `sessao_id` cru) em `alertas_rejeitados.payload`. | Precisão: a frase "nunca o UUID cru" só valia para os relatos aceitos. | 29/09, Task 8 |
