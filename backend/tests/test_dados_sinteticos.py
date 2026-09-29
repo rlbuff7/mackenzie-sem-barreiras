@@ -777,10 +777,13 @@ def test_analisar_grade_desfaz_cada_rodada_e_mede_cada_combinacao(
         (8, 3),
         (8, 5),
     ]
-    rodada_padrao = rodadas[2].avaliacao
+    rodada_padrao = rodadas[2].controle
     assert rodada_padrao.por_categoria["aglomerado"].taxa == 1.0
-    # min_confirmacoes = 5 com 4 sessões por aglomerado: nenhum se confirma.
-    assert rodadas[3].avaliacao.barreiras_obtidas == {"confirmada": 0, "pendente": 5}
+    # min_confirmacoes = 5 com 4 sessões por aglomerado: nenhum se confirma, e é isso
+    # que se esperava (a regra das sessões), então o acerto continua 100%.
+    assert rodadas[3].controle.barreiras_obtidas == {"confirmada": 0, "pendente": 5}
+    assert rodadas[3].controle.barreiras_esperadas == {"confirmada": 0, "pendente": 5}
+    assert rodadas[3].controle.por_categoria["aglomerado"].taxa == 1.0
     # Nada ficou gravado: cada rodada foi desfeita.
     assert conexao.execute(
         "SELECT count(*) FROM barreiras WHERE origem = 'simulacao'"
@@ -791,14 +794,61 @@ def test_analisar_grade_desfaz_cada_rodada_e_mede_cada_combinacao(
     ).fetchall() == [("bruto",), ("descartado",)]
 
 
+def test_analisar_grade_mede_as_sequencias_a_parte_e_elas_se_fundem_com_eps_grande(
+    conexao: psycopg.Connection,
+) -> None:
+    """Sequências a 15 m com dispersão de até 3 m: barreiras vizinhas ficam entre
+    9 e 21 m. Com eps = 8 m nenhuma se funde (100% separadas); com eps = 25 m cada
+    sequência inteira vira UMA barreira. O controle não é afetado."""
+    config = obter_configuracoes()
+    opcoes = OpcoesGeracao(
+        semente=7,
+        aglomerados=3,
+        sessao_repetida=1,
+        ruido=3,
+        fora_da_area=0,
+        invalidos=0,
+        sequencias=2,
+        barreiras_por_sequencia=3,
+    )
+    itens = gerar_populacoes(opcoes, tipos=_TIPOS, eps_metros=_EPS_METROS, eps_maximo_metros=25)
+    registrados = registrar_populacoes(conexao, itens, config=config)
+
+    eps_8, eps_25 = analisar_grade(
+        conexao,
+        registrados,
+        grade_eps_metros=(8, 25),
+        grade_min_confirmacoes=(3,),
+        min_pontos=_MIN_PONTOS,
+        srid_calculo=_SRID_CALCULO,
+        srid_armazenamento=_SRID_ARMAZENAMENTO,
+    )
+
+    separadas = eps_8.sequencia
+    assert separadas.por_categoria["sequencia"].esperado == 6
+    assert separadas.por_categoria["sequencia"].taxa == 1.0
+    assert (sum(separadas.barreiras_obtidas.values()), separadas.fusoes_indevidas) == (6, 0)
+    fundidas = eps_25.sequencia
+    assert fundidas.por_categoria["sequencia"].obtido == 0
+    assert (sum(fundidas.barreiras_obtidas.values()), fundidas.fusoes_indevidas) == (2, 2)
+    assert eps_25.controle.por_categoria["aglomerado"].esperado == 3
+    assert eps_25.controle.por_categoria["sequencia"].esperado == 0
+
+
 def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
     """Com minpoints = 2, um grupo continua inteiro enquanto eps cobre o maior salto
     da sua árvore geradora mínima (0 → 4 → 8: salto 4, embora os extremos distem 8);
-    a primeira fusão possível é a menor distância entre grupos do mesmo tipo; o
-    primeiro ruído a ganhar vizinho é o mais próximo de outro ponto do mesmo tipo."""
+    a primeira fusão possível no controle é a menor distância entre grupos do mesmo
+    tipo; o primeiro ruído a ganhar vizinho é o mais próximo de outro ponto do mesmo
+    tipo. Nas sequências: a menor distância entre barreiras da MESMA sequência (eps
+    em que elas começam a se fundir) e a menor distância de uma sequência ao resto."""
 
     def item(
-        categoria: str, grupo: int | None, norte_metros: float, tipo: str = "degrau"
+        categoria: str,
+        grupo: int | None,
+        norte_metros: float,
+        tipo: str = "degrau",
+        sequencia: int | None = None,
     ) -> ItemGerado:
         return ItemGerado(
             categoria=categoria,
@@ -807,6 +857,7 @@ def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
             norte_metros=norte_metros,
             leste_metros=0.0,
             payload={"tipo": tipo},
+            sequencia=sequencia,
         )
 
     itens = [
@@ -819,6 +870,10 @@ def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
         item("ruido", None, 100.0),
         item("ruido", None, 60.0, tipo="obstaculo"),  # sozinho no tipo: não conta
         item("fora_da_area", None, 48.0),  # descartado no geofence: não conta
+        item("sequencia", 0, 300.0, sequencia=0),
+        item("sequencia", 1, 312.0, sequencia=0),
+        item("sequencia", 2, 326.0, sequencia=0),
+        item("sequencia", 3, 400.0, sequencia=1),
     ]
 
     referencias = distancias_de_referencia(itens)
@@ -826,6 +881,8 @@ def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
     assert referencias.maior_salto_dentro_de_grupo_metros == pytest.approx(4.0)
     assert referencias.menor_entre_grupos_metros == pytest.approx(6.0)
     assert referencias.menor_do_ruido_metros == pytest.approx(53.0)
+    assert referencias.menor_entre_barreiras_da_sequencia_metros == pytest.approx(12.0)
+    assert referencias.menor_da_sequencia_ao_resto_metros == pytest.approx(74.0)
 
 
 def test_distancias_de_referencia_sem_pares_ficam_indefinidas() -> None:
@@ -834,6 +891,8 @@ def test_distancias_de_referencia_sem_pares_ficam_indefinidas() -> None:
     assert referencias.maior_salto_dentro_de_grupo_metros is None
     assert referencias.menor_entre_grupos_metros is None
     assert referencias.menor_do_ruido_metros is None
+    assert referencias.menor_entre_barreiras_da_sequencia_metros is None
+    assert referencias.menor_da_sequencia_ao_resto_metros is None
 
 
 # --- figura do funil (só a montagem dos estágios; o matplotlib não é testado) ---

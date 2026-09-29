@@ -1,11 +1,21 @@
 """SIMULAÇÃO: análise de sensibilidade dos parâmetros do pipeline (pendência #4, T5).
 
 Mede como o resultado do pipeline muda com `eps_metros` e `min_confirmacoes`, sobre a
-MESMA simulação (mesma semente e opções de `gerar_dados_sinteticos`). Para cada
-combinação da grade `GRADE_EPS_METROS` × `GRADE_MIN_CONFIRMACOES` (minpoints fica o
-da configuração), conta: barreiras confirmadas e pendentes obtidas × esperadas,
-acerto por categoria, grupos fragmentados, fusões indevidas (uma barreira com alertas
-de mais de um grupo verdadeiro) e ruído classificado como barreira.
+MESMA simulação. Para cada combinação da grade `GRADE_EPS_METROS` ×
+`GRADE_MIN_CONFIRMACOES` (minpoints fica o da configuração), avalia duas populações
+separadamente (R16):
+
+- **Controle** (as 5 populações de `gerar_dados_sinteticos`, bem separadas de
+  propósito). Aqui os aglomerados têm de 2 a 5 sessões distintas (`--sessoes-variaveis`,
+  ligado por padrão só neste script), e o status esperado de cada grupo segue a regra
+  das sessões para cada `min_confirmacoes`: a tabela mostra o efeito real dele em
+  confirmadas × pendentes. Conta também fragmentação, fusões indevidas e ruído
+  classificado como barreira. As fusões do controle são 0 POR CONSTRUÇÃO (grupos a
+  ≥ 4 × eps da config): isso não mede robustez.
+- **Sequências** (`--sequencias`, 5 por padrão aqui): linhas de barreiras DISTINTAS a
+  `--espacamento-sequencia-metros` (15 m) umas das outras, isoladas a 4 × o maior eps
+  da grade de todo o resto. É a população que mede o encadeamento (T5): a partir de
+  que eps barreiras vizinhas de verdade se fundem numa só.
 
 Uso (a partir de `backend/`):
 
@@ -55,6 +65,7 @@ from scripts.gerar_dados_sinteticos import (
     avaliar,
     cabecalho_simulacao,
     caminho_para_exibir,
+    distancia_de_isolamento_metros,
     formatar_execucao,
     formatar_metros,
     formatar_tabela,
@@ -71,17 +82,24 @@ from scripts.gerar_dados_sinteticos import (
 GRADE_EPS_METROS = (2, 4, 8, 12, 20)
 GRADE_MIN_CONFIRMACOES = (2, 3, 4)
 
-_CATEGORIAS_DENTRO = ("aglomerado", "sessao_repetida", "ruido")
+# Padrões deste script: os do gerador, com os aglomerados de sessões variáveis e as
+# sequências ligados (R16). O gerador canônico continua com os dois desligados.
+PADRAO_SENSIBILIDADE = OpcoesGeracao(sessoes_variaveis=True, sequencias=5)
+
+_CATEGORIAS_DENTRO = ("aglomerado", "sessao_repetida", "ruido", "sequencia")
+_GRUPOS_DE_CONTROLE = ("aglomerado", "sessao_repetida")
 
 
 @dataclass(frozen=True)
 class RodadaSensibilidade:
-    """Uma combinação da grade e a avaliação medida dentro da transação desfeita."""
+    """Uma combinação da grade e as avaliações medidas dentro da transação desfeita:
+    a do controle e a das sequências, cada uma só com os itens da sua população."""
 
     eps_metros: float
     min_pontos: int
     min_confirmacoes: int
-    avaliacao: Avaliacao
+    controle: Avaliacao
+    sequencia: Avaliacao
 
 
 def analisar_grade(
@@ -101,7 +119,12 @@ def analisar_grade(
     (a fixture dos testes), um SAVEPOINT desfeito. Nos dois casos a rodada não
     deixa rastro. Como o pipeline reconstrói tudo do zero (D6), cada rodada começa
     do mesmo estado.
+
+    O controle e as sequências são avaliados à parte, sobre o mesmo snapshot: cada
+    avaliação só conta as barreiras que tocam os seus itens.
     """
+    controle = [r for r in registrados if r.item.categoria != "sequencia"]
+    sequencias = [r for r in registrados if r.item.categoria == "sequencia"]
     rodadas: list[RodadaSensibilidade] = []
     for eps_metros in grade_eps_metros:
         for min_confirmacoes in grade_min_confirmacoes:
@@ -115,10 +138,16 @@ def analisar_grade(
                     srid_calculo=srid_calculo,
                     srid_armazenamento=srid_armazenamento,
                 )
-                avaliacao = avaliar(
-                    registrados, ler_estado_final(conexao), min_confirmacoes=min_confirmacoes
+                estado = ler_estado_final(conexao)
+            rodadas.append(
+                RodadaSensibilidade(
+                    eps_metros,
+                    min_pontos,
+                    min_confirmacoes,
+                    controle=avaliar(controle, estado, min_confirmacoes=min_confirmacoes),
+                    sequencia=avaliar(sequencias, estado, min_confirmacoes=min_confirmacoes),
                 )
-            rodadas.append(RodadaSensibilidade(eps_metros, min_pontos, min_confirmacoes, avaliacao))
+            )
     return rodadas
 
 
@@ -129,12 +158,18 @@ class DistanciasDeReferencia:
     Com minpoints = 2, todo alerta com um vizinho a até eps é núcleo, e o DBSCAN
     liga vizinhos de vizinhos. Então:
 
-    - `maior_salto_dentro_de_grupo_metros`: no pior grupo, a maior aresta da árvore
-      geradora mínima dos seus relatos. eps abaixo disso DIVIDE esse grupo.
-    - `menor_entre_grupos_metros`: menor distância entre relatos de grupos
-      diferentes do mesmo tipo. eps a partir disso FUNDE dois grupos.
+    - `maior_salto_dentro_de_grupo_metros`: no pior grupo (inclusive as barreiras das
+      sequências), a maior aresta da árvore geradora mínima dos seus relatos. eps
+      abaixo disso DIVIDE esse grupo.
+    - `menor_entre_grupos_metros`: menor distância entre relatos de grupos de
+      CONTROLE diferentes do mesmo tipo. eps a partir disso FUNDE dois grupos.
     - `menor_do_ruido_metros`: menor distância de um ruído a outro relato do mesmo
       tipo. eps a partir disso transforma ruído em barreira.
+    - `menor_entre_barreiras_da_sequencia_metros`: menor distância entre relatos de
+      barreiras diferentes da MESMA sequência. eps a partir disso as barreiras de uma
+      sequência começam a se fundir (encadeamento, T5).
+    - `menor_da_sequencia_ao_resto_metros`: menor distância de um relato de sequência a
+      qualquer relato do mesmo tipo fora dela (confere o isolamento).
 
     `None` quando não há par para medir.
     """
@@ -142,6 +177,8 @@ class DistanciasDeReferencia:
     maior_salto_dentro_de_grupo_metros: float | None
     menor_entre_grupos_metros: float | None
     menor_do_ruido_metros: float | None
+    menor_entre_barreiras_da_sequencia_metros: float | None
+    menor_da_sequencia_ao_resto_metros: float | None
 
 
 def distancias_de_referencia(itens: Sequence[ItemGerado]) -> DistanciasDeReferencia:
@@ -158,20 +195,34 @@ def distancias_de_referencia(itens: Sequence[ItemGerado]) -> DistanciasDeReferen
 
     entre_grupos: list[float] = []
     do_ruido: list[float] = []
+    entre_barreiras_da_sequencia: list[float] = []
+    da_sequencia_ao_resto: list[float] = []
     for indice, a in enumerate(dentro):
         for b in dentro[indice + 1 :]:
             if a.payload["tipo"] != b.payload["tipo"]:
                 continue
             distancia_metros = _distancia_metros(a, b)
-            if a.categoria == "ruido" or b.categoria == "ruido":
+            if "ruido" in (a.categoria, b.categoria):
                 do_ruido.append(distancia_metros)
-            elif (a.categoria, a.grupo) != (b.categoria, b.grupo):
+            if (
+                a.categoria in _GRUPOS_DE_CONTROLE
+                and b.categoria in _GRUPOS_DE_CONTROLE
+                and (a.categoria, a.grupo) != (b.categoria, b.grupo)
+            ):
                 entre_grupos.append(distancia_metros)
+            if "sequencia" in (a.categoria, b.categoria):
+                if a.sequencia == b.sequencia:
+                    if a.grupo != b.grupo:
+                        entre_barreiras_da_sequencia.append(distancia_metros)
+                else:
+                    da_sequencia_ao_resto.append(distancia_metros)
 
     return DistanciasDeReferencia(
         maior_salto_dentro_de_grupo_metros=max(saltos, default=None),
         menor_entre_grupos_metros=min(entre_grupos, default=None),
         menor_do_ruido_metros=min(do_ruido, default=None),
+        menor_entre_barreiras_da_sequencia_metros=min(entre_barreiras_da_sequencia, default=None),
+        menor_da_sequencia_ao_resto_metros=min(da_sequencia_ao_resto, default=None),
     )
 
 
@@ -213,16 +264,21 @@ COLUNAS_CSV = (
     "min_pontos",
     "min_confirmacoes",
     "rodada_da_configuracao",
-    "confirmadas_esperadas",
-    "confirmadas_obtidas",
-    "pendentes_esperadas",
-    "pendentes_obtidas",
+    "controle_confirmadas_esperadas",
+    "controle_confirmadas_obtidas",
+    "controle_pendentes_esperadas",
+    "controle_pendentes_obtidas",
     "acerto_aglomerado",
     "acerto_sessao_repetida",
     "acerto_ruido",
-    "grupos_fragmentados",
-    "fusoes_indevidas",
+    "controle_grupos_fragmentados",
+    "controle_fusoes",
     "ruido_em_barreira",
+    "sequencia_barreiras_esperadas",
+    "sequencia_barreiras_obtidas",
+    "acerto_sequencia",
+    "sequencia_fusoes",
+    "sequencia_fragmentadas",
 )
 
 
@@ -239,7 +295,7 @@ def linha_csv(
 ) -> dict[str, object]:
     """Uma linha do CSV. Taxas como fração (0 a 1), com ponto decimal: o CSV é para
     planilha e script; o console usa vírgula e percentual."""
-    a = rodada.avaliacao
+    c, s = rodada.controle, rodada.sequencia
     return {
         "rotulo": ROTULO_SIMULACAO,
         "semente": opcoes.semente,
@@ -249,16 +305,21 @@ def linha_csv(
         "min_pontos": rodada.min_pontos,
         "min_confirmacoes": rodada.min_confirmacoes,
         "rodada_da_configuracao": "sim" if _e_da_configuracao(rodada, config) else "nao",
-        "confirmadas_esperadas": a.barreiras_esperadas["confirmada"],
-        "confirmadas_obtidas": a.barreiras_obtidas["confirmada"],
-        "pendentes_esperadas": a.barreiras_esperadas["pendente"],
-        "pendentes_obtidas": a.barreiras_obtidas["pendente"],
-        "acerto_aglomerado": a.por_categoria["aglomerado"].taxa,
-        "acerto_sessao_repetida": a.por_categoria["sessao_repetida"].taxa,
-        "acerto_ruido": a.por_categoria["ruido"].taxa,
-        "grupos_fragmentados": a.grupos_fragmentados,
-        "fusoes_indevidas": a.fusoes_indevidas,
-        "ruido_em_barreira": a.ruido_em_barreira,
+        "controle_confirmadas_esperadas": c.barreiras_esperadas["confirmada"],
+        "controle_confirmadas_obtidas": c.barreiras_obtidas["confirmada"],
+        "controle_pendentes_esperadas": c.barreiras_esperadas["pendente"],
+        "controle_pendentes_obtidas": c.barreiras_obtidas["pendente"],
+        "acerto_aglomerado": c.por_categoria["aglomerado"].taxa,
+        "acerto_sessao_repetida": c.por_categoria["sessao_repetida"].taxa,
+        "acerto_ruido": c.por_categoria["ruido"].taxa,
+        "controle_grupos_fragmentados": c.grupos_fragmentados,
+        "controle_fusoes": c.fusoes_indevidas,
+        "ruido_em_barreira": c.ruido_em_barreira,
+        "sequencia_barreiras_esperadas": s.por_categoria["sequencia"].esperado,
+        "sequencia_barreiras_obtidas": sum(s.barreiras_obtidas.values()),
+        "acerto_sequencia": s.por_categoria["sequencia"].taxa,
+        "sequencia_fusoes": s.fusoes_indevidas,
+        "sequencia_fragmentadas": s.grupos_fragmentados,
     }
 
 
@@ -270,22 +331,22 @@ def gravar_csv(caminho: Path, linhas: Sequence[dict[str, object]]) -> None:
         escritor.writerows(linhas)
 
 
-def formatar_grade(rodadas: Sequence[RodadaSensibilidade], config: Configuracoes) -> str:
+def formatar_grade_controle(rodadas: Sequence[RodadaSensibilidade], config: Configuracoes) -> str:
     linhas = []
     for rodada in rodadas:
-        a = rodada.avaliacao
+        c = rodada.controle
         linhas.append(
             [
                 rodada.eps_metros,
                 rodada.min_confirmacoes,
-                f"{a.barreiras_obtidas['confirmada']} / {a.barreiras_esperadas['confirmada']}",
-                f"{a.barreiras_obtidas['pendente']} / {a.barreiras_esperadas['pendente']}",
-                formatar_taxa(a.por_categoria["aglomerado"].taxa),
-                formatar_taxa(a.por_categoria["sessao_repetida"].taxa),
-                formatar_taxa(a.por_categoria["ruido"].taxa),
-                a.grupos_fragmentados,
-                a.fusoes_indevidas,
-                a.ruido_em_barreira,
+                f"{c.barreiras_obtidas['confirmada']} / {c.barreiras_esperadas['confirmada']}",
+                f"{c.barreiras_obtidas['pendente']} / {c.barreiras_esperadas['pendente']}",
+                formatar_taxa(c.por_categoria["aglomerado"].taxa),
+                formatar_taxa(c.por_categoria["sessao_repetida"].taxa),
+                formatar_taxa(c.por_categoria["ruido"].taxa),
+                c.grupos_fragmentados,
+                c.fusoes_indevidas,
+                c.ruido_em_barreira,
                 "← configuração" if _e_da_configuracao(rodada, config) else "",
             ]
         )
@@ -307,6 +368,42 @@ def formatar_grade(rodadas: Sequence[RodadaSensibilidade], config: Configuracoes
     )
 
 
+def formatar_grade_sequencias(rodadas: Sequence[RodadaSensibilidade], config: Configuracoes) -> str:
+    """Uma linha por eps. A fusão não depende de min_confirmacoes; usa a rodada com o
+    min_confirmacoes da configuração (ou a primeira do eps, se ele não está na grade)."""
+    por_eps: dict[float, RodadaSensibilidade] = {}
+    for rodada in rodadas:
+        if rodada.eps_metros not in por_eps or rodada.min_confirmacoes == config.min_confirmacoes:
+            por_eps[rodada.eps_metros] = rodada
+    linhas = []
+    for eps_metros, rodada in por_eps.items():
+        s = rodada.sequencia
+        resultado = s.por_categoria["sequencia"]
+        linhas.append(
+            [
+                eps_metros,
+                resultado.esperado,
+                sum(s.barreiras_obtidas.values()),
+                resultado.obtido,
+                formatar_taxa(resultado.taxa),
+                s.fusoes_indevidas,
+                s.grupos_fragmentados,
+            ]
+        )
+    return formatar_tabela(
+        [
+            "eps (m)",
+            "barreiras verdadeiras",
+            "barreiras obtidas",
+            "separadas corretamente",
+            "acerto",
+            "fusões",
+            "fragmentadas",
+        ],
+        linhas,
+    )
+
+
 def formatar_referencias(referencias: DistanciasDeReferencia) -> str:
     def texto(valor_metros: float | None) -> str:
         return "—" if valor_metros is None else formatar_metros(round(valor_metros, 1))
@@ -321,6 +418,11 @@ def formatar_referencias(referencias: DistanciasDeReferencia) -> str:
             "(eps a partir disso funde dois grupos)",
             f"  menor distância de um ruído:    {texto(referencias.menor_do_ruido_metros)} "
             "(eps a partir disso ruído vira barreira)",
+            "  menor distância entre barreiras da mesma sequência: "
+            f"{texto(referencias.menor_entre_barreiras_da_sequencia_metros)} "
+            "(eps a partir disso barreiras vizinhas se fundem)",
+            "  menor distância de uma sequência ao resto:          "
+            f"{texto(referencias.menor_da_sequencia_ao_resto_metros)} (isolamento)",
         ]
     )
 
@@ -339,7 +441,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "fim confirma só a rodada com os parâmetros do .env."
         ),
     )
-    adicionar_opcoes_de_geracao(parser)
+    adicionar_opcoes_de_geracao(parser, PADRAO_SENSIBILIDADE)
     args = parser.parse_args(argv)
     try:
         opcoes = opcoes_dos_argumentos(args)
@@ -356,7 +458,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         with psycopg.connect(config.conninfo) as conexao:
             apagados = limpar_simulacao(conexao)
             itens = gerar_populacoes(
-                opcoes, tipos=ler_tipos_ativos(conexao), eps_metros=config.dbscan_eps_metros
+                opcoes,
+                tipos=ler_tipos_ativos(conexao),
+                eps_metros=config.dbscan_eps_metros,
+                eps_maximo_metros=max(GRADE_EPS_METROS),
             )
             registrados = registrar_populacoes(conexao, itens, config=config)
             conexao.commit()  # 1. a simulação, gerada uma vez
@@ -385,19 +490,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"erro: {erro}", file=sys.stderr)
         return 1
 
+    sessoes = (
+        "de 2 a 5 sessões (sorteadas)"
+        if opcoes.sessoes_variaveis
+        else f"{opcoes.pontos_por_aglomerado} sessões"
+    )
+    isolamento_metros = distancia_de_isolamento_metros(
+        config.dbscan_eps_metros, max(GRADE_EPS_METROS)
+    )
     print(
         f"[SIMULAÇÃO] Simulação anterior apagada ({apagados['alertas']} alertas) e gerada "
-        f"de novo UMA vez, com commit: semente {opcoes.semente}; {opcoes.aglomerados} "
-        f"aglomerados e {opcoes.sessao_repetida} sessões repetidas de "
-        f"{opcoes.pontos_por_aglomerado} relatos (dispersão de até "
-        f"{formatar_metros(opcoes.dispersao_metros)}); {opcoes.ruido} ruídos; "
-        f"{opcoes.fora_da_area} fora da área; {opcoes.invalidos} inválidos.\n"
+        f"de novo UMA vez, com commit: semente {opcoes.semente}; CONTROLE: "
+        f"{opcoes.aglomerados} aglomerados com {sessoes}, {opcoes.sessao_repetida} sessões "
+        f"repetidas de {opcoes.pontos_por_aglomerado} relatos, {opcoes.ruido} ruídos, "
+        f"{opcoes.fora_da_area} fora da área, {opcoes.invalidos} inválidos (dispersão de até "
+        f"{formatar_metros(opcoes.dispersao_metros)}); SEQUÊNCIAS: {opcoes.sequencias} de "
+        f"{opcoes.barreiras_por_sequencia} barreiras a "
+        f"{formatar_metros(opcoes.espacamento_sequencia_metros)}, isoladas a "
+        f"{formatar_metros(isolamento_metros)}.\n"
     )
     print(formatar_referencias(distancias_de_referencia(itens)) + "\n")
     print(
-        f"[SIMULAÇÃO] Grade eps × min_confirmacoes (minpoints = {config.dbscan_min_points}), "
-        "cada rodada numa transação desfeita (rollback)\n" + formatar_grade(rodadas, config) + "\n"
+        "[SIMULAÇÃO] CONTROLE: grade eps × min_confirmacoes (minpoints = "
+        f"{config.dbscan_min_points}), cada rodada numa transação desfeita (rollback). As "
+        "fusões do controle são 0 por construção (grupos a ≥ 4 × eps da config): não medem "
+        "robustez.\n" + formatar_grade_controle(rodadas, config) + "\n"
     )
+    if opcoes.sequencias:
+        print(
+            "[SIMULAÇÃO] SEQUÊNCIAS (encadeamento, T5): barreiras distintas a "
+            f"{formatar_metros(opcoes.espacamento_sequencia_metros)} em linha; por eps, com "
+            f"min_confirmacoes = {config.min_confirmacoes}\n"
+            + formatar_grade_sequencias(rodadas, config)
+            + "\n"
+        )
     print(
         "[SIMULAÇÃO] Rodada final, confirmada no banco, com os parâmetros da configuração:\n"
         + formatar_execucao(resumo)
