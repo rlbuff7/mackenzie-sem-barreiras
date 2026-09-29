@@ -312,6 +312,9 @@ zerar_real() {
 # isso seja pedido com todas as letras.
 arquivo_parcial=""
 backup() {
+    # Os dumps têm as trajetórias dos voluntários (sessao_hash + criado_em + geom):
+    # arquivo e pasta nascem legíveis só pelo dono (600/700).
+    umask 077
     # BACKUP_DIR só existe para os testes não tocarem a pasta real (backups/).
     local pasta="${BACKUP_DIR:-backups}"
     mkdir -p "$pasta"

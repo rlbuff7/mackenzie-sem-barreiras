@@ -14,7 +14,7 @@
 #     apagados e de que data a que data, e manda para --reabrir quem já abriu a coleta;
 #  7. o backup diz de que pilha veio (nome e "Alvo:"); restaurar recusa um dump de
 #     outra pilha (ou de pilha desconhecida) sem --sim-pilha-diferente; no --prod o
-#     banco anterior fica guardado.
+#     banco anterior fica guardado; o dump nasce com permissão 600 (umask 077).
 set -uo pipefail
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$raiz"
@@ -140,6 +140,8 @@ echo "== 7. backups dizem de que pilha vieram"
 casa() { if [[ "$2" =~ $3 ]]; then echo "ok   $1"; else echo "FALHA $1: '$2' não casa com '$3'"; falhas=$((falhas+1)); fi; }
 casa "nome do backup: teste-<banco>-<data>.dump" "$(basename "$dump")" "^teste-${teste}-[0-9]{8}-[0-9]{6}\.dump$"
 contem "backup imprime o alvo" "$saida_backup" "Alvo: banco $teste da pilha de desenvolvimento"
+igual "dump legível só pelo dono (umask 077)" "$(stat -c %a "$dump")" "600"
+igual "pasta de backups criada só para o dono" "$(stat -c %a "$BACKUP_DIR")" "700"
 bancos_de_sobra() { docker compose exec -T db psql -q -At -U "$POSTGRES_USER" -d postgres -c "SELECT datname FROM pg_database WHERE datname LIKE '${teste}_%' ORDER BY 1"; }
 antes="$(contar)"
 cp "$dump" "$tmp/dev-${teste}-20260101-000000.dump"

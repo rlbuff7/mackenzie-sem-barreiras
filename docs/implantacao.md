@@ -201,7 +201,8 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
 - Faça backup **antes** de abrir a coleta, **ao fim de cada dia** e **depois** do
   último `executar`. A pasta `backups/` é ignorada pelo Git: os dumps contêm dados de
   voluntários ([`coleta-em-campo.md`](coleta-em-campo.md) §3); guarde-os em local
-  privado, não em pasta pública.
+  privado, não em pasta pública. O `backup` roda com `umask 077`: o dump nasce legível
+  só pelo seu usuário (600), e a pasta, se for criada por ele, também (700).
 - `restaurar` valida o arquivo (`pg_restore --list`; recusa `.parcial`), restaura num
   banco temporário e só então troca pelo banco alvo: um dump ruim aborta com o banco
   original intacto. Sem o argumento literal `--sim-substituir-banco` ele só explica e sai.
