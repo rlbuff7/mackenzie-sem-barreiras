@@ -99,8 +99,8 @@ ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
 - **A sessão é um pseudônimo do aparelho, não anonimato.** O navegador gera um UUID
   aleatório e o guarda no `localStorage` (D1); nos relatos aceitos o servidor grava só
   `sha256(uuid)`, nunca o UUID cru (a exceção são os reprovados no estágio 1, que
-  guardam o corpo recebido, UUID cru incluso, em `alertas_rejeitados.payload`). O hash não diz quem é a pessoa, mas é o MESMO em todos os relatos
-  daquele navegador: `sessao_hash` + `criado_em` + `geom` formam a **trajetória** do
+  guardam o corpo recebido, UUID cru incluso, em `alertas_rejeitados.payload`). O
+  hash não diz quem é a pessoa, mas é o MESMO em todos os relatos daquele navegador: `sessao_hash` + `criado_em` + `geom` formam a **trajetória** do
   aparelho durante a coleta (onde esteve, em que ordem, a que horas). É dado
   pseudônimo: quem souber por outro meio por onde alguém andou pode reconhecer a
   trajetória dessa pessoa. Por isso o banco, ou qualquer exportação com `sessao_hash`
@@ -184,7 +184,8 @@ Antes de ir a campo:
       da área de estudo atual).
 - [ ] `./scripts/ponta-a-ponta.sh` verde com o `TOKEN_ADMIN` definido (prova que a
       cadeia inteira responde por HTTP antes de sair a campo e que a execução sem o
-      header é recusada com 401).
+      header é recusada com 401). Com `EXPOR_DOCS=false` no ambiente, ele também
+      confere que `/docs`, `/redoc` e `/openapi.json` respondem 404.
 - [ ] Cada integrante com o celular carregado e a URL de coleta salva/testada.
 - [ ] Combinar quem faz o quê em campo (ver **[ORIENTADORA] #5**, ainda em aberto —
       na falta de uma divisão formal, combinar informalmente para o dia).

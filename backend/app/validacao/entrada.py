@@ -154,7 +154,9 @@ def interpretar_corpo(corpo_bruto: bytes, *, tamanho_maximo_texto: int) -> objec
 def calcular_sessao_hash(sessao_id: UUID) -> str:
     """sha256 hexadecimal do UUID de sessão (D1).
 
-    Nunca se grava o UUID cru nem qualquer IP: o hash identifica reports da
+    Nos reports ACEITOS nunca se grava o UUID cru nem qualquer IP (os reprovados
+    no estágio 1 guardam o corpo inteiro, UUID cru incluso, em
+    `alertas_rejeitados.payload`: docs/coleta-em-campo.md §3): o hash identifica reports da
     mesma origem sem guardar um identificador reversível (LGPD, T3).
     """
     return hashlib.sha256(str(sessao_id).encode()).hexdigest()
