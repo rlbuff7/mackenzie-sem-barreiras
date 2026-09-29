@@ -57,7 +57,15 @@ if token_no_container="$(docker compose exec -T api printenv TOKEN_ADMIN 2>/dev/
     fi
     expor_docs="$(docker compose exec -T api printenv EXPOR_DOCS 2>/dev/null | tr -d '\r\n ' | tr 'A-Z' 'a-z')"
     if [[ "$expor_docs" == "false" ]]; then
-        ok "EXPOR_DOCS=false"
+        # A variável sozinha não prova nada se a imagem for anterior à Task 8
+        # (não lê EXPOR_DOCS): confere o efeito, /docs tem de dar 404.
+        codigo_docs="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url_base/api/docs" || true)"
+        if [[ "$codigo_docs" == "404" ]]; then
+            ok "EXPOR_DOCS=false e /api/docs responde 404"
+        else
+            falha "EXPOR_DOCS=false, mas GET /api/docs respondeu ${codigo_docs:-sem resposta} (imagem antiga, sem EXPOR_DOCS?)" \
+                  "docker compose -f $arquivo_compose pull && docker compose -f $arquivo_compose up -d (ou fixe IMAGEM_TAG)"
+        fi
     else
         falha "EXPOR_DOCS=${expor_docs:-<vazio>} (esperado false)" \
               "defina EXPOR_DOCS=false e recrie a API (docker compose -f $arquivo_compose up -d)"
