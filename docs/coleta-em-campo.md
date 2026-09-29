@@ -10,7 +10,8 @@ Convenção usada abaixo: cada item traz uma marca —
 - **[ORIENTADORA]** — depende de decisão da orientadora (`decisoes-pendentes.md` #1–#4, #6 e #7; a #5 já está decidida).
   Enquanto pendente, a coleta usa o valor provisório já no `.env`/nos seeds.
 - **[EQUIPE]** — depende só de decisão interna dos integrantes (ex.: hospedagem, HTTPS).
-  Nada aqui exige a orientadora, mas também nada está decidido ainda.
+  Nada aqui exige a orientadora. O HTTPS já tem uma opção pronta, sem conta (Quick Tunnel
+  em container, §4); a hospedagem com conta segue a critério da equipe.
 
 ---
 
@@ -141,9 +142,9 @@ ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
 
 Navegadores modernos só liberam `navigator.geolocation` (usada pelo botão "Usar minha
 localização" do frontend, `frontend/src/mapa.ts`) em **contexto seguro**: HTTPS, ou
-`localhost` puro. Em produção com `docker compose up` simples (HTTP), o botão de
-localização automática falha no celular — só resta o botão "Usar o centro do mapa" e
-tocar manualmente, o que derrota o propósito de captar o ponto certo em campo.
+`localhost` puro. Com a pilha servida por HTTP simples, o botão de localização
+automática falha no celular — só resta o botão "Usar o centro do mapa" e tocar
+manualmente, o que derrota o propósito de captar o ponto certo em campo.
 
 **Ganho prático do proxy same-origin (R19):** desde que `frontend/nginx.conf` passou a
 encaminhar `/api/` para o serviço `api` pela mesma origem, só o **frontend** precisa
@@ -155,45 +156,59 @@ seja, expor **um único endpoint HTTPS** (o frontend), não dois.
 **Consequência: toda a API fica pública junto com o mapa.** A porta da API nunca é
 exposta, mas qualquer rota dela responde por `/api/` na URL da coleta, inclusive
 `/api/validacao/executar` (que apaga e recria as barreiras reais, D6) e a documentação
-interativa em `/api/docs`. **Defina `TOKEN_ADMIN` no `.env` ANTES de expor o
-frontend**, em qualquer das opções abaixo; com ele vazio, a execução do pipeline fica
-aberta a quem tiver a URL (D7). **Defina também `EXPOR_DOCS=false`**: a documentação
-interativa (`/docs`, `/redoc`, `/openapi.json`) deixa de existir (404) e o esquema da
-API não fica público.
+interativa em `/api/docs`. Na **pilha de produção** (`docker-compose.prod.yml`) as duas
+proteções já vêm travadas: `TOKEN_ADMIN` é obrigatório (o compose recusa subir sem ele;
+com ele vazio, a execução do pipeline ficaria aberta a quem tivesse a URL, D7) e
+`EXPOR_DOCS` é fixo em `false` (`/docs`, `/redoc` e `/openapi.json` respondem 404 e o
+esquema da API não fica público). Numa hospedagem própria, repita as duas coisas antes
+de publicar.
 
-**Isto ainda não está decidido — decidir com a equipe antes do dia da coleta.** Duas
-famílias de opção, sem escolher nenhuma aqui:
+**Opção pronta, sem conta: Quick Tunnel em container (R30).** O
+`docker-compose.prod.yml` traz o serviço `tunel` (profile `tunel`, imagem
+`cloudflare/cloudflared` com versão fixa), que expõe só o frontend da pilha de produção
+numa URL `https://<aleatório>.trycloudflare.com`. É um container: nada é instalado na
+máquina de quem hospeda. Ele não volta sozinho depois de reiniciar (`restart: "no"`), e a
+URL muda a cada subida. Como subir, testar, reabrir e derrubar:
+[`implantacao.md`](implantacao.md) §5, §8 e §10.
 
-| Opção | Como funciona | Vantagens | Desvantagens |
+**Hospedagem com conta: a critério da equipe.** Se a equipe quiser uma URL fixa, ou não
+depender da máquina de ninguém durante a coleta, as alternativas abaixo seguem abertas
+(`decisoes-pendentes.md` T6). Nenhuma está implementada:
+
+| Opção | Situação | Vantagens | Desvantagens |
 |---|---|---|---|
-| **Túnel (ex.: `cloudflared`)** | Um túnel expõe o container `frontend` local (rodando no notebook de alguém, via `docker compose up`) numa URL HTTPS pública temporária; a porta da API fica só na rede interna do compose, mas as rotas dela respondem por `/api/` na mesma URL: `TOKEN_ADMIN` definido ANTES de abrir o túnel. | Sem precisar publicar a imagem em lugar nenhum; sobe e derruba no dia; usa a mesma stack já testada neste M5; só um túnel (um endpoint), não dois. | URL muda a cada sessão (a não ser que se configure um domínio fixo); depende da internet/notebook de quem hospeda o túnel durante toda a coleta; exige instalar a ferramenta do túnel no notebook de quem hospeda: uma exceção à regra "nada é instalado direto na máquina" do resto do projeto, restrita a esse notebook e ao dia da coleta. |
-| **Hospedagem gratuita** (ex.: um provedor de PaaS/estático com HTTPS incluso) | Sobe as duas imagens (`frontend` e `api`) para um serviço externo com HTTPS de fábrica; só o `frontend` precisa de URL pública, a `api` só precisa ser alcançável pelo `frontend` na rede interna do provedor. | URL estável, reutilizável em coletas futuras; não depende do notebook de ninguém durante a coleta; sem CORS para configurar (mesma origem). | Ainda expõe o banco (ou um banco gerenciado), e `TOKEN_ADMIN` precisa estar definido ANTES de publicar (pelo proxy, `/api/validacao/executar` e `/api/docs` ficam públicos); dependendo do provedor, custo ou limite de uso; mais um passo de configuração para manter. |
+| **Quick Tunnel** (`cloudflared` em container, profile `tunel`) | **Pronta** (R30): `docker-compose.prod.yml` e `implantacao.md` | Sem conta nem domínio; nada instalado na máquina; sobe e derruba no dia; um endpoint só (o frontend). | URL muda a cada subida; depende da máquina e da internet de quem hospeda durante toda a coleta; serviço gratuito, sem garantia de disponibilidade; a Cloudflare termina o TLS e vê o IP e o conteúdo do relato (§3). |
+| **Túnel nomeado da Cloudflare** | Não implementado: exige conta e um domínio | URL fixa, reutilizável em coletas futuras. | Conta e domínio para manter; o mesmo intermediário (Cloudflare) da opção pronta. |
+| **Hospedagem com HTTPS de fábrica** (PaaS) | Não implementada: exige conta | URL estável; não depende do notebook de ninguém durante a coleta; sem CORS para configurar (mesma origem). | Expõe também o banco (ou um banco gerenciado); `TOKEN_ADMIN` e `EXPOR_DOCS=false` definidos ANTES de publicar; dependendo do provedor, custo ou limite de uso; o job `implantar` do CI (hoje `if: false`) teria de ser ativado (`docs/ci-cd.md`). |
 
 Qualquer que seja a escolha, ela não muda o contrato da API nem o pipeline — só onde
 `frontend`/`api` ficam acessíveis. Registrar a decisão final em
-`decisoes-pendentes.md` quando ela acontecer.
+`decisoes-pendentes.md` (T6) quando ela acontecer.
 
 ## 5. Checklist do dia
 
+O passo a passo operacional (comandos, na ordem) está em
+[`implantacao.md`](implantacao.md): §2–§7 no primeiro dia, §8 nos dias seguintes. Tudo
+roda na **pilha de produção** (`docker-compose.prod.yml`, `./db/banco.sh --prod`), nunca
+na de desenvolvimento.
+
 Antes de ir a campo:
 
-- [ ] **[EQUIPE]** Decidir e testar a opção de HTTPS (§4) — validar o botão de
-      geolocalização num celular de verdade, não só no navegador do notebook.
-- [ ] **Definir `TOKEN_ADMIN` no `.env` ANTES de expor o frontend** (túnel ou
-      hospedagem, §4): pelo proxy, `/api/validacao/executar` e `/api/docs` ficam
-      públicos junto com o mapa. Um valor longo e aleatório, por exemplo
-      `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`, e depois
-      `docker compose up -d` para a API recarregar o `.env`.
-- [ ] **Definir `EXPOR_DOCS=false` no `.env` ANTES de expor o frontend**, junto com o
-      `TOKEN_ADMIN` (mesmo `docker compose up -d`). Conferir: `/api/docs` responde 404.
-- [ ] Confirmar que a stack sobe do zero: `docker compose up -d --build --wait`
-      (`docker compose ps` — os três serviços `healthy`).
-- [ ] `./db/banco.sh migrar` já aplicado (tabelas, seeds e, principalmente, o polígono
-      da área de estudo atual).
-- [ ] `./scripts/ponta-a-ponta.sh` verde com o `TOKEN_ADMIN` definido (prova que a
-      cadeia inteira responde por HTTP antes de sair a campo e que a execução sem o
-      header é recusada com 401). Com `EXPOR_DOCS=false` no ambiente, ele também
-      confere que `/docs`, `/redoc` e `/openapi.json` respondem 404.
+- [ ] **[EQUIPE]** Testar o HTTPS: com o Quick Tunnel (§4), validar o botão de
+      geolocalização num celular de verdade, não só no navegador do notebook
+      ([`implantacao.md`](implantacao.md) §6). Hospedagem com conta só se a equipe decidir.
+- [ ] **Pilha de produção no ar** ([`implantacao.md`](implantacao.md) §2–§4): imagens do
+      GHCR, `TOKEN_ADMIN` gravado no `.env` da máquina de produção (obrigatório; um valor
+      longo e aleatório, `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`),
+      `EXPOR_DOCS` fixo em `false`, `./db/banco.sh --prod migrar` aplicado (tabelas,
+      seeds e, principalmente, o polígono da área de estudo atual) e
+      `./scripts/preparar-coleta.sh` sem falhas (ele confere token, docs, saúde,
+      migrations e o funil real).
+- [ ] `./scripts/ponta-a-ponta.sh` verde com `TOKEN_ADMIN` e `EXPOR_DOCS=false`
+      exportados no shell (pilha isolada: prova que a cadeia inteira responde por HTTP,
+      que a execução sem o header é recusada com 401, que `/docs`, `/redoc` e
+      `/openapi.json` respondem 404, e confere o `preparar-coleta.sh` e o `zerar-real`
+      com relatos reais).
 - [ ] Cada integrante com o celular carregado e a URL de coleta salva/testada.
 - [ ] Combinar quem faz o quê em campo. A divisão geral está decidida
       (`decisoes-pendentes.md` #5, 29/09/2026: código = rlbuff7; infra = Victor (VSWH);
@@ -202,66 +217,82 @@ Antes de ir a campo:
       pilha de coleta grava `origem='real'`: o relato de teste pelo celular, os testes
       manuais no mapa e até um corpo inválido (que vira uma linha em
       `alertas_rejeitados`). O passo a passo é o de
-      [`implantacao.md`](implantacao.md) §7: backup, `zerar-real` sem o argumento (mostra
-      as contagens e quantos relatos reais há, de que data a que data) e, se forem só os
-      testes de agora há pouco, `--sim-apagar-dados-reais` (apaga as linhas
-      `origem='real'` das quatro tabelas numa transação e nunca toca a simulação). É SÓ
-      para este momento, uma vez: depois de aberta a coleta, essas linhas são os dados do
-      TCC. Reabrir a coleta num dia seguinte, ou depois de o túnel cair, é o
-      [`implantacao.md`](implantacao.md) §8 (`./scripts/preparar-coleta.sh --reabrir`),
-      sem apagar nada.
-- [ ] Conferir `GET /validacao/estatisticas?origem=real` com `alertas.recebidos = 0`
-      logo antes da PRIMEIRA abertura. Nos dias seguintes, `recebidos` só pode crescer.
+      [`implantacao.md`](implantacao.md) §7: `./db/banco.sh --prod backup`,
+      `./db/banco.sh --prod zerar-real` sem o argumento (mostra as contagens e quantos
+      relatos reais há, de que data a que data) e, se forem só os testes de agora há
+      pouco, `--sim-apagar-dados-reais` (apaga as linhas `origem='real'` das quatro
+      tabelas numa transação e nunca toca a simulação). É SÓ para este momento, uma vez:
+      depois de aberta a coleta, essas linhas são os dados do TCC. Reabrir a coleta num
+      dia seguinte, ou depois de o túnel cair, é o [`implantacao.md`](implantacao.md) §8
+      (`./scripts/preparar-coleta.sh --reabrir`), sem apagar nada.
+- [ ] `alertas.recebidos = 0` em `estatisticas?origem=real` logo antes da PRIMEIRA
+      abertura (o item 4 do `preparar-coleta.sh` confere). Nos dias seguintes,
+      `recebidos` só pode crescer.
 - [ ] **Congelar os seeds (tipos e polígono) até o fim da coleta.** `./db/banco.sh
-      migrar` reaplica `db/seeds/` a cada execução. Se o polígono mudasse no meio, o
-      funil real misturaria relatos julgados por dois geofences diferentes (e uma troca
+      --prod migrar` reaplica `db/seeds/` a cada execução. Se o polígono mudasse no meio,
+      o funil real misturaria relatos julgados por dois geofences diferentes (e uma troca
       de taxonomia mudaria os tipos aceitos). Não edite `db/seeds/` nem rode `migrar`
       com seeds alterados enquanto a coleta estiver aberta.
-- [ ] Registrar a versão em vigor: o commit da pilha de coleta
-      (`git rev-parse --short HEAD`), anotado com a data. É o que permite ao texto citar
-      exatamente que código, polígono e parâmetros produziram o funil real.
+- [ ] Registrar a versão em vigor: o `preparar-coleta.sh` grava o commit, o hash dos
+      seeds e as imagens em execução (ID e RepoDigest do GHCR) em
+      `backend/scripts/saida/coleta-prod-<data-hora>.txt`, um arquivo por execução.
+      Guarde esses registros com os backups: é o que permite ao texto citar exatamente
+      que código, polígono e parâmetros produziram o funil real.
 
 Durante a coleta:
 
 - [ ] **Não testar na pilha de coleta.** Depois de aberta, todo envio nela é um relato
       real. Para testar algo, use `./scripts/ponta-a-ponta.sh`, que sobe uma pilha
       isolada e a apaga no fim.
+- [ ] Túnel caiu ou a URL mudou? [`implantacao.md`](implantacao.md) §8 (reabrir), nunca
+      `zerar-real`.
 - [ ] Reportar sempre no local (§2).
 - [ ] Anotar (fora do sistema, num papel/app qualquer da equipe) observações que não
       cabem no formulário — por exemplo, comparar o GPS do celular com a posição real,
       para alimentar a calibração do §7.
 
-Depois da coleta (mesmo dia ou no seguinte, com a stack ainda de pé):
+Depois da coleta (mesmo dia ou no seguinte, com a pilha de produção ainda de pé):
 
-- [ ] Rodar o pipeline sobre os dados reais: `POST /validacao/executar?origem=real`
-      (com `X-Token-Admin` se `TOKEN_ADMIN` estiver configurado, D7).
-- [ ] Conferir o funil: `GET /validacao/estatisticas?origem=real`.
-- [ ] Gerar a figura (§6).
+- [ ] Backup antes de mexer em qualquer coisa: `./db/banco.sh --prod backup`.
+- [ ] Rodar o pipeline sobre os dados reais, na API de PRODUÇÃO, com `X-Token-Admin`
+      (D7): §6, passo 1.
+- [ ] Conferir o funil: §6, passo 2.
+- [ ] Gerar a figura, lendo o banco de PRODUÇÃO: §6, passo 3.
+- [ ] Backup de novo, depois do último `executar` ([`implantacao.md`](implantacao.md) §9).
 
 ## 6. Rodando o pipeline e a figura com dados reais
 
 Depois que os relatos de campo estiverem no banco (via `POST /alertas`, sempre
-`origem='real'` — nunca inserção manual):
+`origem='real'` — nunca inserção manual). Tudo contra a **pilha de produção**: API em
+`localhost:${API_PORTA_PROD:-8010}` e banco em `localhost:${POSTGRES_PORTA_PROD:-5435}`
+(as duas só em `127.0.0.1`). A pilha de desenvolvimento (8000/5434) não tem os dados da
+coleta. Se o `.env` mudou `API_PORTA_PROD` ou `POSTGRES_PORTA_PROD`, use as portas de lá.
 
 ```bash
+# A partir da raiz do checkout da máquina de produção. O token é lido do .env
+# (implantacao.md §2), sem aparecer na tela nem no histórico.
+
 # 1. Roda os estágios 3 e 4 (agrupamento + promoção) sobre origem=real.
-curl -X POST "http://localhost:8000/validacao/executar?origem=real" \
-  -H "X-Token-Admin: <token, se TOKEN_ADMIN estiver configurado>"
+curl -fsS -X POST "http://localhost:${API_PORTA_PROD:-8010}/validacao/executar?origem=real" \
+  -H "X-Token-Admin: $(sed -n 's/^TOKEN_ADMIN=//p' .env)"
 
 # 2. Confere o funil.
-curl "http://localhost:8000/validacao/estatisticas?origem=real"
+curl -fsS "http://localhost:${API_PORTA_PROD:-8010}/validacao/estatisticas?origem=real"
 
-# 3. Gera a figura (a partir de backend/, com o grupo opcional de matplotlib).
+# 3. Gera a figura (a partir de backend/, com o grupo opcional de matplotlib), lendo o
+#    banco de PRODUÇÃO: a porta vale só para este comando.
 cd backend
 uv sync --group analise
-uv run python -m scripts.gerar_figura_funil --origem real
+POSTGRES_PORTA=${POSTGRES_PORTA_PROD:-5435} uv run python -m scripts.gerar_figura_funil --origem real
 ```
 
-A figura sai em `docs/figuras/funil-real.svg`/`.png` — sem o rótulo "SIMULAÇÃO", porque
-agora é dado real de verdade (`ROTULOS_POR_ORIGEM["real"] = "Dados reais de campo"`,
-`app/validacao/estatisticas.py`). Nada aqui toca `origem='simulacao'`: as duas origens
-nunca se misturam (G10), então a figura da simulação continua disponível para
-comparação.
+O script imprime `Lendo as estatísticas de origem=real do banco localhost:5435/<banco>`:
+confira a porta da produção (5435, não 5434). O rodapé da figura registra o mesmo
+("Dados de localhost:5435/<banco>"). A figura sai em `docs/figuras/funil-real.svg`/`.png`
+— sem o rótulo "SIMULAÇÃO", porque agora é dado real de verdade
+(`ROTULOS_POR_ORIGEM["real"] = "Dados reais de campo"`, `app/validacao/estatisticas.py`).
+Nada aqui toca `origem='simulacao'`: as duas origens nunca se misturam (G10), então a
+figura da simulação continua disponível para comparação.
 
 ## 7. Calibração com dados reais
 
