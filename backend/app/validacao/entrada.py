@@ -19,7 +19,9 @@ from app.schemas.alerta import AlertaEntrada, ErroCampo
 from app.validacao.geofence import ponto_dentro_da_area
 from app.validacao.mensagens import traduzir_erro_pydantic
 
-_ORIGENS_VALIDAS = {"real", "simulacao"}
+# Origens aceitas em `alertas.origem` (migration 002, D2). Pública porque o
+# pipeline (pipeline.py) e as estatísticas (estatisticas.py) validam contra ela.
+ORIGENS_VALIDAS = frozenset({"real", "simulacao"})
 
 
 @dataclass
@@ -91,7 +93,7 @@ def registrar_alerta(
     chave-sentinela, para que um cliente nunca consiga produzir esse atalho
     através de um JSON de verdade (ver docstring da classe).
     """
-    if origem not in _ORIGENS_VALIDAS:
+    if origem not in ORIGENS_VALIDAS:
         raise ValueError(f"origem inválida: {origem!r} (esperado 'real' ou 'simulacao')")
 
     if isinstance(payload, CorpoInvalido):
