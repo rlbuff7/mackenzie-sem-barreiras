@@ -14,7 +14,7 @@ anotada aqui.
 | 2 | **Taxonomia** de tipos de barreira | Os 4 tipos do pôster: `calcada_irregular`, `ausencia_rampa`, `degrau`, `obstaculo` | `db/seeds/001_tipos_barreira.sql` | Aberto |
 | 3 | **Polígono** da área de estudo | Círculo de 500 m em torno do centroide do campus no OSM (-23.54719, -46.65246), ~0,78 km² | `db/seeds/002_area_estudo.sql` | Aberto |
 | 4 | **Calibração** do DBSCAN e da promoção | `eps` = 8 m, `minpoints` = 2, `MIN_CONFIRMACOES` = 3 | `.env` | Aberto. Subsídio (SIMULAÇÃO): `backend/scripts/saida/sensibilidade-semente-42.csv`, gerado por `uv run python -m scripts.analisar_sensibilidade`; leitura abaixo |
-| 5 | **Divisão de responsabilidades** entre os integrantes | — | — | Aberto |
+| 5 | **Divisão de responsabilidades** entre os integrantes | — | — | Decidido 29/09/2026: código = rlbuff7; infra = Victor (VSWH); dados reais = Maurício |
 | 6 | **Atributos quantitativos** da barreira (altura do degrau, inclinação da rampa) | Não modelados. Só `tipo` + `severidade` (1–3). | — | Aberto (novo) |
 | 7 | **O estágio 3 conta alertas, não sessões.** O `minpoints` do DBSCAN conta ALERTAS: uma sessão que reporta duas vezes no mesmo lugar já forma um cluster, e o que seria ruído vira uma barreira `pendente`, visível no mapa. Relatos repetidos de uma sessão também podem ligar (encadear) dois clusters reais. A regra das sessões distintas (anti-Sybil) só protege a PROMOÇÃO (estágio 4). | Como está: `minpoints` conta alertas; só `confirmacoes` conta sessões distintas | `app/validacao/clustering.py`, `app/validacao/pipeline.py` | Aberto (novo, revisão final de 29/09/2026). **Não implementar sem decisão** |
 
