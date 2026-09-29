@@ -245,13 +245,13 @@ def test_ruido_fica_a_4_eps_de_qualquer_outro_ponto_do_mesmo_tipo() -> None:
 
 def test_grupos_e_ruido_ficam_a_ate_400_m_e_fora_da_area_entre_700_e_1500_m() -> None:
     for item in _gerar():
-        distancia = _distancia_ao_centro_metros(item)
+        distancia_metros = _distancia_ao_centro_metros(item)
         if item.categoria == "fora_da_area":
-            assert RAIO_FORA_MINIMO_METROS <= distancia <= RAIO_FORA_MAXIMO_METROS
+            assert RAIO_FORA_MINIMO_METROS <= distancia_metros <= RAIO_FORA_MAXIMO_METROS
         elif item.categoria == "invalido":
-            assert distancia <= RAIO_GERACAO_METROS
+            assert distancia_metros <= RAIO_GERACAO_METROS
         else:
-            assert distancia <= RAIO_GERACAO_METROS + 3
+            assert distancia_metros <= RAIO_GERACAO_METROS + 3
 
 
 def test_amostragem_impossivel_falha_com_mensagem_clara() -> None:
@@ -281,14 +281,14 @@ def test_sequencia_tem_barreiras_distintas_em_linha_com_o_espacamento_pedido() -
         assert len({i.payload["tipo"] for i in da_sequencia}) == 1
         grupos = sorted({i.grupo for i in da_sequencia})
         assert len(grupos) == 4
-        medias = []
+        medias_metros = []
         for grupo in grupos:
             relatos = [i for i in da_sequencia if i.grupo == grupo]
             assert len({r.payload["sessao_id"] for r in relatos}) == 4
-            medias.append(_media_metros(relatos))
-        for a, b in zip(medias, medias[1:], strict=False):
+            medias_metros.append(_media_metros(relatos))
+        for a, b in zip(medias_metros, medias_metros[1:], strict=False):
             assert 15 - 6 <= math.dist(a, b) <= 15 + 6
-        assert 45 - 6 <= math.dist(medias[0], medias[-1]) <= 45 + 6
+        assert 45 - 6 <= math.dist(medias_metros[0], medias_metros[-1]) <= 45 + 6
 
 
 def test_sequencia_fica_isolada_a_4_vezes_o_maior_eps_de_tudo_do_mesmo_tipo() -> None:

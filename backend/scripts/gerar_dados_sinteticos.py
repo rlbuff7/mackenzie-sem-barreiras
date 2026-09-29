@@ -398,7 +398,10 @@ def _nova_sessao(rng: random.Random) -> str:
 def _longe_de_todos(
     ponto: PontoMetros, outros: Sequence[PontoMetros], distancia_metros: float
 ) -> bool:
-    return all(math.hypot(ponto[0] - n, ponto[1] - e) >= distancia_metros for n, e in outros)
+    return all(
+        math.hypot(ponto[0] - norte_metros, ponto[1] - leste_metros) >= distancia_metros
+        for norte_metros, leste_metros in outros
+    )
 
 
 def _sortear_longe(
@@ -634,17 +637,19 @@ def _sortear_sequencia(
             )
             for i in range(opcoes.barreiras_por_sequencia)
         ]
-        if any(math.hypot(*centro) > RAIO_GERACAO_METROS for centro in centros_metros):
+        if any(
+            math.hypot(*centro_metros) > RAIO_GERACAO_METROS for centro_metros in centros_metros
+        ):
             continue
         barreiras = [
             [
-                (centro[0] + desvio[0], centro[1] + desvio[1])
-                for desvio in (
+                (centro_metros[0] + desvio_metros[0], centro_metros[1] + desvio_metros[1])
+                for desvio_metros in (
                     _ponto_no_disco(rng, opcoes.dispersao_metros)
                     for _ in range(opcoes.pontos_por_aglomerado)
                 )
             ]
-            for centro in centros_metros
+            for centro_metros in centros_metros
         ]
         if all(
             _longe_de_todos(ponto, outros, isolamento_metros)
@@ -1058,12 +1063,12 @@ def formatar_geracao(
         if contagem[categoria]
     ]
     linhas.append(["total", "", sum(contagem.values()), "", ""])
-    separacao = FATOR_SEPARACAO * eps_metros
+    separacao_metros = FATOR_SEPARACAO * eps_metros
     return (
         f"[SIMULAÇÃO] Gerado (semente {opcoes.semente}; aglomerados com "
         f"{sessoes_do_aglomerado}, sessões repetidas com {fixo} relatos; dispersão de até "
         f"{formatar_metros(opcoes.dispersao_metros)}; separação mínima "
-        f"{formatar_metros(separacao)} = {FATOR_SEPARACAO} × eps de "
+        f"{formatar_metros(separacao_metros)} = {FATOR_SEPARACAO} × eps de "
         f"{formatar_metros(eps_metros)})\n"
         + (
             f"[SIMULAÇÃO] Sequências: {opcoes.sequencias} de {opcoes.barreiras_por_sequencia} "

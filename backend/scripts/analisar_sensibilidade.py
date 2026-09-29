@@ -194,38 +194,40 @@ def distancias_de_referencia(itens: Sequence[ItemGerado]) -> DistanciasDeReferen
     for item in dentro:
         if item.grupo is not None:
             pontos_do_grupo[(item.categoria, item.grupo)].append(item)
-    saltos = [_maior_salto_da_arvore(pontos) for pontos in pontos_do_grupo.values()]
+    saltos_metros = [_maior_salto_da_arvore(pontos) for pontos in pontos_do_grupo.values()]
 
-    entre_grupos: list[float] = []
-    do_ruido: list[float] = []
-    entre_barreiras_da_sequencia: list[float] = []
-    da_sequencia_ao_resto: list[float] = []
+    entre_grupos_metros: list[float] = []
+    do_ruido_metros: list[float] = []
+    entre_barreiras_da_sequencia_metros: list[float] = []
+    da_sequencia_ao_resto_metros: list[float] = []
     for indice, a in enumerate(dentro):
         for b in dentro[indice + 1 :]:
             if a.payload["tipo"] != b.payload["tipo"]:
                 continue
             distancia_metros = _distancia_metros(a, b)
             if "ruido" in (a.categoria, b.categoria):
-                do_ruido.append(distancia_metros)
+                do_ruido_metros.append(distancia_metros)
             if (
                 a.categoria in _GRUPOS_DE_CONTROLE
                 and b.categoria in _GRUPOS_DE_CONTROLE
                 and (a.categoria, a.grupo) != (b.categoria, b.grupo)
             ):
-                entre_grupos.append(distancia_metros)
+                entre_grupos_metros.append(distancia_metros)
             if "sequencia" in (a.categoria, b.categoria):
                 if a.sequencia == b.sequencia:
                     if a.grupo != b.grupo:
-                        entre_barreiras_da_sequencia.append(distancia_metros)
+                        entre_barreiras_da_sequencia_metros.append(distancia_metros)
                 else:
-                    da_sequencia_ao_resto.append(distancia_metros)
+                    da_sequencia_ao_resto_metros.append(distancia_metros)
 
     return DistanciasDeReferencia(
-        maior_salto_dentro_de_grupo_metros=max(saltos, default=None),
-        menor_entre_grupos_metros=min(entre_grupos, default=None),
-        menor_do_ruido_metros=min(do_ruido, default=None),
-        menor_entre_barreiras_da_sequencia_metros=min(entre_barreiras_da_sequencia, default=None),
-        menor_da_sequencia_ao_resto_metros=min(da_sequencia_ao_resto, default=None),
+        maior_salto_dentro_de_grupo_metros=max(saltos_metros, default=None),
+        menor_entre_grupos_metros=min(entre_grupos_metros, default=None),
+        menor_do_ruido_metros=min(do_ruido_metros, default=None),
+        menor_entre_barreiras_da_sequencia_metros=min(
+            entre_barreiras_da_sequencia_metros, default=None
+        ),
+        menor_da_sequencia_ao_resto_metros=min(da_sequencia_ao_resto_metros, default=None),
     )
 
 
