@@ -30,10 +30,14 @@ Base local: `http://localhost:8000`. JSON UTF-8. CORS liberado para as origens d
   → 200 GeoJSON `FeatureCollection`; cada Feature: geometry Point e
   `properties: {"id", "tipo", "tipo_nome", "confirmacoes", "status", "atualizado_em"}`.
 - `POST /validacao/executar?origem=real|simulacao` (padrão `real`; D7) →
-  200 `{"origem", "alertas_processados", "agrupados", "ruido_isolado",
+  200 `{"origem", "rotulo", "alertas_processados", "agrupados", "ruido_isolado",
   "barreiras_pendentes", "barreiras_confirmadas", "parametros": {"eps_metros",
-  "min_pontos", "min_confirmacoes"}}`; 401 com token errado/ausente
+  "min_pontos", "min_confirmacoes"}, "executado_em"}` (`rotulo` igual ao das
+  estatísticas; `parametros` são os da configuração, que esta execução usou;
+  `executado_em` em UTC, ISO-8601); 401 com token errado/ausente
   (`{"detail": "Token de administrador ausente ou inválido (header X-Token-Admin)."}`).
+  Cada execução grava seus parâmetros e `executado_em` em `execucoes_pipeline`
+  (uma linha por origem, migration 003).
 - `GET /validacao/estatisticas?origem=real|simulacao` (padrão `real`) → 200
   ```json
   {"origem": "simulacao", "rotulo": "SIMULAÇÃO — dados sintéticos",
@@ -41,8 +45,14 @@ Base local: `http://localhost:8000`. JSON UTF-8. CORS liberado para as origens d
                "aguardando_pipeline": 0, "ruido_isolado": 0, "agrupados": 0},
    "barreiras": {"total": 0, "pendentes": 0, "confirmadas": 0},
    "parametros": {"eps_metros": 8, "min_pontos": 2, "min_confirmacoes": 3},
+   "executado_em": "ISO-8601",
    "gerado_em": "ISO-8601"}
   ```
+  `parametros` e `executado_em` são os da ÚLTIMA EXECUÇÃO do pipeline para aquela origem
+  (tabela `execucoes_pipeline`), NÃO a configuração atual — assim a figura do funil nunca
+  leva parâmetros que não produziram os números. Origem nunca processada: ambos `null`.
+  Todas as contagens vêm de um único snapshot (uma só consulta). `executado_em` e
+  `gerado_em` em UTC.
   `rotulo` para `real`: `"Dados reais de campo"`. `recebidos` = rejeitados + linhas de
   `alertas` daquela origem. Unidades explícitas: o bloco `alertas` conta alertas, o bloco
   `barreiras` conta barreiras.

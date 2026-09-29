@@ -153,6 +153,10 @@ erros        JSONB NOT NULL        -- erros de validação do schema
 recebido_em  TIMESTAMPTZ DEFAULT now()
 ```
 
+**`execucoes_pipeline`** (migration 003) — uma linha por origem com os parâmetros
+(`eps_metros`, `min_pontos`, `min_confirmacoes`, `srid_calculo`) e o `executado_em` da
+última execução do pipeline. É de onde as estatísticas leem os parâmetros (§6).
+
 ### Índices obrigatórios
 
 ```sql
@@ -216,7 +220,10 @@ reportando cinco vezes no mesmo lugar produza uma "confirmação" falsa.
 
 Os estágios 1 e 2 rodam na entrada, alerta por alerta. Os estágios 3 e 4 rodam em
 lote, em `executar_pipeline` (`POST /validacao/executar?origem=real|simulacao` ou os
-scripts de simulação), sempre sobre **uma origem por vez** e numa única transação:
+scripts de simulação), sempre sobre **uma origem por vez** e numa única transação.
+Antes de qualquer SQL, valida a origem e os parâmetros (`eps_metros > 0`, `min_pontos
+>= 1`, `min_confirmacoes >= 1`; `ValueError` se não): um valor inválido nunca chega a
+apagar barreiras. `Configuracoes` exige as mesmas faixas ao ler o `.env`.
 
 1. `pg_advisory_xact_lock(CHAVE_LOCK_PIPELINE)`: uma segunda execução simultânea
    espera a primeira terminar. O lock é liberado sozinho no commit/rollback de quem
@@ -228,6 +235,8 @@ scripts de simulação), sempre sobre **uma origem por vez** e numa única trans
    e gravado em `SRID_ARMAZENAMENTO`, `confirmacoes = COUNT(DISTINCT sessao_hash)`,
    status `confirmada`/`pendente`. Os alertas do cluster viram `agrupado`; o ruído
    vira `ruido_isolado`.
+5. Upsert em `execucoes_pipeline` com os parâmetros usados e `executado_em`, na mesma
+   transação: o estado do funil e os parâmetros que o produziram nunca se separam.
 
 Recalcular tudo, em vez de atualizar só o que mudou, porque no DBSCAN o rótulo de um
 alerta depende de todos os outros. Assim o **ruído é reavaliado** a cada execução, um
@@ -254,9 +263,16 @@ devolve contagens reais do banco, separadas por unidade:
   (`fora_da_area` sempre presente, mesmo com 0), `aguardando_pipeline` (`bruto`),
   `ruido_isolado`, `agrupados`. `recebidos` é a soma de todos os outros.
 - `barreiras` (conta **barreiras**): `total`, `pendentes`, `confirmadas`.
-- `rotulo`: `"SIMULAÇÃO — dados sintéticos"` ou `"Dados reais de campo"` (§9).
-- `parametros` (os da configuração) e `gerado_em` (ISO-8601, UTC). O banco não guarda
-  com que parâmetros o estado atual foi produzido.
+- `rotulo`: `"SIMULAÇÃO — dados sintéticos"` ou `"Dados reais de campo"` (§9). A
+  resposta de `POST /validacao/executar` traz o mesmo `rotulo`.
+- `parametros` e `executado_em`: os da **última execução** daquela origem, lidos de
+  `execucoes_pipeline`, **não** a configuração atual. Se o `.env` for recalibrado sem
+  rodar o pipeline de novo, ou se um script rodar com outros valores, a figura do funil
+  continua mostrando os parâmetros que de fato produziram os números. Origem nunca
+  processada: ambos `null`.
+- `gerado_em`: instante do cálculo (ISO-8601, UTC).
+- Tudo sai de **uma única consulta** (um snapshot): em READ COMMITTED, várias consultas
+  poderiam misturar o estado de antes e o de depois de uma execução confirmada no meio.
 
 Formato exato em [`docs/api.md`](docs/api.md).
 
