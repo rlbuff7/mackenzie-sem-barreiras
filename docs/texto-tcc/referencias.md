@@ -13,7 +13,10 @@
 - Um ou dois autores: (GOODCHILD, 2007); (GOODCHILD; LI, 2012).
 - Três autores: (HELLERSTEIN; NAUGHTON; PFEFFER, 1995).
 - Quatro ou mais: (ESTER et al., 1996); (SENARATNE et al., 2017).
-- Duas obras do mesmo autor e ano: (KULAKOV; ZAVYALOVA; SHABALINA, 2017a, 2017b).
+- Duas obras do mesmo autor e ano: (KULAKOV; ZAVYALOVA; SHABALINA, 2017a, 2017b);
+  (POSTGIS PROJECT, [2026a]) para `ST_ClusterDBSCAN` e [2026b] para os índices GiST. O
+  manual on-line não traz data; "[2026]" é o ano do acesso. Na versão final, preferir o
+  manual da versão usada (PostGIS 3.4) **[CONFERIR]** a URL versionada.
 - IBGE: o ano é o da **publicação**, não o do dado: PNAD Contínua 2022 → (IBGE, 2023);
   Censo 2022 → (IBGE, 2025). "IBGE, 2022", como está no pôster e no artigo do TCC I, não
   corresponde a nenhuma das duas publicações.
@@ -96,11 +99,11 @@ INFORMATION COMMUNICATION AND SOFTWARE ENGINEERING (ICICSE), 4., 2024, Pequim.
 https://doi.org/10.1109/ICICSE61805.2024.10625690.
 
 POSTGIS PROJECT. **ST_ClusterDBSCAN**. *In*: POSTGIS PROJECT. PostGIS Manual. [*S. l.*],
-[2026]. Disponível em: https://postgis.net/docs/ST_ClusterDBSCAN.html. Acesso em: 29 set.
+[2026a]. Disponível em: https://postgis.net/docs/ST_ClusterDBSCAN.html. Acesso em: 29 set.
 2026.
 
 POSTGIS PROJECT. **Data management**: spatial indexes (GiST indexes). *In*: POSTGIS
-PROJECT. PostGIS Manual. [*S. l.*], [2026]. Disponível em:
+PROJECT. PostGIS Manual. [*S. l.*], [2026b]. Disponível em:
 https://postgis.net/docs/using_postgis_dbmanagement.html. Acesso em: 29 set. 2026.
 
 SAHA, M. *et al*. Project Sidewalk: a web-based crowdsourcing tool for collecting sidewalk

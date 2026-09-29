@@ -140,7 +140,7 @@ de modo que um relato sintético nunca confirma um relato real (G10).
 obrigatório e o mapa nunca pede o banco inteiro (e cada resposta tem um limite
 configurável de itens). Conceitualmente, trata-se de uma R-Tree (GUTTMAN, 1984): o PostGIS
 implementa a R-Tree sobre a GiST, a árvore de busca generalizada de Hellerstein, Naughton
-e Pfeffer (1995), como descreve a documentação do PostGIS (POSTGIS PROJECT, [2026]).
+e Pfeffer (1995), como descreve a documentação do PostGIS (POSTGIS PROJECT, [2026b]).
 O texto do TCC I fala em "R-Trees"; na defesa, o nome correto do índice criado é GiST.
 
 ## 4 Fluxo de um relato

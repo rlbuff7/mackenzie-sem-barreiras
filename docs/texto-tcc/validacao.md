@@ -78,8 +78,8 @@ fato em metros.
 Os pontos são armazenados em SRID 4326 (WGS 84), o sistema usado pelo GPS e pelo
 navegador, cuja unidade é o **grau**. Funções de distância do PostGIS sobre `geometry`
 interpretam os parâmetros na unidade do SRID: em particular, o `eps` de
-`ST_ClusterDBSCAN` é lido "nas mesmas unidades das geometrias" (POSTGIS PROJECT,
-[2026]). Com `eps = 8` em 4326, o raio seria de 8 graus, e o agrupamento juntaria a
+`ST_ClusterDBSCAN` é medido nas mesmas unidades das geometrias (POSTGIS PROJECT,
+[2026a]). Com `eps = 8` em 4326, o raio seria de 8 graus, e o agrupamento juntaria a
 cidade inteira sem produzir erro algum.
 
 A regra adotada (G6) é armazenar em 4326 e calcular em metros reprojetando para o SRID
@@ -122,7 +122,7 @@ Três escolhas merecem registro:
    dela: a numeração dos clusters e o destino de um ponto de borda ao alcance de núcleos
    de dois clusters. A documentação do PostGIS diz que esse ponto é atribuído
    arbitrariamente e recomenda um `ORDER BY` na janela para torná-lo determinístico
-   (POSTGIS PROJECT, [2026]). Com `ORDER BY id`, o resultado é reproduzível; isso foi
+   (POSTGIS PROJECT, [2026a]). Com `ORDER BY id`, o resultado é reproduzível; isso foi
    verificado no PostGIS 3.4.3 do projeto e está coberto por teste. Com `minpoints = 2`,
    o valor provisório, não há pontos de borda (todo alerta com um vizinho já é núcleo), e
    a ordem só afeta a numeração.
