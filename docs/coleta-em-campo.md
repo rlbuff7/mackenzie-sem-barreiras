@@ -121,9 +121,29 @@ Antes de ir a campo:
 - [ ] Cada integrante com o celular carregado e a URL de coleta salva/testada.
 - [ ] Combinar quem faz o quê em campo (ver **[ORIENTADORA] #5**, ainda em aberto —
       na falta de uma divisão formal, combinar informalmente para o dia).
+- [ ] **Zerar os dados reais de teste.** Todo POST na pilha principal grava
+      `origem='real'`: os testes manuais no mapa, o `curl` do README e até um corpo
+      inválido (que vira uma linha em `alertas_rejeitados`). Se houve testes, rode
+      `./db/banco.sh zerar-real --sim-apagar-dados-reais`. Sem o argumento, ele só
+      mostra quanto seria apagado; com ele, apaga as linhas `origem='real'` das quatro
+      tabelas numa transação e nunca toca a simulação. É SÓ para este momento: depois
+      de aberta a coleta, essas linhas são os dados do TCC.
+- [ ] Conferir `GET /validacao/estatisticas?origem=real` com `alertas.recebidos = 0`
+      logo antes de abrir a coleta.
+- [ ] **Congelar os seeds (tipos e polígono) até o fim da coleta.** `./db/banco.sh
+      migrar` reaplica `db/seeds/` a cada execução. Se o polígono mudasse no meio, o
+      funil real misturaria relatos julgados por dois geofences diferentes (e uma troca
+      de taxonomia mudaria os tipos aceitos). Não edite `db/seeds/` nem rode `migrar`
+      com seeds alterados enquanto a coleta estiver aberta.
+- [ ] Registrar a versão em vigor: o commit da pilha de coleta
+      (`git rev-parse --short HEAD`), anotado com a data. É o que permite ao texto citar
+      exatamente que código, polígono e parâmetros produziram o funil real.
 
 Durante a coleta:
 
+- [ ] **Não testar na pilha de coleta.** Depois de aberta, todo envio nela é um relato
+      real. Para testar algo, use `./scripts/ponta-a-ponta.sh`, que sobe uma pilha
+      isolada e a apaga no fim.
 - [ ] Reportar sempre no local (§2).
 - [ ] Anotar (fora do sistema, num papel/app qualquer da equipe) observações que não
       cabem no formulário — por exemplo, comparar o GPS do celular com a posição real,
