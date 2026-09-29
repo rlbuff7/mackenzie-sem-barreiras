@@ -69,7 +69,8 @@ docker compose -f docker-compose.prod.yml up -d --wait
 ```
 
 O `--prod` só troca o arquivo do compose; sem ele, `banco.sh` continua falando com a
-pilha de desenvolvimento. Vale para todos os comandos (`psql`, `testar`, `backup`...).
+pilha de desenvolvimento. Vale para `migrar`, `psql`, `backup`, `restaurar` e
+`zerar-real`; `testar` e `preparar-teste` recusam `--prod` (§9).
 Seeds (tipos e polígono) ficam **congelados** durante a coleta: não rode `migrar` com
 `db/seeds/` alterado depois de abrir.
 
@@ -231,10 +232,12 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
   `./db/banco.sh --teste restaurar backups/teste-ARQUIVO.dump --sim-substituir-banco`
   (`--teste` aponta para `<POSTGRES_DB>_teste`; crie-o antes com
   `./db/banco.sh preparar-teste`, na pilha de desenvolvimento).
-- Opções de `banco.sh` (antes do subcomando): `--prod` vale para `migrar`, `testar`,
-  `psql`, `backup`, `restaurar` e `zerar-real`; `preparar-teste` **recusa** `--prod`
-  (não cria banco de teste no servidor de produção). `--teste` vale para `backup`, `restaurar` e `zerar-real`. Testes
-  de segurança do script: `./db/tests/banco_sh_seguranca.sh`.
+- Opções de `banco.sh` (antes do subcomando): `--prod` vale para `migrar`, `psql`,
+  `backup`, `restaurar` e `zerar-real`. `testar` e `preparar-teste` **recusam** `--prod`:
+  os testes de schema gravam (e desfazem) dados, que disputariam com a coleta, e não se
+  cria banco de teste no servidor de produção. `--teste` (banco `<POSTGRES_DB>_teste`)
+  vale para `testar`, `backup`, `restaurar` e `zerar-real`. Testes de segurança
+  do script: `./db/tests/banco_sh_seguranca.sh`.
 
 ## 10. Derrubar (fim do dia)
 

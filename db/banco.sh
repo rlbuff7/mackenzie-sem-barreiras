@@ -38,6 +38,7 @@
 # docker-compose.prod.yml no ambiente. Sem isso, tudo vale para a pilha de
 # desenvolvimento, como sempre. `--teste` aponta para "${POSTGRES_DB}_teste".
 # `preparar-teste` recusa --prod: não cria banco de teste no servidor de produção.
+# `testar` também recusa --prod: os testes de schema gravam (e desfazem) dados.
 #
 # BANCO_ALVO controla contra qual banco `migrar`, `zerar-real` e
 # `psql_no_container` operam (padrão: $POSTGRES_DB). É assim que `preparar-teste`
@@ -200,6 +201,12 @@ migrar() {
 }
 
 testar() {
+    # Os testes de schema fazem INSERT/UPDATE (desfeitos no fim, mas com locks e
+    # sequências consumidas) e disputariam com os relatos e as execuções reais.
+    if pilha_de_producao; then
+        echo "erro: testar não roda na pilha de produção (--prod): os testes de schema gravam (e desfazem) dados e disputariam com a coleta. Rode na pilha de desenvolvimento: ./db/banco.sh testar" >&2
+        exit 2
+    fi
     local arquivos=(db/tests/*.sql)
     if [[ ${#arquivos[@]} -eq 0 ]]; then
         echo "nenhum teste em db/tests/" >&2
@@ -482,7 +489,7 @@ restaurar() {
 }
 
 preparar_teste() {
-    if [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]]; then
+    if pilha_de_producao; then
         echo "erro: preparar-teste não roda na pilha de produção (--prod)." >&2
         exit 2
     fi

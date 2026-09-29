@@ -3,7 +3,8 @@
 # banco de TESTE e uma pasta temporária, NUNCA a pasta backups/):
 #   ./db/tests/banco_sh_seguranca.sh
 #  1. as mensagens de recusa de `restaurar` e `zerar-real` carregam as opções
-#     (--teste, --prod) e nomeiam o alvo certo;
+#     (--teste, --prod) e nomeiam o alvo certo; `testar` e `preparar-teste`
+#     recusam --prod;
 #  2. restaurar bom funciona e dump corrompido aborta com o original intacto;
 #  3. se a 2ª troca de nomes falha, o banco original é devolvido;
 #  4. se a 1ª chamada da troca para NO MEIO (depois de fechar as conexões), o
@@ -51,6 +52,12 @@ msg="$(TOKEN_ADMIN=x ./db/banco.sh --prod restaurar "$dump" 2>&1)"
 contem "restaurar --prod: comando com --prod" "$msg" "banco.sh --prod restaurar"
 contem "restaurar --prod: alvo de produção" "$msg" "da pilha de PRODUÇÃO"
 contem "restaurar --prod de um dump de teste: avisa a pilha diferente" "$msg" "--sim-substituir-banco --sim-pilha-diferente"
+# testar e preparar-teste recusam --prod antes de tocar qualquer banco.
+msg="$(TOKEN_ADMIN=x ./db/banco.sh --prod testar 2>&1)"
+igual "testar --prod recusado (rc)" "$?" "2"
+contem "testar --prod: explica a recusa" "$msg" "testar não roda na pilha de produção"
+TOKEN_ADMIN=x ./db/banco.sh --prod preparar-teste > /dev/null 2>&1
+igual "preparar-teste --prod recusado (rc)" "$?" "2"
 
 echo "== 2. restaurar bom e dump corrompido"
 psql_teste "INSERT INTO tipos_barreira(codigo,nome) VALUES ('zz','zz')" || abortar "INSERT de preparo falhou"
