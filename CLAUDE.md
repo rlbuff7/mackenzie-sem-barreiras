@@ -142,7 +142,8 @@ alteração.
 **`area_estudo`** — polígono do entorno do Mackenzie, `GEOMETRY(Polygon, 4326)`.
 É contra ele que o geofence roda.
 
-**`alertas`** (resumo; a fonte da verdade é `db/migrations/001_schema_inicial.sql`)
+**`alertas`** (resumo; a fonte da verdade são as migrations `001_schema_inicial.sql` e
+`002_origem_dos_dados.sql`, em `db/migrations/`)
 ```sql
 id              BIGSERIAL PRIMARY KEY
 geom            GEOMETRY(Point, 4326) NOT NULL
@@ -154,6 +155,7 @@ criado_em       TIMESTAMPTZ NOT NULL DEFAULT now()
 status          VARCHAR(24) NOT NULL DEFAULT 'bruto'
 motivo_descarte VARCHAR(48)
 barreira_id     BIGINT REFERENCES barreiras(id)
+origem          VARCHAR(12) NOT NULL DEFAULT 'real'  -- 'real' | 'simulacao' (002, D2)
 -- CHECK: status = 'descartado'  <=>  motivo_descarte preenchido
 -- CHECK: status = 'agrupado'    <=>  barreira_id preenchido
 ```
@@ -171,7 +173,13 @@ Ciclo de vida (`status`):
 | `agrupado` | pertence a um cluster, ligado a `barreira_id` | não |
 
 **`barreiras`** — barreira consolidada, com geometria representativa do cluster
-(centroide), tipo, contagem de confirmações e status (`pendente` / `confirmada`).
+(centroide), tipo, contagem de confirmações, status (`pendente` / `confirmada`) e
+`origem`.
+
+A coluna `origem` (`real` | `simulacao`, migration 002) existe em `alertas`,
+`barreiras` e `alertas_rejeitados`: pela HTTP é sempre `real`, e só os scripts de
+simulação gravam `simulacao` (§9). O pipeline, as estatísticas e `GET /barreiras`
+sempre filtram por uma origem; as duas nunca se misturam.
 
 **`alertas_rejeitados`** — payloads reprovados no estágio 1 (ver exceção acima).
 ```sql
@@ -179,11 +187,14 @@ id           BIGSERIAL PRIMARY KEY
 payload      JSONB NOT NULL        -- corpo recebido, como chegou
 erros        JSONB NOT NULL        -- erros de validação do schema
 recebido_em  TIMESTAMPTZ DEFAULT now()
+origem       VARCHAR(12) NOT NULL DEFAULT 'real'  -- migration 002
 ```
 
 **`execucoes_pipeline`** (migration 003) — uma linha por origem com os parâmetros
 (`eps_metros`, `min_pontos`, `min_confirmacoes`, `srid_calculo`) e o `executado_em` da
-última execução do pipeline. É de onde as estatísticas leem os parâmetros (§6).
+última execução do pipeline, gravada na mesma transação da execução. É de onde as
+estatísticas e a figura do funil leem os parâmetros (§6), e é apagada junto com os dados
+da origem por `--limpar` (simulação) e por `./db/banco.sh zerar-real` (real).
 
 ### Índices obrigatórios
 
