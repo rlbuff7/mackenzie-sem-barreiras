@@ -19,13 +19,28 @@ function formatarPonto(ponto: PontoSelecionado): string {
  * tabulação): a mesma lista de barreiras da bbox atual, como botões de
  * verdade. Nunca usa innerHTML com texto vindo do servidor — tudo aqui é
  * `createElement` + `textContent`.
+ *
+ * mapa.ts só chama isto quando o conteúdo realmente muda (nunca a cada
+ * recarga idêntica), mas mesmo assim reconstrói os nós inteiros — o que
+ * apagaria o foco de quem acabou de ativar um botão "Ver no mapa" e caiu de
+ * volta no `<body>`. Por isso guarda o id do botão focado antes de
+ * reconstruir e devolve o foco ao botão equivalente depois; se a barreira
+ * em questão não existe mais na lista nova, o foco vai para `alvoFoco`
+ * (um elemento com `tabindex="-1"`) em vez de se perder.
  */
 function renderizarListaBarreiras(
   lista: HTMLUListElement,
   contagem: HTMLParagraphElement,
   itens: ItemListaBarreira[],
   aoAtivarItem: (id: number) => void,
+  alvoFoco: HTMLElement,
 ): void {
+  const elementoAtivo = document.activeElement;
+  const idBotaoFocado =
+    elementoAtivo instanceof HTMLElement && lista.contains(elementoAtivo)
+      ? (elementoAtivo.dataset.id ?? null)
+      : null;
+
   if (itens.length === 0) {
     const vazio = document.createElement("li");
     vazio.className = "item-barreira-vazio";
@@ -38,6 +53,7 @@ function renderizarListaBarreiras(
       const botao = document.createElement("button");
       botao.type = "button";
       botao.className = "item-barreira";
+      botao.dataset.id = String(item.id);
 
       const tipo = document.createElement("span");
       tipo.className = "item-barreira__tipo";
@@ -62,6 +78,17 @@ function renderizarListaBarreiras(
       fragmento.appendChild(li);
     }
     lista.replaceChildren(fragmento);
+  }
+
+  if (idBotaoFocado !== null) {
+    const botaoEquivalente = lista.querySelector<HTMLButtonElement>(
+      `[data-id="${idBotaoFocado}"]`,
+    );
+    if (botaoEquivalente) {
+      botaoEquivalente.focus();
+    } else {
+      alvoFoco.focus();
+    }
   }
 
   const novaContagemTexto =
@@ -124,9 +151,15 @@ async function principal(): Promise<void> {
   });
 
   const atualizarListaBarreiras = (itens: ItemListaBarreira[]): void => {
-    renderizarListaBarreiras(listaBarreiras, contagemBarreiras, itens, (id) => {
-      controladorMapa.focarBarreira(id);
-    });
+    renderizarListaBarreiras(
+      listaBarreiras,
+      contagemBarreiras,
+      itens,
+      (id) => {
+        controladorMapa.focarBarreira(id);
+      },
+      contagemBarreiras,
+    );
   };
   atualizarListaBarreiras(controladorMapa.obterItensAtuais());
   controladorMapa.aoAtualizarBarreiras(atualizarListaBarreiras);

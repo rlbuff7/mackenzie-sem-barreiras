@@ -85,6 +85,30 @@ function criarIconeBarreira(status: FeatureBarreira["properties"]["status"]): L.
   });
 }
 
+/**
+ * Compara duas listas de barreiras pelo que a lista acessível exibe (id,
+ * tipo, status, confirmações), como conjuntos — sem depender da ordem, já
+ * que o backend não garante a mesma ordem entre duas consultas idênticas.
+ * Usado para não notificar `aoAtualizarBarreiras` — e assim não forçar
+ * main.ts a reconstruir a lista e derrubar o foco de teclado — quando a
+ * recarga da bbox devolve exatamente o mesmo conteúdo de antes.
+ */
+function itensIguais(a: ItemListaBarreira[], b: ItemListaBarreira[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const porId = new Map(b.map((item) => [item.id, item]));
+  return a.every((item) => {
+    const outro = porId.get(item.id);
+    return (
+      outro !== undefined &&
+      outro.tipoNome === item.tipoNome &&
+      outro.status === item.status &&
+      outro.confirmacoes === item.confirmacoes
+    );
+  });
+}
+
 function conteudoPopupBarreira(feature: FeatureBarreira): string {
   const { tipo_nome, status, confirmacoes } = feature.properties;
   const rotuloStatus = status === "confirmada" ? "Confirmada" : "Pendente";
@@ -167,12 +191,21 @@ export async function iniciarMapa(elementoId: string): Promise<ControladorMapa> 
       // nesta bbox, reabre o popup dela no marcador recém-criado — sem isso,
       // o clique em "ver no mapa" abriria o popup só para ele sumir na
       // próxima recarga (a cada moveend, mesmo sem o usuário mexer em nada).
+      // É um reforço só desta primeira recarga: reabre no máximo uma vez, e
+      // não fica reabrindo popup sozinho em toda recarga futura.
       if (idBarreiraEmFoco !== null) {
         marcadoresPorId.get(idBarreiraEmFoco)?.openPopup();
+        idBarreiraEmFoco = null;
       }
-      itensAtuais = itens;
-      for (const ouvinte of ouvintesAtualizacaoBarreiras) {
-        ouvinte(itens);
+      // Só troca o estado (e avisa a lista acessível) se o conteúdo realmente
+      // mudou: recarregar com o mesmo resultado não pode forçar main.ts a
+      // reconstruir a lista, porque isso derrubaria o foco de quem acabou de
+      // ativar um botão "Ver no mapa" nela.
+      if (!itensIguais(itens, itensAtuais)) {
+        itensAtuais = itens;
+        for (const ouvinte of ouvintesAtualizacaoBarreiras) {
+          ouvinte(itens);
+        }
       }
     } catch (erro) {
       console.error("Falha ao carregar barreiras da área visível:", erro);
