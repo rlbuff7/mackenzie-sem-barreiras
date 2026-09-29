@@ -89,14 +89,22 @@ ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
   campo de imagem "por fora" no dia da coleta.
 - **O banco não guarda IP.** Nenhuma tabela tem coluna de IP e nenhum código grava o
   endereço de quem reporta (`app/validacao/entrada.py`).
-- **Os logs deste projeto não guardam IP.** O nginx do frontend usa um formato de log
-  próprio, sem o endereço do cliente e sem `X-Forwarded-For`: só hora, método, caminho
-  sem a query string, status e tempos (`frontend/nginx.conf`). O log de erro do nginx
-  fica no nível `crit`, porque as mensagens de erro dele trazem o IP. O nginx também não
-  repassa o IP à API, então o log da API (uvicorn) registra só o endereço interno do
-  nginx na rede do compose. Isso vale para os containers deste repositório: o túnel ou a
-  hospedagem escolhidos (§4) têm os próprios logs, fora do nosso controle. Conferir a
-  política do serviço escolhido e citá-la no texto de consentimento.
+- **Os logs deste projeto não guardam IP no uso normal.** O nginx do frontend usa um
+  formato de log próprio, sem o endereço do cliente e sem nenhum header que o carregue:
+  só hora, método, caminho sem a query string, status e tempos (`frontend/nginx.conf`).
+  O log de erro do nginx fica no nível `crit`: as mensagens de erro dele trazem o IP do
+  cliente, e nesse nível o uso normal (limite de envios, corpo grande demais, conexão
+  fechada pelo cliente) não gera registro; só um erro grave e raro (por exemplo, falta
+  de descritores de arquivo) ainda poderia gravar um IP. O nginx usa o IP só em memória,
+  para o limite de envios (a zona do `limit_req`, que não vai para disco), e não o
+  repassa à API: no proxy `/api/` ele zera os headers que carregam o IP do voluntário
+  (`X-Forwarded-For`, `X-Real-IP` e, atrás da Cloudflare, `CF-Connecting-IP` e
+  `True-Client-IP`), então o log da API (uvicorn) registra só o endereço interno do
+  nginx na rede do compose. Atrás do Quick Tunnel, o endereço que o próprio nginx
+  enxerga é o do container do túnel, não o do voluntário. Isso vale para os containers
+  deste repositório: o túnel ou a hospedagem escolhidos (§4) têm os próprios logs, fora
+  do nosso controle. Conferir a política do serviço escolhido e citá-la no texto de
+  consentimento.
 - **Com o Quick Tunnel (§4), a Cloudflare vê o tráfego.** O túnel `trycloudflare.com`
   termina o TLS na Cloudflare: os relatos (ponto, tipo, severidade, descrição e o
   `sessao_id` no corpo) passam em claro por um terceiro antes de chegar ao nosso nginx,
@@ -126,7 +134,9 @@ ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
   só a pede quando o voluntário toca em "Usar minha localização", e o ponto só sai do
   aparelho quando ele envia o relato.
 
-**Texto sugerido para o consentimento** (revisar com a orientadora antes da coleta):
+**Texto sugerido para o consentimento** (revisar com a orientadora antes da coleta). A
+frase da Cloudflare vale para o Quick Tunnel (§4); numa hospedagem própria, troque-a
+pelo intermediário escolhido.
 
 > Este mapa faz parte de um TCC da FCI/Mackenzie sobre barreiras de acessibilidade.
 > Cada relato que você envia grava o ponto no mapa, o tipo da barreira, a severidade e
@@ -134,9 +144,11 @@ ligação com nome, contato ou IP. Mas o cuidado com o banco vale em dobro: o
 > gravamos o endereço IP do seu aparelho. O navegador recebe um código aleatório que
 > junta os seus relatos, para contarmos confirmações de pessoas diferentes; com ele dá
 > para ver o caminho dos seus relatos, mas não quem você é. O mapa de fundo vem do
-> OpenStreetMap, que recebe o IP do seu aparelho para enviar as imagens. Não escreva
-> dados pessoais na descrição. Os dados servem ao TCC e não serão publicados relato a
-> relato com esse código.
+> OpenStreetMap, que recebe o IP do seu aparelho para enviar as imagens. O acesso ao mapa
+> passa pela Cloudflare (o endereço termina em trycloudflare.com), que faz a conexão
+> segura chegar até nós: ela recebe o IP do seu aparelho e o conteúdo de cada relato
+> antes de nós. Não escreva dados pessoais na descrição. Os dados servem ao TCC e não
+> serão publicados relato a relato com esse código.
 
 ## 4. Requisito técnico: HTTPS para geolocalização [EQUIPE]
 
