@@ -28,10 +28,11 @@
 #
 # Usa o psql de dentro do container: nada precisa ser instalado na máquina.
 #
-# Pilha de produção (docker-compose.prod.yml, docs/implantacao.md): `--prod` como
-# PRIMEIRO argumento (ex.: ./db/banco.sh --prod migrar) ou COMPOSE_FILE=
+# Pilha de produção (docker-compose.prod.yml, docs/implantacao.md): `--prod` antes
+# do subcomando (ex.: ./db/banco.sh --prod migrar) ou COMPOSE_FILE=
 # docker-compose.prod.yml no ambiente. Sem isso, tudo vale para a pilha de
-# desenvolvimento, como sempre.
+# desenvolvimento, como sempre. `--teste` aponta para "${POSTGRES_DB}_teste".
+# `preparar-teste` recusa --prod: não cria banco de teste no servidor de produção.
 #
 # BANCO_ALVO controla contra qual banco `migrar`, `zerar-real` e
 # `psql_no_container` operam (padrão: $POSTGRES_DB). É assim que `preparar-teste`
@@ -49,10 +50,17 @@ if [[ ! -f .env ]]; then
 fi
 set -a; source .env; set +a
 
-if [[ "${1:-}" == "--prod" ]]; then
+# Opções antes do subcomando (podem vir juntas):
+#   --prod   pilha de produção (docker-compose.prod.yml); recusado em preparar-teste
+#   --teste  banco "${POSTGRES_DB}_teste" (resolvido aqui, com o .env), útil em backup/restaurar
+opcao_teste=0
+while [[ "${1:-}" == --prod || "${1:-}" == --teste ]]; do
+    case "$1" in
+        --prod)  export COMPOSE_FILE=docker-compose.prod.yml ;;
+        --teste) opcao_teste=1 ;;
+    esac
     shift
-    export COMPOSE_FILE=docker-compose.prod.yml
-fi
+done
 # O compose de produção interpola TOKEN_ADMIN (obrigatório) mesmo em `exec`; as
 # operações do banco não usam o token, então um valor de enchimento basta aqui.
 if [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]]; then
@@ -62,6 +70,7 @@ fi
 # Sempre DEPOIS do source .env, para que o .env nunca sobrescreva um BANCO_ALVO
 # já definido na chamada (ex.: BANCO_ALVO="${POSTGRES_DB}_teste" ./db/banco.sh migrar).
 BANCO_ALVO="${BANCO_ALVO:-$POSTGRES_DB}"
+[[ $opcao_teste -eq 1 ]] && BANCO_ALVO="${POSTGRES_DB}_teste"
 
 psql_no_container() {
     docker compose exec -T db \
@@ -166,43 +175,96 @@ zerar_real() {
 
 # pg_dump no formato custom (-Fc): compacto e restaurável com pg_restore. Vai para
 # backups/, ignorada pelo git (contém dados de voluntários: docs/coleta-em-campo.md
-# §3). O dump sai pelo stdout do container, então nada fica dentro dele.
+# §3). O dump sai pelo stdout do container, então nada fica dentro dele. Grava em
+# .parcial e só renomeia se o pg_dump terminar bem; em falha ou Ctrl-C o .parcial
+# é removido.
+arquivo_parcial=""
 backup() {
     mkdir -p backups
     local arquivo
     arquivo="backups/${BANCO_ALVO}-$(date +%Y%m%d-%H%M%S).dump"
+    arquivo_parcial="$arquivo.parcial"
+    trap '[[ -n "$arquivo_parcial" ]] && rm -f "$arquivo_parcial"' EXIT
     docker compose exec -T db \
-        pg_dump -Fc -U "$POSTGRES_USER" -d "$BANCO_ALVO" > "$arquivo.parcial"
-    mv "$arquivo.parcial" "$arquivo"
+        pg_dump -Fc -U "$POSTGRES_USER" -d "$BANCO_ALVO" > "$arquivo_parcial"
+    mv "$arquivo_parcial" "$arquivo"
+    arquivo_parcial=""
     echo "backup: $arquivo ($(du -h "$arquivo" | cut -f1))"
 }
 
-# Substitui o banco alvo pelo conteúdo de um dump. Destrutivo: exige o argumento
-# literal. Encerra conexões abertas (WITH FORCE), recria o banco vazio e restaura.
+# Substitui o banco alvo pelo conteúdo de um dump, sem nunca deixá-lo vazio ou
+# pela metade (R32): valida o arquivo (pg_restore --list), restaura num banco
+# temporário "<alvo>_restaurando" e SÓ se isso der certo troca os nomes (o antigo
+# vira "<alvo>_antigo_<data>" e é apagado no fim). Qualquer falha antes da troca
+# apaga só o temporário e o banco original fica como estava. Exige o argumento
+# literal --sim-substituir-banco.
 restaurar() {
     local arquivo="${1:-}" confirmacao="${2:-}"
     if [[ -z "$arquivo" || ! -f "$arquivo" ]]; then
         echo "erro: informe um dump existente. Uso: $0 restaurar backups/ARQUIVO.dump --sim-substituir-banco" >&2
         exit 2
     fi
+    if [[ "$arquivo" == *.parcial ]]; then
+        echo "erro: $arquivo é um backup incompleto (.parcial); recuse-o e refaça o backup." >&2
+        exit 1
+    fi
     if [[ "$confirmacao" != "--sim-substituir-banco" ]]; then
         {
-            echo "nada foi feito. Isto APAGA o banco $BANCO_ALVO e o recria a partir de $arquivo."
+            echo "nada foi feito. Isto SUBSTITUI o banco $BANCO_ALVO pelo conteúdo de $arquivo."
             echo "Para continuar: $0 restaurar $arquivo --sim-substituir-banco"
         } >&2
         exit 1
     fi
-    echo "restaurando $arquivo em $BANCO_ALVO (o banco atual será apagado)"
-    docker compose exec -T db \
-        psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
-        -c "DROP DATABASE IF EXISTS ${BANCO_ALVO} WITH (FORCE)" \
-        -c "CREATE DATABASE ${BANCO_ALVO}"
-    docker compose exec -T db \
-        pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$BANCO_ALVO" < "$arquivo"
+    if ! docker compose exec -T db pg_restore --list < "$arquivo" > /dev/null 2>&1; then
+        echo "erro: $arquivo não é um dump válido do pg_dump -Fc (truncado, corrompido ou de outro formato). Nada foi alterado." >&2
+        exit 1
+    fi
+
+    local temporario="${BANCO_ALVO}_restaurando"
+    local antigo="${BANCO_ALVO}_antigo_$(date +%Y%m%d%H%M%S)"
+    local -a admin=(docker compose exec -T db psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres)
+
+    echo "restaurando $arquivo em $temporario (o banco $BANCO_ALVO continua intacto até o fim)"
+    "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" -c "CREATE DATABASE ${temporario}"
+    if ! docker compose exec -T db \
+            pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$temporario" < "$arquivo"; then
+        "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" || true
+        echo "erro: a restauração falhou; $BANCO_ALVO não foi tocado e o temporário foi apagado." >&2
+        exit 1
+    fi
+
+    local existe
+    existe="$("${admin[@]}" -At -c "SELECT 1 FROM pg_database WHERE datname = '${BANCO_ALVO}'")"
+    if [[ -n "$existe" ]]; then
+        # Impede novas conexões e derruba as atuais, para o RENAME não falhar.
+        if ! "${admin[@]}" \
+                -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS false" \
+                -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${BANCO_ALVO}' AND pid <> pg_backend_pid()" \
+                -c "ALTER DATABASE ${BANCO_ALVO} RENAME TO ${antigo}" > /dev/null; then
+            "${admin[@]}" -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" > /dev/null 2>&1 || true
+            "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" || true
+            echo "erro: não consegui afastar o banco atual; $BANCO_ALVO não foi tocado." >&2
+            exit 1
+        fi
+    fi
+    if ! "${admin[@]}" -c "ALTER DATABASE ${temporario} RENAME TO ${BANCO_ALVO}"; then
+        if [[ -n "$existe" ]]; then
+            "${admin[@]}" -c "ALTER DATABASE ${antigo} RENAME TO ${BANCO_ALVO}" \
+                -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" || true
+        fi
+        "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" || true
+        echo "erro: a troca de nomes falhou; o banco original foi devolvido." >&2
+        exit 1
+    fi
+    [[ -n "$existe" ]] && "${admin[@]}" -c "DROP DATABASE IF EXISTS ${antigo} WITH (FORCE)"
     echo "restaurado: $BANCO_ALVO"
 }
 
 preparar_teste() {
+    if [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]]; then
+        echo "erro: preparar-teste não roda na pilha de produção (--prod)." >&2
+        exit 2
+    fi
     local banco_teste="${POSTGRES_DB}_teste"
     echo "recriando banco de teste: $banco_teste"
     # Sempre contra o banco "postgres": não dá para DROP DATABASE do banco em que
@@ -224,7 +286,7 @@ case "${1:-}" in
     backup)         backup ;;
     restaurar)      restaurar "${2:-}" "${3:-}" ;;
     *)
-        echo "uso: $0 [--prod] {migrar|testar|psql|preparar-teste|backup|restaurar ARQ --sim-substituir-banco|zerar-real [--sim-apagar-dados-reais]}" >&2
+        echo "uso: $0 [--prod] [--teste] {migrar|testar|psql|preparar-teste|backup|restaurar ARQ --sim-substituir-banco|zerar-real [--sim-apagar-dados-reais]}" >&2
         exit 2
         ;;
 esac

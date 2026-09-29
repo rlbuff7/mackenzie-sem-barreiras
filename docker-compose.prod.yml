@@ -91,9 +91,14 @@ services:
   # exposto; a API responde por /api/ na mesma URL. Limites e alternativas:
   # docs/implantacao.md.
   tunel:
-    image: cloudflare/cloudflared:latest
+    # Versão fixa (2026.9.3, conferida em 29/09/2026). Para atualizar: escolha uma
+    # tag em https://hub.docker.com/r/cloudflare/cloudflared/tags, faça `docker pull`
+    # dela e troque aqui.
+    image: cloudflare/cloudflared:2026.9.3
     profiles: [tunel]
-    restart: unless-stopped
+    # "no": um túnel que voltasse sozinho após reiniciar a máquina abriria uma URL
+    # pública nova sem ninguém ter decidido (F5). Suba sempre de propósito.
+    restart: "no"
     command: tunnel --no-autoupdate --url http://frontend:80
     depends_on:
       frontend:
