@@ -7,6 +7,8 @@ commit: quem decide commit/rollback é `obter_conexao` (app/db.py).
 """
 
 import hashlib
+import json
+import math
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -23,6 +25,15 @@ from app.validacao.mensagens import traduzir_erro_pydantic
 # pipeline (pipeline.py) e as estatísticas (estatisticas.py) validam contra ela.
 ORIGENS_VALIDAS = frozenset({"real", "simulacao"})
 
+MENSAGEM_JSON_MALFORMADO = "JSON malformado."
+MENSAGEM_CARACTERE_NAO_GRAVAVEL = (
+    "O corpo tem um caractere que não pode ser gravado (U+0000 ou um substituto UTF-16 isolado)."
+)
+
+# Erro de schema que não aponta campo nenhum (loc vazio): o corpo inteiro está
+# errado, por exemplo um JSON válido que não é objeto (`42`, `[]`, `null`).
+_CAMPO_DO_CORPO_INTEIRO = "corpo"
+
 
 @dataclass
 class CorpoInvalido:
@@ -36,9 +47,14 @@ class CorpoInvalido:
     (`{"corpo_invalido": texto}`), o que um cliente podia forjar de propósito
     (ou por coincidência) para escapar da validação de schema de verdade —
     daí a troca para um tipo que o parser de JSON nunca produz.
+
+    `erro` é a mensagem do estágio 1 para o campo `corpo`: JSON malformado, ou
+    um JSON válido com um caractere que o PostgreSQL não grava
+    (ver `interpretar_corpo`).
     """
 
     texto: str
+    erro: str = MENSAGEM_JSON_MALFORMADO
 
 
 @dataclass
@@ -50,6 +66,89 @@ class ResultadoEntrada:
     status: str | None
     motivo_descarte: str | None
     erros: list[ErroCampo] = field(default_factory=list)
+
+
+def _recusar_constante_nao_json(nome: str) -> float:
+    """`NaN`, `Infinity` e `-Infinity` não são JSON (RFC 8259), mas `json.loads`
+    os aceita por padrão. O jsonb do PostgreSQL os recusa: gravar o payload
+    rejeitado daria 500. Aqui viram JSON malformado."""
+    raise ValueError(f"constante fora do JSON: {nome}")
+
+
+def _float_finito(texto: str) -> float:
+    """`1e999` é JSON válido, mas estoura o float e vira `inf`, com o mesmo
+    problema de `Infinity` no jsonb."""
+    valor = float(texto)
+    if not math.isfinite(valor):
+        raise ValueError(f"número fora da faixa do float: {texto}")
+    return valor
+
+
+def _texto_gravavel(texto: str) -> bool:
+    """O PostgreSQL não grava U+0000 (nem em TEXT nem em jsonb), e um substituto
+    UTF-16 isolado (`\\ud800`) não tem codificação UTF-8. `json.loads` produz os
+    dois a partir de escapes válidos (`\\u0000`, `\\ud800`)."""
+    if "\x00" in texto:
+        return False
+    try:
+        texto.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _tem_texto_nao_gravavel(payload: object) -> bool:
+    """Procura, em chaves e valores de qualquer profundidade, um texto que o
+    banco não grava. Iterativo, com pilha própria: o `payload` pode vir do
+    `json.loads` com centenas de níveis de aninhamento."""
+    pendentes = [payload]
+    while pendentes:
+        valor = pendentes.pop()
+        if isinstance(valor, str):
+            if not _texto_gravavel(valor):
+                return True
+        elif isinstance(valor, dict):
+            pendentes.extend(valor.keys())
+            pendentes.extend(valor.values())
+        elif isinstance(valor, list):
+            pendentes.extend(valor)
+    return False
+
+
+def interpretar_corpo(corpo_bruto: bytes, *, tamanho_maximo_texto: int) -> object:
+    """Converte o corpo cru de `POST /alertas` no `payload` de `registrar_alerta`.
+
+    Devolve o JSON interpretado quando ele é válido e gravável, mesmo que não
+    seja um objeto (`42`, `[]`, `null`): esses são reprovados pelo schema, com
+    `campo="corpo"`. Devolve um `CorpoInvalido` (reprovado no estágio 1, com uma
+    linha em `alertas_rejeitados`, nunca um 500) quando:
+
+    - o corpo não é JSON: sintaxe, UTF-8 inválido (`UnicodeDecodeError`), número
+      com mais dígitos do que o Python aceita (todos são `ValueError`) ou
+      aninhamento profundo demais (`RecursionError`);
+    - o corpo usa `NaN`, `Infinity`, `-Infinity` ou um número que estoura o float
+      (`1e999`), que o jsonb não grava;
+    - algum texto (chave ou valor) tem U+0000 ou um substituto UTF-16 isolado,
+      que nem jsonb nem TEXT gravam. Decisão: o corpo inteiro é rejeitado com
+      uma mensagem própria, em vez de remover o caractere e aceitar um alerta
+      diferente do que foi enviado.
+
+    `CorpoInvalido.texto` guarda o corpo cru como texto (UTF-8 com substituição
+    dos bytes inválidos), cortado em `tamanho_maximo_texto` caracteres e com
+    U+0000 trocado por U+FFFD, para que o próprio registro do rejeitado nunca
+    falhe.
+    """
+    texto = corpo_bruto.decode("utf-8", errors="replace").replace("\x00", "\ufffd")
+    texto = texto[:tamanho_maximo_texto]
+    try:
+        payload = json.loads(
+            corpo_bruto, parse_constant=_recusar_constante_nao_json, parse_float=_float_finito
+        )
+    except (ValueError, RecursionError):
+        return CorpoInvalido(texto)
+    if _tem_texto_nao_gravavel(payload):
+        return CorpoInvalido(texto, erro=MENSAGEM_CARACTERE_NAO_GRAVAVEL)
+    return payload
 
 
 def calcular_sessao_hash(sessao_id: UUID) -> str:
@@ -86,18 +185,20 @@ def registrar_alerta(
     `ValidationError.errors()` só vem em inglês.
 
     `payload` sendo um `CorpoInvalido` é o caso especial de corpo de
-    requisição que não é JSON válido (routers/alertas.py): não há campos
-    individuais para validar, então o erro aponta direto `campo="corpo"` em
-    vez de rodar `AlertaEntrada` (que produziria erros espúrios de campos
-    "ausentes"). `CorpoInvalido` é um tipo dedicado, não um dict com uma
-    chave-sentinela, para que um cliente nunca consiga produzir esse atalho
-    através de um JSON de verdade (ver docstring da classe).
+    requisição que não é JSON válido ou não pode ser gravado
+    (`interpretar_corpo`): não há campos individuais para validar, então o erro
+    aponta direto `campo="corpo"` em vez de rodar `AlertaEntrada` (que
+    produziria erros espúrios de campos "ausentes"). `CorpoInvalido` é um tipo
+    dedicado, não um dict com uma chave-sentinela, para que um cliente nunca
+    consiga produzir esse atalho através de um JSON de verdade (ver docstring
+    da classe). Um JSON válido que não é objeto (`42`, `[]`, `null`) passa pelo
+    schema e também é reprovado com `campo="corpo"`.
     """
     if origem not in ORIGENS_VALIDAS:
         raise ValueError(f"origem inválida: {origem!r} (esperado 'real' ou 'simulacao')")
 
     if isinstance(payload, CorpoInvalido):
-        erros = [ErroCampo(campo="corpo", erro="JSON malformado.")]
+        erros = [ErroCampo(campo=_CAMPO_DO_CORPO_INTEIRO, erro=payload.erro)]
         _rejeitar(conexao, {"corpo_invalido": payload.texto}, erros, origem)
         return ResultadoEntrada(
             aceito=False, id=None, status=None, motivo_descarte=None, erros=erros
@@ -108,7 +209,7 @@ def registrar_alerta(
     except ValidationError as erro_validacao:
         erros = [
             ErroCampo(
-                campo=".".join(str(parte) for parte in erro["loc"]),
+                campo=".".join(str(parte) for parte in erro["loc"]) or _CAMPO_DO_CORPO_INTEIRO,
                 erro=traduzir_erro_pydantic(erro),
             )
             for erro in erro_validacao.errors()

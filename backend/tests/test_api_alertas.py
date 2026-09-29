@@ -4,6 +4,7 @@ import json
 from uuid import uuid4
 
 import psycopg
+import pytest
 from fastapi.testclient import TestClient
 
 _CORPO_DENTRO_DA_AREA = {
@@ -99,3 +100,77 @@ def test_post_alertas_corpo_bem_formado_com_chave_corpo_invalido_e_validado_norm
     assert "corpo" not in campos
     assert "corpo_invalido" in campos
     assert "latitude" in campos
+
+
+# --- Estágio 1 com corpos-limite: sempre 422 + uma linha em alertas_rejeitados ---
+
+_ERRO_JSON_MALFORMADO = {"campo": "corpo", "erro": "JSON malformado."}
+_ERRO_CARACTERE_NAO_GRAVAVEL = {
+    "campo": "corpo",
+    "erro": (
+        "O corpo tem um caractere que não pode ser gravado "
+        "(U+0000 ou um substituto UTF-16 isolado)."
+    ),
+}
+_ERRO_NAO_E_OBJETO = {"campo": "corpo", "erro": "Deve ser um objeto JSON (chave-valor)."}
+
+
+def _corpo_valido_com_descricao(descricao_em_json: str) -> bytes:
+    """Corpo válido em tudo, com a descrição escrita direto no texto JSON (para
+    poder usar escapes como `\\u0000`, que `json.dumps` nunca produziria cru)."""
+    return (
+        '{"latitude": -23.5471938, "longitude": -46.6524631, "tipo": "degrau", '
+        f'"sessao_id": "{uuid4()}", "descricao": "{descricao_em_json}"}}'
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    ("corpo", "erro_esperado"),
+    [
+        (b'{"a":"\xff"}', _ERRO_JSON_MALFORMADO),
+        (b"NaN", _ERRO_JSON_MALFORMADO),
+        (b'{"latitude": Infinity}', _ERRO_JSON_MALFORMADO),
+        (b'{"latitude": -Infinity}', _ERRO_JSON_MALFORMADO),
+        (b'{"latitude": 1e999}', _ERRO_JSON_MALFORMADO),
+        (b'{"descricao": "a\x00b"}', _ERRO_JSON_MALFORMADO),
+        (b"[" * 100_000 + b"]" * 100_000, _ERRO_JSON_MALFORMADO),
+        (_corpo_valido_com_descricao("a\\u0000b"), _ERRO_CARACTERE_NAO_GRAVAVEL),
+        (_corpo_valido_com_descricao("a\\ud800b"), _ERRO_CARACTERE_NAO_GRAVAVEL),
+        (b'{"a\\u0000": 1}', _ERRO_CARACTERE_NAO_GRAVAVEL),
+        (b"42", _ERRO_NAO_E_OBJETO),
+        (b'"texto"', _ERRO_NAO_E_OBJETO),
+        (b"[]", _ERRO_NAO_E_OBJETO),
+        (b"null", _ERRO_NAO_E_OBJETO),
+    ],
+    ids=[
+        "utf8_invalido",
+        "nan",
+        "infinity",
+        "menos_infinity",
+        "numero_que_estoura_o_float",
+        "byte_nul_cru_numa_string",
+        "aninhamento_profundo",
+        "escape_nul_na_descricao",
+        "substituto_isolado_na_descricao",
+        "escape_nul_numa_chave",
+        "numero",
+        "texto",
+        "lista_vazia",
+        "null",
+    ],
+)
+def test_post_alertas_corpo_limite_devolve_422_e_conta_o_rejeitado(
+    cliente: TestClient, conexao: psycopg.Connection, corpo: bytes, erro_esperado: dict
+) -> None:
+    """Achado da revisão final: estes corpos davam 500 (ou 422 com `campo` vazio)
+    e a rejeição não era contada no funil. Todos são reprovados no estágio 1."""
+    rejeitados_antes = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
+    alertas_antes = conexao.execute("SELECT count(*) FROM alertas").fetchone()[0]
+
+    resposta = cliente.post("/alertas", content=corpo)
+
+    assert resposta.status_code == 422
+    assert resposta.json() == {"mensagem": "Alerta inválido.", "erros": [erro_esperado]}
+    rejeitados = conexao.execute("SELECT count(*) FROM alertas_rejeitados").fetchone()[0]
+    assert rejeitados == rejeitados_antes + 1
+    assert conexao.execute("SELECT count(*) FROM alertas").fetchone()[0] == alertas_antes

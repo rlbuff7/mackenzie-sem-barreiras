@@ -9,9 +9,12 @@ import pytest
 from app.config import obter_configuracoes
 from app.schemas.alerta import ErroCampo
 from app.validacao.entrada import (
+    MENSAGEM_CARACTERE_NAO_GRAVAVEL,
+    MENSAGEM_JSON_MALFORMADO,
     CorpoInvalido,
     buscar_tipo_ativo,
     calcular_sessao_hash,
+    interpretar_corpo,
     registrar_alerta,
 )
 
@@ -47,6 +50,92 @@ def test_calcular_sessao_hash_e_estavel_para_a_mesma_sessao() -> None:
     sessao_id = uuid4()
 
     assert calcular_sessao_hash(sessao_id) == calcular_sessao_hash(sessao_id)
+
+
+# --- interpretar_corpo (estágio 1, corpo cru) ---
+
+_LIMITE_TEXTO = 2000
+
+
+@pytest.mark.parametrize(
+    ("corpo", "esperado"),
+    [
+        (b'{"tipo": "degrau"}', {"tipo": "degrau"}),
+        (b'{"latitude": -23.5}', {"latitude": -23.5}),
+        (b"42", 42),
+        (b'"texto"', "texto"),
+        (b"[]", []),
+        (b"null", None),
+    ],
+    ids=["objeto", "objeto_com_float", "numero", "texto", "lista_vazia", "null"],
+)
+def test_interpretar_corpo_devolve_o_json_valido_mesmo_que_nao_seja_objeto(
+    corpo: bytes, esperado: object
+) -> None:
+    """JSON válido e gravável segue para o schema, que reprova o que não é objeto."""
+    assert interpretar_corpo(corpo, tamanho_maximo_texto=_LIMITE_TEXTO) == esperado
+
+
+@pytest.mark.parametrize(
+    "corpo",
+    [
+        b"{isso nao e json",
+        b'{"a":"\xff"}',
+        b"NaN",
+        b'{"latitude": Infinity}',
+        b'{"latitude": -Infinity}',
+        b'{"latitude": 1e999}',
+        b'{"severidade": ' + b"1" * 5000 + b"}",
+        b"[" * 100_000 + b"]" * 100_000,
+    ],
+    ids=[
+        "sintaxe",
+        "utf8_invalido",
+        "nan",
+        "infinity",
+        "menos_infinity",
+        "estouro_do_float",
+        "inteiro_com_digitos_demais",
+        "aninhamento_profundo",
+    ],
+)
+def test_interpretar_corpo_json_malformado_ou_nao_gravavel_vira_corpo_invalido(
+    corpo: bytes,
+) -> None:
+    resultado = interpretar_corpo(corpo, tamanho_maximo_texto=_LIMITE_TEXTO)
+
+    assert isinstance(resultado, CorpoInvalido)
+    assert resultado.erro == MENSAGEM_JSON_MALFORMADO
+
+
+@pytest.mark.parametrize(
+    "corpo",
+    [
+        b'{"descricao": "a\\u0000b"}',
+        b'{"descricao": "a\\ud800b"}',
+        b'{"a\\u0000": 1}',
+        b'{"lista": [{"x": ["\\u0000"]}]}',
+    ],
+    ids=["nul_num_valor", "substituto_isolado", "nul_numa_chave", "nul_aninhado"],
+)
+def test_interpretar_corpo_texto_que_o_banco_nao_grava_vira_corpo_invalido(
+    corpo: bytes,
+) -> None:
+    resultado = interpretar_corpo(corpo, tamanho_maximo_texto=_LIMITE_TEXTO)
+
+    assert isinstance(resultado, CorpoInvalido)
+    assert resultado.erro == MENSAGEM_CARACTERE_NAO_GRAVAVEL
+
+
+def test_interpretar_corpo_texto_guardado_troca_o_nul_e_respeita_o_limite() -> None:
+    corpo = b'{"descricao": "a\x00b"' + b"x" * 50
+
+    resultado = interpretar_corpo(corpo, tamanho_maximo_texto=20)
+
+    assert isinstance(resultado, CorpoInvalido)
+    assert "\x00" not in resultado.texto
+    assert resultado.texto == '{"descricao": "a\ufffdb"x'
+    assert len(resultado.texto) == 20
 
 
 # --- buscar_tipo_ativo (D3) ---
@@ -241,6 +330,42 @@ def test_registrar_alerta_corpo_invalido_grava_erro_no_campo_corpo(
         "SELECT payload FROM alertas_rejeitados ORDER BY id DESC LIMIT 1"
     ).fetchone()[0]
     assert payload_gravado == {"corpo_invalido": "{isso nao e json"}
+
+
+def test_registrar_alerta_corpo_invalido_usa_a_mensagem_dele(
+    conexao: psycopg.Connection,
+) -> None:
+    config = obter_configuracoes()
+
+    resultado = registrar_alerta(
+        conexao,
+        CorpoInvalido("{...}", erro=MENSAGEM_CARACTERE_NAO_GRAVAVEL),
+        origem="real",
+        config=config,
+    )
+
+    assert resultado.erros == [ErroCampo(campo="corpo", erro=MENSAGEM_CARACTERE_NAO_GRAVAVEL)]
+
+
+@pytest.mark.parametrize(
+    "payload", [42, "texto", [], None], ids=["numero", "texto", "lista", "null"]
+)
+def test_registrar_alerta_json_que_nao_e_objeto_aponta_o_corpo(
+    conexao: psycopg.Connection, payload: object
+) -> None:
+    """Sem `loc` no erro do Pydantic, o campo seria "": o erro aponta o corpo inteiro."""
+    config = obter_configuracoes()
+
+    resultado = registrar_alerta(conexao, payload, origem="real", config=config)
+
+    assert resultado.aceito is False
+    assert resultado.erros == [
+        ErroCampo(campo="corpo", erro="Deve ser um objeto JSON (chave-valor).")
+    ]
+    payload_gravado = conexao.execute(
+        "SELECT payload FROM alertas_rejeitados ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    assert payload_gravado == payload
 
 
 def test_registrar_alerta_tipo_inativo_vai_para_rejeitados(
