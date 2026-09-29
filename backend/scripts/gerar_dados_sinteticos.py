@@ -32,8 +32,11 @@ então convertidos para graus (`deslocar_ponto`). A separação mínima é 4 × 
 `DBSCAN_EPS_METROS` da configuração): entre os centros de dois grupos quaisquer e
 entre cada ruído e qualquer outro ponto do mesmo tipo. Com os padrões (eps 8 m,
 dispersão de até 3 m) o cenário é bem separado de propósito: é o caso em que o
-pipeline TEM de acertar tudo. Cenários mais difíceis ficam para a análise de
-sensibilidade (`scripts/analisar_sensibilidade.py`).
+pipeline TEM de acertar tudo. Por isso os 100% do teste de eficácia conferem que a
+implementação está correta; NÃO são evidência de robustez (por construção, grupos
+vizinhos ficam fora do alcance do DBSCAN). Cenários de estresse (aglomerados com 2 a
+5 sessões, `--sessoes-variaveis`, e barreiras distintas em linha, `--sequencias`)
+ficam para a análise de sensibilidade (`scripts/analisar_sensibilidade.py`).
 """
 
 import argparse
@@ -78,8 +81,11 @@ RAIO_GERACAO_METROS = 400.0
 RAIO_FORA_MINIMO_METROS = 700.0
 RAIO_FORA_MAXIMO_METROS = 1500.0
 
-# Separação mínima = FATOR_SEPARACAO × eps. Com 4 × eps, dois grupos (ou um ruído e
-# um grupo) nunca ficam ao alcance um do outro no DBSCAN, mesmo somando a dispersão.
+# Separação mínima = FATOR_SEPARACAO × eps (da configuração). O ruído é comparado com
+# os pontos de verdade, então fica sempre a ≥ 4 × eps de qualquer ponto do mesmo tipo.
+# Entre grupos, a separação vale para os CENTROS: dois relatos de grupos vizinhos
+# ficam a ≥ 4 × eps − 2 × dispersão, fora do alcance do DBSCAN só enquanto a dispersão
+# for menor que 1,5 × eps (`avisos_de_geracao` avisa quando não for).
 FATOR_SEPARACAO = 4
 # Tentativas da amostragem com rejeição por ponto. Passou disso, as opções pedem
 # mais pontos do que cabem na área com a separação exigida.
@@ -218,6 +224,42 @@ class ItemGerado:
     leste_metros: float
     payload: dict[str, Any]
     sequencia: int | None = None
+
+
+def avisos_de_geracao(
+    opcoes: OpcoesGeracao,
+    *,
+    eps_metros: float,
+    min_confirmacoes: int,
+    eps_maximo_metros: float | None = None,
+) -> list[str]:
+    """Avisos sobre opções que tiram a garantia do cenário de controle.
+
+    - Dispersão grande demais: relatos de grupos vizinhos ficam a ≥ 4 × eps − 2 ×
+      dispersão. Se isso não passa do maior eps usado (`eps_maximo_metros`, ou o
+      próprio eps), o controle pode ter fusões que a geração não pretendia. Com um eps
+      só, a condição é dispersão < 1,5 × eps.
+    - Relatos por aglomerado (fixos) abaixo de min_confirmacoes: nenhum aglomerado
+      pode ser confirmado.
+    """
+    avisos = []
+    alcance_metros = max(eps_metros, eps_maximo_metros or eps_metros)
+    menor_entre_grupos_metros = FATOR_SEPARACAO * eps_metros - 2 * opcoes.dispersao_metros
+    if menor_entre_grupos_metros <= alcance_metros:
+        limite_metros = (FATOR_SEPARACAO * eps_metros - alcance_metros) / 2
+        avisos.append(
+            f"AVISO: com dispersão de até {formatar_metros(opcoes.dispersao_metros)}, relatos "
+            f"de grupos vizinhos podem ficar a só {formatar_metros(menor_entre_grupos_metros)} "
+            f"(4 × eps − 2 × dispersão), ao alcance de eps = {formatar_metros(alcance_metros)}: "
+            "o controle pode ter fusões que a geração não pretendia. A garantia vale com "
+            f"dispersão menor que {formatar_metros(limite_metros)}."
+        )
+    if not opcoes.sessoes_variaveis and opcoes.pontos_por_aglomerado < min_confirmacoes:
+        avisos.append(
+            f"AVISO: {opcoes.pontos_por_aglomerado} relatos por aglomerado com "
+            f"MIN_CONFIRMACOES = {min_confirmacoes}: nenhum aglomerado pode ser confirmado."
+        )
+    return avisos
 
 
 def distancia_de_isolamento_metros(eps_metros: float, eps_maximo_metros: float | None) -> float:
@@ -1362,15 +1404,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         + "\n"
     )
+    for aviso in avisos_de_geracao(
+        opcoes, eps_metros=config.dbscan_eps_metros, min_confirmacoes=config.min_confirmacoes
+    ):
+        print(aviso + "\n")
     print(formatar_entrada(registrados) + "\n")
     if resumo is not None:
         print(formatar_execucao(resumo) + "\n")
-        if not opcoes.sessoes_variaveis and opcoes.pontos_por_aglomerado < config.min_confirmacoes:
-            print(
-                f"AVISO: {opcoes.pontos_por_aglomerado} relatos por aglomerado com "
-                f"MIN_CONFIRMACOES = {config.min_confirmacoes}: nenhum aglomerado pode ser "
-                "confirmado.\n"
-            )
     if avaliacao is not None:
         print(formatar_avaliacao(avaliacao) + "\n")
     if avaliacao_sequencia is not None:

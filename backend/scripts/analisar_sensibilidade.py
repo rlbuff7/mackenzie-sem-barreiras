@@ -64,6 +64,7 @@ from scripts.gerar_dados_sinteticos import (
     OpcoesGeracao,
     adicionar_opcoes_de_geracao,
     avaliar,
+    avisos_de_geracao,
     cabecalho_simulacao,
     caminho_para_exibir,
     distancia_de_isolamento_metros,
@@ -565,6 +566,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"{formatar_metros(opcoes.espacamento_sequencia_metros)}, isoladas a "
         f"{formatar_metros(isolamento_metros)}.\n"
     )
+    for aviso in avisos_de_geracao(
+        opcoes,
+        eps_metros=config.dbscan_eps_metros,
+        min_confirmacoes=config.min_confirmacoes,
+        eps_maximo_metros=max(GRADE_EPS_METROS),
+    ):
+        print(aviso + "\n")
     referencias = distancias_de_referencia(itens)
     print(formatar_referencias(referencias, min_pontos=config.dbscan_min_points) + "\n")
     print(

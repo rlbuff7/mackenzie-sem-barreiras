@@ -45,6 +45,7 @@ from scripts.gerar_dados_sinteticos import (
     ItemRegistrado,
     OpcoesGeracao,
     avaliar,
+    avisos_de_geracao,
     deslocar_ponto,
     gerar_populacoes,
     ler_estado_final,
@@ -328,6 +329,39 @@ def test_sequencia_impossivel_falha_com_mensagem_clara() -> None:
 def test_opcoes_sem_sentido_sao_recusadas(sobrescritas: dict) -> None:
     with pytest.raises(ValueError):
         gerar_populacoes(OpcoesGeracao(**sobrescritas), tipos=_TIPOS, eps_metros=_EPS_METROS)
+
+
+@pytest.mark.parametrize(
+    ("dispersao_metros", "eps_maximo_metros", "avisa"),
+    [
+        (11.9, None, False),
+        (12, None, True),  # 1,5 × eps: 4 × 8 − 2 × 12 = 8 m, já ao alcance de eps = 8
+        (5.9, 20, False),
+        (6, 20, True),  # na grade até 20 m: 4 × 8 − 2 × 6 = 20 m
+    ],
+)
+def test_avisa_quando_a_dispersao_poe_grupos_vizinhos_ao_alcance(
+    dispersao_metros: float, eps_maximo_metros: float | None, avisa: bool
+) -> None:
+    """A separação de 4 × eps vale entre CENTROS: relatos de grupos vizinhos ficam a
+    ≥ 4 × eps − 2 × dispersão, fora do alcance só enquanto isso passa do eps."""
+    avisos = avisos_de_geracao(
+        OpcoesGeracao(dispersao_metros=dispersao_metros),
+        eps_metros=_EPS_METROS,
+        eps_maximo_metros=eps_maximo_metros,
+        min_confirmacoes=_MIN_CONFIRMACOES,
+    )
+
+    assert any("dispersão" in aviso for aviso in avisos) is avisa
+
+
+def test_avisa_quando_nenhum_aglomerado_pode_ser_confirmado() -> None:
+    avisos = avisos_de_geracao(
+        OpcoesGeracao(pontos_por_aglomerado=2), eps_metros=_EPS_METROS, min_confirmacoes=3
+    )
+
+    assert any("nenhum aglomerado" in aviso for aviso in avisos)
+    assert avisos_de_geracao(OpcoesGeracao(), eps_metros=_EPS_METROS, min_confirmacoes=3) == []
 
 
 def test_sem_tipos_a_geracao_e_recusada() -> None:
