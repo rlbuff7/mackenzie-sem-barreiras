@@ -3,8 +3,9 @@
 > **RASCUNHO para a equipe revisar e adaptar.** Lista das referências usadas nos
 > rascunhos de `docs/texto-tcc/`, em ABNT com citação autor-data. Cada item foi
 > **conferido em 29/09/2026** na fonte indicada na tabela do fim (Crossref, página do
-> editor ou o PDF do próprio documento). O que não foi possível confirmar está marcado
-> **[CONFERIR]**; não usar esses itens sem conferir. Antes da entrega, passar a lista pela
+> editor ou o PDF do próprio documento), **exceto os trechos marcados [CONFERIR]**: o
+> que não foi lido na fonte (por exemplo, o local de uma editora) está marcado assim;
+> não usar esses trechos sem conferir. Antes da entrega, passar a lista pela
 > norma da FCI/Biblioteca Mackenzie (formatação fina: negrito do título do periódico,
 > recuo, ordem).
 
@@ -41,12 +42,12 @@ https://doi.org/10.1016/j.spasta.2012.03.002.
 
 GUPTA, M. *et al*. Towards more universal wayfinding technologies: navigation preferences
 across disabilities. *In*: CHI CONFERENCE ON HUMAN FACTORS IN COMPUTING SYSTEMS, 2020,
-Honolulu. **Proceedings** [...]. New York: ACM, 2020. p. 1-13. DOI:
+Honolulu. **Proceedings** [...]. New York **[CONFERIR]**: ACM, 2020. p. 1-13. DOI:
 https://doi.org/10.1145/3313831.3376581.
 
 GUTTMAN, A. R-trees: a dynamic index structure for spatial searching. *In*: ACM SIGMOD
 INTERNATIONAL CONFERENCE ON MANAGEMENT OF DATA, 1984, Boston. **Proceedings** [...].
-New York: ACM, 1984. p. 47-57. DOI: https://doi.org/10.1145/602259.602266.
+New York **[CONFERIR]**: ACM, 1984. p. 47-57. DOI: https://doi.org/10.1145/602259.602266.
 
 HAKLAY, M. How good is volunteered geographical information? A comparative study of
 OpenStreetMap and Ordnance Survey datasets. **Environment and Planning B: Planning and
@@ -84,18 +85,19 @@ p. 1-6. DOI: https://doi.org/10.1109/CCNC.2018.8319237.
 
 MIYATA, A. *et al*. A crowdsourcing platform for constructing accessibility maps
 supporting multiple participation modes. *In*: CHI CONFERENCE ON HUMAN FACTORS IN
-COMPUTING SYSTEMS, 2021, Yokohama. **Extended Abstracts** [...]. New York: ACM, 2021.
-p. 1-6. DOI: https://doi.org/10.1145/3411763.3451688.
+COMPUTING SYSTEMS, 2021, Yokohama **[CONFERIR]**. **Extended Abstracts** [...]. New York
+**[CONFERIR]**: ACM, 2021. p. 1-6 **[CONFERIR]**. DOI: https://doi.org/10.1145/3411763.3451688.
 
 MIYATA, A. *et al*. Cross-site comparison of crowdsourced and authoritative accessibility
-maps. *In*: CHI CONFERENCE ON HUMAN FACTORS IN COMPUTING SYSTEMS, 2025, Yokohama.
-**Extended Abstracts** [...]. New York: ACM, 2025. p. 1-8. DOI:
+maps. *In*: CHI CONFERENCE ON HUMAN FACTORS IN COMPUTING SYSTEMS, 2025, Yokohama
+**[CONFERIR]**. **Extended Abstracts** [...]. New York **[CONFERIR]**: ACM, 2025. p. 1-8
+**[CONFERIR]**. DOI:
 https://doi.org/10.1145/3706599.3719772.
 
 ORTIZ, T.; TANG, V. Improving urban accessibility data collection through enhanced user
 experience in a crowdsourcing web application. *In*: INTERNATIONAL CONFERENCE ON
-INFORMATION COMMUNICATION AND SOFTWARE ENGINEERING (ICICSE), 4., 2024, Pequim.
-**Proceedings** [...]. [*S. l.*]: IEEE, 2024. p. 55-59. DOI:
+INFORMATION COMMUNICATION AND SOFTWARE ENGINEERING (ICICSE), 4., 2024, Pequim
+**[CONFERIR]**. **Proceedings** [...]. [*S. l.*]: IEEE, 2024. p. 55-59. DOI:
 https://doi.org/10.1109/ICICSE61805.2024.10625690.
 
 POSTGIS PROJECT. **ST_ClusterDBSCAN**. *In*: POSTGIS PROJECT. PostGIS Manual. [*S. l.*],
@@ -108,23 +110,23 @@ https://postgis.net/docs/using_postgis_dbmanagement.html. Acesso em: 29 set. 202
 
 SAHA, M. *et al*. Project Sidewalk: a web-based crowdsourcing tool for collecting sidewalk
 accessibility data at scale. *In*: CHI CONFERENCE ON HUMAN FACTORS IN COMPUTING SYSTEMS,
-2019, Glasgow. **Proceedings** [...]. New York: ACM, 2019. p. 1-14. DOI:
+2019, Glasgow. **Proceedings** [...]. New York **[CONFERIR]**: ACM, 2019. p. 1-14. DOI:
 https://doi.org/10.1145/3290605.3300292.
 
 SENARATNE, H. *et al*. A review of volunteered geographic information quality assessment
 methods. **International Journal of Geographical Information Science**, [*s. l.*], v. 31,
 n. 1, p. 139-167, 2017. DOI: https://doi.org/10.1080/13658816.2016.1189556.
 
-WORLD HEALTH ORGANIZATION; WORLD BANK. **World report on disability**. Geneva: WHO,
-2011. ISBN 978-92-4-156418-2.
+WORLD HEALTH ORGANIZATION; WORLD BANK. **World report on disability**. Geneva
+**[CONFERIR]**: WHO, 2011. ISBN 978-92-4-156418-2.
 
-WORLD HEALTH ORGANIZATION. **Disability**. Geneva: WHO, 7 mar. 2023. Nota descritiva
-(*fact sheet*). Disponível em:
+WORLD HEALTH ORGANIZATION. **Disability**. Geneva **[CONFERIR]**: WHO, 7 mar. 2023.
+Nota descritiva (*fact sheet*). Disponível em:
 https://www.who.int/news-room/fact-sheets/detail/disability-and-health. Acesso em:
 29 set. 2026.
 
 WORLD HEALTH ORGANIZATION. **Global report on health equity for persons with
-disabilities**. Geneva: WHO, 2022. ISBN 978-92-4-006360-0.
+disabilities**. Geneva **[CONFERIR]**: WHO, 2022. ISBN 978-92-4-006360-0.
 
 ZAHABI, M. *et al*. Design of navigation applications for people with disabilities: a
 review of literature and guideline formulation. **International Journal of
@@ -138,6 +140,12 @@ https://doi.org/10.1080/10447318.2022.2088883.
   **[CONFERIR]** com a coordenação: é material interno, sem registro público encontrado.
 - A página exata das citações diretas de Goodchild e Li (2012) e de Haklay (2010):
   **[CONFERIR]** no PDF antes de usar aspas. Os rascunhos só parafraseiam.
+- Locais das editoras e dos eventos marcados **[CONFERIR]** na lista (New York: ACM;
+  Geneva: WHO; Pequim, em Ortiz e Tang, 2024; Yokohama e as páginas de Miyata et al.,
+  2021 e 2025): não foram lidos na página do editor nem no PDF. Uma consulta ao
+  Crossref em 29/09/2026 registra "New York, NY, USA" para a ACM, "Yokohama Japan" e as
+  páginas 1-6 e 1-8 para Miyata et al. e "Beijing, China" para Ortiz e Tang, mas o
+  registro do DOI não substitui a folha de rosto: conferir no documento antes da entrega.
 
 ## A divergência 14,4 × 18,6 milhões (IBGE)
 

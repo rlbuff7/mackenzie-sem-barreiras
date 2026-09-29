@@ -5,7 +5,8 @@
 > `docs/academico/poster-tcc1.pdf` ("Mackenzie sem Barreiras"), com uma sugestão de texto
 > para cada item. As sugestões supõem as recomendações da equipe em
 > [`../orientadora/pauta-reuniao.md`](../orientadora/pauta-reuniao.md); se a orientadora
-> decidir diferente, ajustar. Referências conferidas em [`referencias.md`](referencias.md).
+> decidir diferente, ajustar. Referências conferidas (exceto as marcadas [CONFERIR]) em
+> [`referencias.md`](referencias.md).
 > Lida a versão do `.doc` do repositório (texto extraído em 29/09/2026).
 
 ## 1 Hipótese e objetivo prometem roteamento

@@ -187,8 +187,8 @@ contrato da API, testes; o pipeline não muda.
 - **#5 decidido em 29/09/2026:** código = rlbuff7; infra = Victor (VSWH); dados reais =
   Maurício.
 - **Texto do TCC:** rascunhos em [`docs/texto-tcc/`](../texto-tcc/) (arquitetura,
-  validação, resultados da simulação, ameaças à validade, referências conferidas e a
-  revisão do artigo/pôster do TCC I). Pedimos leitura crítica.
+  validação, resultados da simulação, ameaças à validade, referências conferidas, exceto
+  as marcadas [CONFERIR], e a revisão do artigo/pôster do TCC I). Pedimos leitura crítica.
 - **Correções no material do TCC I** ([`revisao-artigo-tcc1.md`](../texto-tcc/revisao-artigo-tcc1.md)):
   IBGE 14,4 × 18,6 milhões (pesquisas diferentes, não comparáveis), OMS 2011 × 2022,
   referencial fora de escopo, cronograma.
