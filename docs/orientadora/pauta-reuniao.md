@@ -106,7 +106,9 @@ Controle com 20 aglomerados de 2 a 5 sessões, 5 sessões repetidas e 40 ruídos
 - O pipeline aplica a regra exatamente; o que `min_confirmacoes` decide é **quantas
   barreiras reais ficam pendentes**. A simulação não tem relatos falsos de sessões
   distintas no mesmo lugar, então mostra só o **custo** de subir o valor, não o benefício.
-- `eps`: o controle acerta 100% de 8 a 20 m; abaixo de 5 m (o maior salto dentro de um
+- `eps`: o controle acerta 100% de 8 a 20 m, mas isso vale **por construção da população
+  de controle** (grupos bem separados de propósito): confere que a implementação faz o que
+  o método diz, não é evidência de robustez. Abaixo de 5 m (o maior salto dentro de um
   grupo) os grupos se dividem.
 - Encadeamento (T5, população `sequencia`: barreiras distintas a 15 m em linha): com
   `eps` = 8 m, 20 de 20 separadas; com 12 m, 9 barreiras (6 fusões); com 20 m, 5

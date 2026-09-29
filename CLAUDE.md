@@ -497,7 +497,10 @@ Não implemente nada que dependa destes pontos sem confirmar antes:
 2. **Taxonomia final** de tipos de barreira.
 3. **Polígono exato** da área de estudo.
 4. **Calibração** de `DBSCAN_EPS_METROS` e `MIN_CONFIRMACOES`.
-5. **Divisão de responsabilidades** entre os integrantes.
+
+Já decidida (fora desta lista): a **divisão de responsabilidades** entre os
+integrantes, em 29/09/2026 — código = rlbuff7; infra = Victor (VSWH); dados reais =
+Maurício (registro em `docs/decisoes-pendentes.md`, #5).
 
 Enquanto pendente: implemente com valor provisório, deixe configurável, e registre a
 pendência em `docs/decisoes-pendentes.md`.

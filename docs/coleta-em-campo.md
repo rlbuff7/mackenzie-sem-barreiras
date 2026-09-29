@@ -7,7 +7,7 @@ pendências formais: [`decisoes-pendentes.md`](decisoes-pendentes.md).
 
 Convenção usada abaixo: cada item traz uma marca —
 
-- **[ORIENTADORA]** — depende de decisão da orientadora (`decisoes-pendentes.md` #1–#7).
+- **[ORIENTADORA]** — depende de decisão da orientadora (`decisoes-pendentes.md` #1–#4, #6 e #7; a #5 já está decidida).
   Enquanto pendente, a coleta usa o valor provisório já no `.env`/nos seeds.
 - **[EQUIPE]** — depende só de decisão interna dos integrantes (ex.: hospedagem, HTTPS).
   Nada aqui exige a orientadora, mas também nada está decidido ainda.
@@ -195,8 +195,9 @@ Antes de ir a campo:
       header é recusada com 401). Com `EXPOR_DOCS=false` no ambiente, ele também
       confere que `/docs`, `/redoc` e `/openapi.json` respondem 404.
 - [ ] Cada integrante com o celular carregado e a URL de coleta salva/testada.
-- [ ] Combinar quem faz o quê em campo (ver **[ORIENTADORA] #5**, ainda em aberto —
-      na falta de uma divisão formal, combinar informalmente para o dia).
+- [ ] Combinar quem faz o quê em campo. A divisão geral está decidida
+      (`decisoes-pendentes.md` #5, 29/09/2026: código = rlbuff7; infra = Victor (VSWH);
+      dados reais = Maurício); falta só combinar os papéis de cada pessoa no dia.
 - [ ] **Zerar os dados reais de teste.** Todo POST na pilha principal grava
       `origem='real'`: os testes manuais no mapa, o `curl` do README e até um corpo
       inválido (que vira uma linha em `alertas_rejeitados`). Se houve testes, rode
@@ -300,7 +301,7 @@ Resumo — detalhe completo em [`decisoes-pendentes.md`](decisoes-pendentes.md):
 | 2 | Taxonomia final de tipos | A coleta usa os 4 tipos provisórios do pôster (§2). Trocar a taxonomia depois da coleta não invalida os dados: `tipo_id` é FK estável, e um tipo aposentado marca `ativo=false` sem apagar histórico. |
 | 3 | Polígono exato da área | A coleta usa o círculo provisório de 500 m (§1). Um polígono novo só entra em vigor dali para frente — relatos já aceitos/descartados pelo geofence antigo não são reavaliados automaticamente. |
 | 4 | Calibração do DBSCAN/promoção | A coleta usa os valores provisórios do `.env` (eps 8 m, `min_confirmacoes` 3). Ver §7 para o procedimento de recalibração depois. |
-| 5 | Divisão de responsabilidades | Sem decisão formal, combinar informalmente entre os integrantes presentes no dia (checklist §5). |
+| 5 | Divisão de responsabilidades | **Decidida em 29/09/2026:** código = rlbuff7; infra = Victor (VSWH); dados reais = Maurício. Não depende mais da orientadora; combinar só os papéis do dia (checklist §5). |
 | 6 | Atributos quantitativos (altura do degrau, ângulo da rampa) | Não coletados nesta rodada — só `tipo` + `severidade` (1–3). Se entrar no escopo depois, é uma migration nova, não uma reinterpretação dos dados já coletados. |
 | 7 | Estágio 3 contar alertas, não sessões | A coleta roda com a regra atual. A boa prática "uma barreira, um relato por sessão" (§2) reduz o efeito; os dados brutos ficam guardados, então uma deduplicação decidida depois pode ser aplicada reexecutando o pipeline. |
 
