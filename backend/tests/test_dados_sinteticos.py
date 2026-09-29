@@ -20,7 +20,15 @@ from app.config import obter_configuracoes
 from app.validacao.entrada import ResultadoEntrada, registrar_alerta
 from app.validacao.geofence import ponto_dentro_da_area
 from app.validacao.pipeline import executar_pipeline
-from scripts.analisar_sensibilidade import analisar_grade, distancias_de_referencia
+from scripts.analisar_sensibilidade import (
+    COLUNAS_CSV,
+    PADRAO_SENSIBILIDADE,
+    DistanciasDeReferencia,
+    analisar_grade,
+    distancias_de_referencia,
+    formatar_referencias,
+    linha_csv,
+)
 from scripts.gerar_dados_sinteticos import (
     CATEGORIAS,
     CENTRO_LATITUDE,
@@ -43,6 +51,7 @@ from scripts.gerar_dados_sinteticos import (
     ler_tipos_ativos,
     limpar_simulacao,
     registrar_populacoes,
+    sufixo_das_opcoes,
 )
 from scripts.gerar_figura_funil import OrigemNaoProcessada, montar_funil
 from tests.auxiliares import inserir_alerta
@@ -834,6 +843,13 @@ def test_analisar_grade_mede_as_sequencias_a_parte_e_elas_se_fundem_com_eps_gran
     assert eps_25.controle.por_categoria["aglomerado"].esperado == 3
     assert eps_25.controle.por_categoria["sequencia"].esperado == 0
 
+    linha = linha_csv(eps_25, opcoes, config, distancias_de_referencia(itens), eps_maximo_metros=25)
+    assert list(linha) == list(COLUNAS_CSV)
+    assert linha["rotulo"] == "SIMULAÇÃO — dados sintéticos"
+    assert linha["espacamento_sequencia_metros"] == 15
+    assert linha["isolamento_sequencia_metros"] == 100
+    assert linha["menor_entre_barreiras_da_sequencia_metros"] is not None
+
 
 def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
     """Com minpoints = 2, um grupo continua inteiro enquanto eps cobre o maior salto
@@ -893,6 +909,47 @@ def test_distancias_de_referencia_sem_pares_ficam_indefinidas() -> None:
     assert referencias.menor_do_ruido_metros is None
     assert referencias.menor_entre_barreiras_da_sequencia_metros is None
     assert referencias.menor_da_sequencia_ao_resto_metros is None
+
+
+def _referencias() -> DistanciasDeReferencia:
+    return DistanciasDeReferencia(4.3, 44.9, 39.3, 10.3, 81.0)
+
+
+def test_formatar_referencias_mostra_o_minpoints_da_configuracao() -> None:
+    texto = formatar_referencias(_referencias(), min_pontos=2)
+
+    assert "minpoints = 2" in texto
+    assert "maior salto dentro de um grupo: 4,3 m" in texto
+
+
+def test_formatar_referencias_com_minpoints_diferente_de_2_avisa_e_pula_a_arvore() -> None:
+    """A leitura pela árvore geradora mínima só é exata com minpoints = 2."""
+    texto = formatar_referencias(_referencias(), min_pontos=3)
+
+    assert "minpoints = 3" in texto
+    assert "AVISO" in texto
+    assert "maior salto" not in texto
+
+
+def test_sufixo_das_opcoes_so_aparece_fora_dos_padroes() -> None:
+    """O nome do CSV/JSON leva as opções que diferem dos padrões do script, para que
+    uma rodada exploratória nunca sobrescreva o arquivo canônico."""
+    assert sufixo_das_opcoes(PADRAO_SENSIBILIDADE, PADRAO_SENSIBILIDADE) == ""
+    assert sufixo_das_opcoes(OpcoesGeracao(), OpcoesGeracao()) == ""
+    assert (
+        sufixo_das_opcoes(
+            OpcoesGeracao(dispersao_metros=10, sessoes_variaveis=True, sequencias=5, semente=7),
+            PADRAO_SENSIBILIDADE,
+        )
+        == "-dispersao-metros-10"
+    )
+    assert (
+        sufixo_das_opcoes(OpcoesGeracao(sequencias=5, ruido=60), OpcoesGeracao())
+        == "-ruido-60-sequencias-5"
+    )
+    assert sufixo_das_opcoes(OpcoesGeracao(), PADRAO_SENSIBILIDADE) == (
+        "-sessoes-variaveis-nao-sequencias-0"
+    )
 
 
 # --- figura do funil (só a montagem dos estágios; o matplotlib não é testado) ---

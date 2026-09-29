@@ -55,6 +55,7 @@ from app.config import Configuracoes, obter_configuracoes
 from app.validacao.pipeline import executar_pipeline
 from scripts.gerar_dados_sinteticos import (
     DIRETORIO_SAIDA,
+    FATOR_SEPARACAO,
     ORIGEM,
     ROTULO_SIMULACAO,
     Avaliacao,
@@ -76,6 +77,7 @@ from scripts.gerar_dados_sinteticos import (
     limpar_simulacao,
     opcoes_dos_argumentos,
     registrar_populacoes,
+    sufixo_das_opcoes,
 )
 
 # Grade da análise (Task 4). eps em METROS, medido no SRID de cálculo (G6).
@@ -255,11 +257,27 @@ def _maior_salto_da_arvore(pontos: Sequence[ItemGerado]) -> float:
 # Saída
 # ---------------------------------------------------------------------------
 
+# Cada linha carrega o contexto da geração e as distâncias de referência: um recorte do
+# CSV continua dizendo de que simulação veio (R17).
+_COLUNAS_DE_REFERENCIA = (
+    "maior_salto_dentro_de_grupo_metros",
+    "menor_entre_grupos_metros",
+    "menor_do_ruido_metros",
+    "menor_entre_barreiras_da_sequencia_metros",
+    "menor_da_sequencia_ao_resto_metros",
+)
 COLUNAS_CSV = (
     "rotulo",
     "semente",
     "dispersao_metros",
     "pontos_por_aglomerado",
+    "sessoes_variaveis",
+    "sequencias",
+    "barreiras_por_sequencia",
+    "espacamento_sequencia_metros",
+    "separacao_minima_metros",
+    "isolamento_sequencia_metros",
+    *_COLUNAS_DE_REFERENCIA,
     "eps_metros",
     "min_pontos",
     "min_confirmacoes",
@@ -291,7 +309,12 @@ def _e_da_configuracao(rodada: RodadaSensibilidade, config: Configuracoes) -> bo
 
 
 def linha_csv(
-    rodada: RodadaSensibilidade, opcoes: OpcoesGeracao, config: Configuracoes
+    rodada: RodadaSensibilidade,
+    opcoes: OpcoesGeracao,
+    config: Configuracoes,
+    referencias: DistanciasDeReferencia,
+    *,
+    eps_maximo_metros: float,
 ) -> dict[str, object]:
     """Uma linha do CSV. Taxas como fração (0 a 1), com ponto decimal: o CSV é para
     planilha e script; o console usa vírgula e percentual."""
@@ -301,6 +324,20 @@ def linha_csv(
         "semente": opcoes.semente,
         "dispersao_metros": opcoes.dispersao_metros,
         "pontos_por_aglomerado": opcoes.pontos_por_aglomerado,
+        "sessoes_variaveis": "sim" if opcoes.sessoes_variaveis else "nao",
+        "sequencias": opcoes.sequencias,
+        "barreiras_por_sequencia": opcoes.barreiras_por_sequencia,
+        "espacamento_sequencia_metros": opcoes.espacamento_sequencia_metros,
+        "separacao_minima_metros": FATOR_SEPARACAO * config.dbscan_eps_metros,
+        "isolamento_sequencia_metros": distancia_de_isolamento_metros(
+            config.dbscan_eps_metros, eps_maximo_metros
+        ),
+        **{
+            coluna: None
+            if getattr(referencias, coluna) is None
+            else round(getattr(referencias, coluna), 2)
+            for coluna in _COLUNAS_DE_REFERENCIA
+        },
         "eps_metros": rodada.eps_metros,
         "min_pontos": rodada.min_pontos,
         "min_confirmacoes": rodada.min_confirmacoes,
@@ -404,16 +441,35 @@ def formatar_grade_sequencias(rodadas: Sequence[RodadaSensibilidade], config: Co
     )
 
 
-def formatar_referencias(referencias: DistanciasDeReferencia) -> str:
+def formatar_referencias(referencias: DistanciasDeReferencia, *, min_pontos: int) -> str:
+    """As distâncias de referência, com a leitura de cada uma. A leitura pela árvore
+    geradora mínima (o "salto" que divide um grupo) só é exata com minpoints = 2:
+    com mais, um ponto precisa de vários vizinhos para ser núcleo. Nesse caso a linha
+    do salto sai e as outras valem como condição necessária (eps menor que a
+    distância impede a fusão; maior não a garante)."""
+
     def texto(valor_metros: float | None) -> str:
         return "—" if valor_metros is None else formatar_metros(round(valor_metros, 1))
 
-    return "\n".join(
-        [
-            "[SIMULAÇÃO] Distâncias de referência (entre relatos do mesmo tipo; minpoints = 2):",
+    linhas = [
+        f"[SIMULAÇÃO] Distâncias de referência (entre relatos do mesmo tipo; minpoints = "
+        f"{min_pontos}):"
+    ]
+    if min_pontos == 2:
+        linhas.append(
             f"  maior salto dentro de um grupo: "
             f"{texto(referencias.maior_salto_dentro_de_grupo_metros)} "
-            "(eps abaixo disso divide esse grupo)",
+            "(eps abaixo disso divide esse grupo)"
+        )
+    else:
+        linhas.append(
+            f"  AVISO: com minpoints = {min_pontos}, a leitura pela árvore geradora mínima não "
+            "vale e fica de fora; as distâncias abaixo são só condição necessária para a "
+            "fusão (eps menor que elas a impede, maior não a garante)."
+        )
+    return "\n".join(
+        [
+            *linhas,
             f"  menor distância entre grupos:   {texto(referencias.menor_entre_grupos_metros)} "
             "(eps a partir disso funde dois grupos)",
             f"  menor distância de um ruído:    {texto(referencias.menor_do_ruido_metros)} "
@@ -509,7 +565,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"{formatar_metros(opcoes.espacamento_sequencia_metros)}, isoladas a "
         f"{formatar_metros(isolamento_metros)}.\n"
     )
-    print(formatar_referencias(distancias_de_referencia(itens)) + "\n")
+    referencias = distancias_de_referencia(itens)
+    print(formatar_referencias(referencias, min_pontos=config.dbscan_min_points) + "\n")
     print(
         "[SIMULAÇÃO] CONTROLE: grade eps × min_confirmacoes (minpoints = "
         f"{config.dbscan_min_points}), cada rodada numa transação desfeita (rollback). As "
@@ -531,8 +588,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "estes parâmetros, não os da grade.\n"
     )
 
-    caminho = DIRETORIO_SAIDA / f"sensibilidade-semente-{opcoes.semente}.csv"
-    gravar_csv(caminho, [linha_csv(rodada, opcoes, config) for rodada in rodadas])
+    sufixo = sufixo_das_opcoes(opcoes, PADRAO_SENSIBILIDADE)
+    caminho = DIRETORIO_SAIDA / f"sensibilidade-semente-{opcoes.semente}{sufixo}.csv"
+    gravar_csv(
+        caminho,
+        [
+            linha_csv(rodada, opcoes, config, referencias, eps_maximo_metros=max(GRADE_EPS_METROS))
+            for rodada in rodadas
+        ],
+    )
     print(f"CSV (SIMULAÇÃO): {caminho_para_exibir(caminho)}")
     return 0
 

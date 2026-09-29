@@ -224,7 +224,7 @@ def distancia_de_isolamento_metros(eps_metros: float, eps_maximo_metros: float |
     """Distância mínima entre uma sequência e qualquer outro ponto do mesmo tipo:
     `FATOR_SEPARACAO` × o maior eps com que os dados serão agrupados. Assim, dentro
     desse eps, só pode haver fusão entre barreiras da MESMA sequência."""
-    return FATOR_SEPARACAO * max(eps_metros, eps_maximo_metros or eps_metros)
+    return float(FATOR_SEPARACAO * max(eps_metros, eps_maximo_metros or eps_metros))
 
 
 def deslocar_ponto(
@@ -1142,6 +1142,21 @@ def avaliacao_para_json(avaliacao: Avaliacao) -> dict[str, Any]:
     }
 
 
+def sufixo_das_opcoes(opcoes: OpcoesGeracao, padrao: OpcoesGeracao) -> str:
+    """Pedaço do nome de arquivo com as opções que diferem de `padrao`, na ordem de
+    `OpcoesGeracao` (ex.: "-dispersao-metros-10"). Vazio com os padrões. A semente já
+    vai no nome e não entra. Assim uma rodada exploratória nunca sobrescreve o JSON ou
+    o CSV canônico."""
+    partes = []
+    for campo in fields(OpcoesGeracao):
+        valor = getattr(opcoes, campo.name)
+        if campo.name == "semente" or valor == getattr(padrao, campo.name):
+            continue
+        texto = ("sim" if valor else "nao") if isinstance(valor, bool) else f"{valor:g}"
+        partes.append(f"-{campo.name.replace('_', '-')}-{texto}")
+    return "".join(partes)
+
+
 def gravar_json(caminho: Path, dados: dict[str, Any]) -> None:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     caminho.write_text(json.dumps(dados, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -1361,7 +1376,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if avaliacao_sequencia is not None:
         print(formatar_sequencias(avaliacao_sequencia) + "\n")
 
-    caminho = DIRETORIO_SAIDA / f"simulacao-semente-{opcoes.semente}.json"
+    sufixo = sufixo_das_opcoes(opcoes, OpcoesGeracao())
+    caminho = DIRETORIO_SAIDA / f"simulacao-semente-{opcoes.semente}{sufixo}.json"
     gravar_json(
         caminho,
         {
