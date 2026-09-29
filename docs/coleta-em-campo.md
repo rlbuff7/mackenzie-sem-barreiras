@@ -65,19 +65,59 @@ vale avisar o grupo para não estranhar se isso acontecer.
 
 ## 3. Ética e LGPD
 
-- **Nenhum dado pessoal é coletado.** Não há campo de nome, e-mail, telefone ou
-  qualquer identificador de pessoa no formulário (`docs/api.md`, `POST /alertas`).
+O que o sistema grava, o que ele não grava e o que passa por terceiros. É isto que o
+voluntário precisa saber para consentir (texto sugerido no fim da seção).
+
+**O que fica no banco, por relato:** o ponto (latitude e longitude, do GPS ou do toque
+no mapa), o tipo, a severidade e a descrição (as duas opcionais), a hora do envio
+(`criado_em`) e o `sessao_hash`. Nada mais (`db/migrations/`, `docs/api.md`).
+
+- **Nenhum dado de identificação direta.** Não há campo de nome, e-mail, telefone ou
+  documento no formulário. A descrição é texto livre: por isso o roteiro pede para não
+  escrever dado pessoal nela (§2).
 - **Sem fotos.** O contrato da API não tem campo de imagem; não é para inventar um
   campo de imagem "por fora" no dia da coleta.
-- **Sem IP.** O servidor nunca grava o endereço IP de quem reporta (T3,
-  `app/validacao/entrada.py::calcular_sessao_hash`).
-- **Sessão é um UUID aleatório**, gerado no navegador e guardado só em `localStorage`
-  do próprio aparelho (D1); o servidor grava apenas `sha256(uuid)`, nunca o UUID cru.
-  Quem limpa o navegador (ou usa outro aparelho) vira uma "sessão nova" — é uma
-  limitação conhecida e aceita (T3), não um bug.
-- **Geolocalização é o único dado sensível de fato**, e é o dado central do projeto
-  (mapear onde estão as barreiras). Ela não é vinculável a uma pessoa depois do envio:
-  não existe tabela ou campo que ligue um `alerta` a um indivíduo identificado.
+- **O banco não guarda IP.** Nenhuma tabela tem coluna de IP e nenhum código grava o
+  endereço de quem reporta (`app/validacao/entrada.py`).
+- **Os logs deste projeto não guardam IP.** O nginx do frontend usa um formato de log
+  próprio, sem o endereço do cliente e sem `X-Forwarded-For`: só hora, método, caminho
+  sem a query string, status e tempos (`frontend/nginx.conf`). O log de erro do nginx
+  fica no nível `crit`, porque as mensagens de erro dele trazem o IP. O nginx também não
+  repassa o IP à API, então o log da API (uvicorn) registra só o endereço interno do
+  nginx na rede do compose. Isso vale para os containers deste repositório: o túnel ou a
+  hospedagem escolhidos (§4) têm os próprios logs, fora do nosso controle. Conferir a
+  política do serviço escolhido e citá-la no texto de consentimento.
+- **A sessão é um pseudônimo do aparelho, não anonimato.** O navegador gera um UUID
+  aleatório e o guarda no `localStorage` (D1); o servidor grava só `sha256(uuid)`,
+  nunca o UUID cru. O hash não diz quem é a pessoa, mas é o MESMO em todos os relatos
+  daquele navegador: `sessao_hash` + `criado_em` + `geom` formam a **trajetória** do
+  aparelho durante a coleta (onde esteve, em que ordem, a que horas). É dado
+  pseudônimo: quem souber por outro meio por onde alguém andou pode reconhecer a
+  trajetória dessa pessoa. Por isso o banco, ou qualquer exportação com `sessao_hash`
+  e `criado_em`, não deve ser publicado cru; as estatísticas e a figura do funil só
+  usam contagens. Quem limpa o navegador (ou usa outro aparelho) vira uma "sessão nova"
+  — limitação conhecida e aceita (T3), não um bug.
+- **Os tiles do mapa vêm do OpenStreetMap, um terceiro.** Para desenhar o mapa, o
+  navegador do voluntário baixa as imagens de `tile.openstreetmap.org`, que recebe o IP
+  do aparelho e a região do mapa pedida. Sem isso não há mapa; a política de
+  privacidade é a da OpenStreetMap Foundation
+  (<https://osmfoundation.org/wiki/Privacy_Policy>). Nenhum outro terceiro: a fonte é
+  servida pelo próprio frontend.
+- **A geolocalização é o dado central** (mapear onde estão as barreiras). O navegador
+  só a pede quando o voluntário toca em "Usar minha localização", e o ponto só sai do
+  aparelho quando ele envia o relato.
+
+**Texto sugerido para o consentimento** (revisar com a orientadora antes da coleta):
+
+> Este mapa faz parte de um TCC da FCI/Mackenzie sobre barreiras de acessibilidade.
+> Cada relato que você envia grava o ponto no mapa, o tipo da barreira, a severidade e
+> a descrição (se você preencher) e a hora do envio. Não pedimos nome nem contato e não
+> gravamos o endereço IP do seu aparelho. O navegador recebe um código aleatório que
+> junta os seus relatos, para contarmos confirmações de pessoas diferentes; com ele dá
+> para ver o caminho dos seus relatos, mas não quem você é. O mapa de fundo vem do
+> OpenStreetMap, que recebe o IP do seu aparelho para enviar as imagens. Não escreva
+> dados pessoais na descrição. Os dados servem ao TCC e não serão publicados relato a
+> relato com esse código.
 
 ## 4. Requisito técnico: HTTPS para geolocalização [EQUIPE]
 
