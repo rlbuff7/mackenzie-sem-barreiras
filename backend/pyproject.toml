@@ -1,7 +1,7 @@
 [project]
 name = "mackenzie-sem-barreiras-backend"
 version = "0.1.0"
-description = "API do Mackenzie sem Barreiras. M2: entrada de alertas (schema + geofence) e consulta de barreiras. Agrupamento e promoção (estágios 3 e 4) entram no M3."
+description = "API do Mackenzie sem Barreiras: entrada de alertas (schema + geofence), consulta de barreiras e pipeline de validação em lote (agrupamento DBSCAN + promoção) com estatísticas do funil."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
