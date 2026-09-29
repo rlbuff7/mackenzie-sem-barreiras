@@ -10,6 +10,7 @@ estágios de `scripts/gerar_figura_funil.py` (sem testar o matplotlib).
 
 import math
 from collections import Counter
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -366,15 +367,21 @@ def test_limpar_simulacao_apaga_so_a_origem_simulacao(conexao: psycopg.Connectio
 
 
 def _registrado(
-    alerta_id: int | None, categoria: str, grupo: int | None = None, tipo: str = "degrau"
+    alerta_id: int | None,
+    categoria: str,
+    grupo: int | None = None,
+    tipo: str = "degrau",
+    sessao: str | None = None,
 ) -> ItemRegistrado:
+    """Item já registrado. `alerta_id=None` = reprovado no estágio 1. Sem `sessao`,
+    cada chamada é uma sessão nova (uma pessoa diferente)."""
     item = ItemGerado(
         categoria=categoria,
         grupo=grupo,
         variacao="campo_extra" if categoria == "invalido" else None,
         norte_metros=0.0,
         leste_metros=0.0,
-        payload={"tipo": tipo},
+        payload={"tipo": tipo, "sessao_id": sessao or str(uuid4())},
     )
     aceito = alerta_id is not None
     return ItemRegistrado(
@@ -403,8 +410,8 @@ def _cenario_perfeito() -> tuple[list[ItemRegistrado], EstadoFinal]:
         _registrado(1, "aglomerado", 0),
         _registrado(2, "aglomerado", 0),
         _registrado(3, "aglomerado", 0),
-        _registrado(4, "sessao_repetida", 0),
-        _registrado(5, "sessao_repetida", 0),
+        _registrado(4, "sessao_repetida", 0, sessao="uma-pessoa-so"),
+        _registrado(5, "sessao_repetida", 0, sessao="uma-pessoa-so"),
         _registrado(6, "ruido"),
         _registrado(7, "fora_da_area"),
         _registrado(None, "invalido"),
@@ -425,7 +432,7 @@ def _cenario_perfeito() -> tuple[list[ItemRegistrado], EstadoFinal]:
 
 
 def test_avaliar_cenario_perfeito_acerta_tudo() -> None:
-    avaliacao = avaliar(*_cenario_perfeito())
+    avaliacao = avaliar(*_cenario_perfeito(), min_confirmacoes=3)
 
     assert {c: r.taxa for c, r in avaliacao.por_categoria.items()} == {
         categoria: 1.0 for categoria in CATEGORIAS
@@ -435,12 +442,13 @@ def test_avaliar_cenario_perfeito_acerta_tudo() -> None:
     assert avaliacao.por_categoria["ruido"].unidade == "alertas"
     assert avaliacao.barreiras_esperadas == {"confirmada": 1, "pendente": 1}
     assert avaliacao.barreiras_obtidas == {"confirmada": 1, "pendente": 1}
+    assert avaliacao.barreiras_corretas == {"confirmada": 1, "pendente": 1}
     assert (avaliacao.grupos_fragmentados, avaliacao.fusoes_indevidas) == (0, 0)
     assert avaliacao.ruido_em_barreira == 0
 
 
 def test_avaliar_monta_a_matriz_categoria_para_destino_final() -> None:
-    avaliacao = avaliar(*_cenario_perfeito())
+    avaliacao = avaliar(*_cenario_perfeito(), min_confirmacoes=3)
 
     assert avaliacao.confusao == {
         "aglomerado": {"barreira_confirmada": 3},
@@ -462,7 +470,7 @@ def test_avaliar_fusao_de_dois_grupos_nao_conta_acerto() -> None:
         alertas={i: _agrupado(10) for i in (1, 2, 3, 4)}, barreiras={10: "confirmada"}
     )
 
-    avaliacao = avaliar(registrados, estado)
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
 
     assert avaliacao.por_categoria["aglomerado"].obtido == 0
     assert avaliacao.fusoes_indevidas == 1
@@ -476,7 +484,7 @@ def test_avaliar_grupo_fragmentado_nao_conta_acerto() -> None:
         barreiras={10: "pendente", 11: "pendente"},
     )
 
-    avaliacao = avaliar(registrados, estado)
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
 
     assert avaliacao.por_categoria["aglomerado"].obtido == 0
     assert avaliacao.grupos_fragmentados == 1
@@ -484,13 +492,34 @@ def test_avaliar_grupo_fragmentado_nao_conta_acerto() -> None:
 
 
 def test_avaliar_barreira_com_status_errado_nao_conta_acerto() -> None:
-    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
-    estado = EstadoFinal(alertas={1: _agrupado(10), 2: _agrupado(10)}, barreiras={10: "pendente"})
+    """Três sessões com min_confirmacoes = 3: deveria ser confirmada."""
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2, 3)]
+    estado = EstadoFinal(alertas={i: _agrupado(10) for i in (1, 2, 3)}, barreiras={10: "pendente"})
 
-    avaliacao = avaliar(registrados, estado)
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
 
     assert avaliacao.por_categoria["aglomerado"].obtido == 0
     assert avaliacao.barreiras_obtidas == {"confirmada": 0, "pendente": 1}
+    assert avaliacao.barreiras_corretas == {"confirmada": 0, "pendente": 0}
+
+
+@pytest.mark.parametrize(
+    ("min_confirmacoes", "status_esperado", "acerta"),
+    [(2, "confirmada", False), (3, "pendente", True)],
+)
+def test_avaliar_status_esperado_segue_a_regra_das_sessoes(
+    min_confirmacoes: int, status_esperado: str, acerta: bool
+) -> None:
+    """Um aglomerado de 2 sessões distintas numa barreira pendente só dele: com
+    min_confirmacoes = 2 deveria estar confirmado (erro); com 3, pendente (acerto)."""
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
+    estado = EstadoFinal(alertas={1: _agrupado(10), 2: _agrupado(10)}, barreiras={10: "pendente"})
+
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=min_confirmacoes)
+
+    assert avaliacao.por_categoria["aglomerado"].obtido == (1 if acerta else 0)
+    esperadas = {"confirmada": 0, "pendente": 0} | {status_esperado: 1}
+    assert avaliacao.barreiras_esperadas == esperadas
 
 
 def test_avaliar_barreira_com_alerta_estranho_ao_grupo_nao_conta_acerto() -> None:
@@ -502,7 +531,7 @@ def test_avaliar_barreira_com_alerta_estranho_ao_grupo_nao_conta_acerto() -> Non
         barreiras={10: "confirmada"},
     )
 
-    assert avaliar(registrados, estado).por_categoria["aglomerado"].obtido == 0
+    assert avaliar(registrados, estado, min_confirmacoes=3).por_categoria["aglomerado"].obtido == 0
 
 
 def test_avaliar_alerta_ausente_do_banco_conta_como_grupo_incompleto() -> None:
@@ -511,7 +540,7 @@ def test_avaliar_alerta_ausente_do_banco_conta_como_grupo_incompleto() -> None:
     registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
     estado = EstadoFinal(alertas={1: _agrupado(10)}, barreiras={10: "confirmada"})
 
-    avaliacao = avaliar(registrados, estado)
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
 
     assert avaliacao.por_categoria["aglomerado"].obtido == 0
     assert (avaliacao.grupos_incompletos, avaliacao.grupos_fragmentados) == (1, 0)
@@ -528,7 +557,7 @@ def test_avaliar_grupo_com_um_relato_reprovado_na_entrada_nao_conta_acerto() -> 
         alertas={i: _agrupado(10) for i in (1, 2, 3)}, barreiras={10: "confirmada"}
     )
 
-    avaliacao = avaliar(registrados, estado)
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
 
     resultado = avaliacao.por_categoria["aglomerado"]
     assert (resultado.esperado, resultado.obtido) == (1, 0)
@@ -539,9 +568,9 @@ def test_avaliar_grupo_todo_reprovado_continua_no_esperado() -> None:
     """Um grupo inteiro reprovado na entrada não some do denominador: é um grupo
     gerado que não virou barreira."""
     registrados = [_registrado(None, "aglomerado", 0) for _ in range(4)]
-    registrados += [_registrado(None, "sessao_repetida", 0) for _ in range(2)]
+    registrados += [_registrado(None, "sessao_repetida", 0, sessao="s") for _ in range(2)]
 
-    avaliacao = avaliar(registrados, EstadoFinal(alertas={}, barreiras={}))
+    avaliacao = avaliar(registrados, EstadoFinal(alertas={}, barreiras={}), min_confirmacoes=3)
 
     for categoria in ("aglomerado", "sessao_repetida"):
         resultado = avaliacao.por_categoria[categoria]
@@ -557,7 +586,7 @@ def test_avaliar_ruido_agrupado_conta_como_ruido_em_barreira() -> None:
         alertas={1: _agrupado(10), 2: _agrupado(10), 3: _RUIDO}, barreiras={10: "pendente"}
     )
 
-    avaliacao = avaliar(registrados, estado)
+    avaliacao = avaliar(registrados, estado, min_confirmacoes=3)
 
     assert avaliacao.ruido_em_barreira == 2
     assert avaliacao.por_categoria["ruido"].obtido == 1
@@ -565,7 +594,11 @@ def test_avaliar_ruido_agrupado_conta_como_ruido_em_barreira() -> None:
 
 
 def test_avaliar_categoria_vazia_tem_taxa_indefinida() -> None:
-    avaliacao = avaliar([_registrado(1, "ruido")], EstadoFinal(alertas={1: _RUIDO}, barreiras={}))
+    avaliacao = avaliar(
+        [_registrado(1, "ruido")],
+        EstadoFinal(alertas={1: _RUIDO}, barreiras={}),
+        min_confirmacoes=3,
+    )
 
     assert avaliacao.por_categoria["aglomerado"].esperado == 0
     assert avaliacao.por_categoria["aglomerado"].taxa is None
@@ -594,7 +627,7 @@ def test_ponta_a_ponta_pequena_acerta_100_por_cento_em_cada_categoria(
         srid_calculo=_SRID_CALCULO,
         srid_armazenamento=_SRID_ARMAZENAMENTO,
     )
-    avaliacao = avaliar(registrados, ler_estado_final(conexao))
+    avaliacao = avaliar(registrados, ler_estado_final(conexao), min_confirmacoes=_MIN_CONFIRMACOES)
 
     assert {c: r.taxa for c, r in avaliacao.por_categoria.items()} == {
         categoria: 1.0 for categoria in CATEGORIAS

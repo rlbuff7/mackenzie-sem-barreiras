@@ -96,10 +96,9 @@ VARIACOES_INVALIDAS = (
     "campo_extra",
 )
 
-# Destino final que cada categoria deveria ter (ver `destino_final`).
+# Destino final das categorias avaliadas relato a relato (ver `destino_final`). Os
+# grupos têm o status esperado dado pela regra das sessões (`status_esperado`).
 DESTINO_ESPERADO = {
-    "aglomerado": "barreira_confirmada",
-    "sessao_repetida": "barreira_pendente",
     "ruido": "ruido_isolado",
     "fora_da_area": "descartado:fora_da_area",
     "invalido": "rejeitado_schema",
@@ -609,6 +608,7 @@ class Avaliacao:
     - `barreiras_esperadas`/`barreiras_obtidas`: por status. Esperadas vêm dos grupos
       GERADOS (um grupo reprovado na entrada continua no denominador); obtidas conta
       TODAS as barreiras da simulação no banco.
+    - `barreiras_corretas`: grupos acertados, pelo status esperado.
     - `grupos_incompletos`: grupos com algum relato reprovado no estágio 1 ou ausente
       do banco. Nunca contam como acerto: o grupo gerado não chegou inteiro.
     - `grupos_fragmentados`: grupos completos cujos alertas não terminaram todos numa
@@ -621,6 +621,7 @@ class Avaliacao:
     confusao: dict[str, dict[str, int]]
     barreiras_esperadas: dict[str, int]
     barreiras_obtidas: dict[str, int]
+    barreiras_corretas: dict[str, int]
     grupos_incompletos: int
     grupos_fragmentados: int
     fusoes_indevidas: int
@@ -643,15 +644,33 @@ def destino_final(registrado: ItemRegistrado, estado: EstadoFinal) -> str:
     return alerta.status
 
 
-def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avaliacao:
+def status_esperado(sessoes_distintas: int, min_confirmacoes: int) -> str:
+    """Status que um grupo gerado DEVERIA ter: `confirmada` se tem pelo menos
+    `min_confirmacoes` sessões distintas, `pendente` se não.
+
+    É a regra do estágio 4 (CLAUDE.md §6), escrita de novo aqui de propósito, sem
+    chamar `decidir_status_barreira`: a verdade da simulação não pode depender do
+    código que está sendo avaliado.
+    """
+    return "confirmada" if sessoes_distintas >= min_confirmacoes else "pendente"
+
+
+def avaliar(
+    registrados: Sequence[ItemRegistrado], estado: EstadoFinal, *, min_confirmacoes: int
+) -> Avaliacao:
     """Compara o destino de cada item com a verdade de quem o gerou.
 
-    Grupos (`aglomerado` → `confirmada`, `sessao_repetida` → `pendente`): os grupos
-    são os GERADOS, com todos os seus relatos, aceitos ou não. Um grupo é ACERTO
-    quando todos os seus relatos viraram alertas, todos estão numa MESMA barreira,
-    essa barreira tem o status esperado e não tem nenhum outro alerta (de outro
-    grupo, de ruído ou de fora desta execução). Um relato reprovado na entrada ou
-    ausente do banco torna o grupo incompleto; um grupo inteiro numa barreira de
+    Grupos (`aglomerado`, `sessao_repetida`): o status esperado de cada grupo vem das
+    sessões distintas que ele tem na geração e de `min_confirmacoes`
+    (`status_esperado`). Com os padrões (4 sessões por aglomerado, 1 por sessão
+    repetida, min_confirmacoes = 3): aglomerado → `confirmada`, sessão repetida →
+    `pendente`.
+
+    Os grupos são os GERADOS, com todos os seus relatos, aceitos ou não. Um grupo é
+    ACERTO quando todos os seus relatos viraram alertas, todos estão numa MESMA
+    barreira, essa barreira tem o status esperado e não tem nenhum outro alerta (de
+    outro grupo, de ruído ou de fora desta execução). Um relato reprovado na entrada
+    ou ausente do banco torna o grupo incompleto; um grupo inteiro numa barreira de
     outro grupo é fusão; um grupo espalhado é fragmentação. Nenhum desses é acerto.
 
     Ruído, fora da área e inválidos: acerto por alerta (payload), quando o destino
@@ -679,8 +698,14 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
             membros_da_barreira[alerta.barreira_id].add(alerta_id)
 
     acertos_de_grupo: Counter[str] = Counter()
+    esperadas: Counter[str] = Counter()
+    corretas: Counter[str] = Counter()
     grupos_incompletos = grupos_fragmentados = 0
     for (categoria, _), membros in membros_do_grupo.items():
+        status_do_grupo = status_esperado(
+            len({m.item.payload.get("sessao_id") for m in membros}), min_confirmacoes
+        )
+        esperadas[status_do_grupo] += 1
         alerta_ids = {m.resultado.id for m in membros if m.resultado.aceito}
         if len(alerta_ids) < len(membros) or not alerta_ids <= estado.alertas.keys():
             grupos_incompletos += 1
@@ -690,12 +715,12 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
             grupos_fragmentados += 1
             continue
         (barreira_id,) = barreiras_do_grupo
-        status_esperado = DESTINO_ESPERADO[categoria].removeprefix("barreira_")
         if (
             membros_da_barreira[barreira_id] == alerta_ids
-            and estado.barreiras[barreira_id] == status_esperado
+            and estado.barreiras[barreira_id] == status_do_grupo
         ):
             acertos_de_grupo[categoria] += 1
+            corretas[status_do_grupo] += 1
 
     fusoes_indevidas = sum(
         1
@@ -722,14 +747,12 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
             categoria: {destino: n for destino, n in contagem.items() if n}
             for categoria, contagem in confusao.items()
         },
-        barreiras_esperadas={
-            "confirmada": por_categoria["aglomerado"].esperado,
-            "pendente": por_categoria["sessao_repetida"].esperado,
-        },
+        barreiras_esperadas={status: esperadas[status] for status in ("confirmada", "pendente")},
         barreiras_obtidas={
             "confirmada": status_obtidos["confirmada"],
             "pendente": status_obtidos["pendente"],
         },
+        barreiras_corretas={status: corretas[status] for status in ("confirmada", "pendente")},
         grupos_incompletos=grupos_incompletos,
         grupos_fragmentados=grupos_fragmentados,
         fusoes_indevidas=fusoes_indevidas,
@@ -861,10 +884,6 @@ def formatar_avaliacao(avaliacao: Avaliacao) -> str:
             for categoria in CATEGORIAS
         ],
     )
-    corretas = {
-        "confirmada": avaliacao.por_categoria["aglomerado"].obtido,
-        "pendente": avaliacao.por_categoria["sessao_repetida"].obtido,
-    }
     barreiras = formatar_tabela(
         ["status da barreira", "esperadas", "obtidas", "corretas"],
         [
@@ -872,7 +891,7 @@ def formatar_avaliacao(avaliacao: Avaliacao) -> str:
                 status,
                 avaliacao.barreiras_esperadas[status],
                 avaliacao.barreiras_obtidas[status],
-                corretas[status],
+                avaliacao.barreiras_corretas[status],
             ]
             for status in ("confirmada", "pendente")
         ],
@@ -908,6 +927,7 @@ def avaliacao_para_json(avaliacao: Avaliacao) -> dict[str, Any]:
         "confusao": avaliacao.confusao,
         "barreiras_esperadas": avaliacao.barreiras_esperadas,
         "barreiras_obtidas": avaliacao.barreiras_obtidas,
+        "barreiras_corretas": avaliacao.barreiras_corretas,
         "grupos_incompletos": avaliacao.grupos_incompletos,
         "grupos_fragmentados": avaliacao.grupos_fragmentados,
         "fusoes_indevidas": avaliacao.fusoes_indevidas,
@@ -1062,7 +1082,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     srid_armazenamento=config.srid_armazenamento,
                 )
             if args.avaliar:
-                avaliacao = avaliar(registrados, ler_estado_final(conexao))
+                avaliacao = avaliar(
+                    registrados,
+                    ler_estado_final(conexao),
+                    min_confirmacoes=config.min_confirmacoes,
+                )
             conexao.commit()
     except ValueError as erro:
         print(f"erro: {erro}. Nada foi gravado (rollback).", file=sys.stderr)

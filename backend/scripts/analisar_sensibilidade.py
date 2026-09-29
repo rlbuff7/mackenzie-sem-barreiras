@@ -115,7 +115,9 @@ def analisar_grade(
                     srid_calculo=srid_calculo,
                     srid_armazenamento=srid_armazenamento,
                 )
-                avaliacao = avaliar(registrados, ler_estado_final(conexao))
+                avaliacao = avaliar(
+                    registrados, ler_estado_final(conexao), min_confirmacoes=min_confirmacoes
+                )
             rodadas.append(RodadaSensibilidade(eps_metros, min_pontos, min_confirmacoes, avaliacao))
     return rodadas
 
