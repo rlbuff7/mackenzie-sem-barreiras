@@ -1,0 +1,103 @@
+# Pilha de PRODUÇÃO (coleta em campo): usa as IMAGENS PUBLICADAS no GHCR pelo CI
+# (docs/ci-cd.md), sem build local. Passo a passo em docs/implantacao.md.
+#
+#   TOKEN_ADMIN=<segredo> docker compose -f docker-compose.prod.yml up -d --wait
+#   COMPOSE_FILE=docker-compose.prod.yml ./db/banco.sh migrar     # ou: ./db/banco.sh --prod migrar
+#
+# Nunca colide com a pilha de desenvolvimento (docker-compose.yml): projeto
+# próprio (mackenzie-sem-barreiras-prod), volume próprio (pgdata_prod) e portas
+# próprias (*_PORTA_PROD), todas presas a 127.0.0.1. Para expor por HTTPS sem
+# conta, use o profile `tunel` (Quick Tunnel da Cloudflare):
+#
+#   TOKEN_ADMIN=<segredo> docker compose -f docker-compose.prod.yml --profile tunel up -d --wait
+
+name: mackenzie-sem-barreiras-prod
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:${POSTGRES_PORTA_PROD:-5435}:5432"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    # IMAGEM_TAG: `latest` (padrão) é o que o CI publica a cada merge em main;
+    # um sha curto ou vX.Y.Z fixa uma versão conhecida (docs/implantacao.md).
+    image: ghcr.io/rlbuff7/mackenzie-sem-barreiras-api:${IMAGEM_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORTA: 5432
+      # Obrigatório em produção: sem token, /validacao/executar ficaria aberto.
+      TOKEN_ADMIN: ${TOKEN_ADMIN:?defina TOKEN_ADMIN (segredo do executar) antes de subir a pilha de produção}
+      # Fixo: em produção a documentação interativa nunca é exposta (o valor
+      # do .env de desenvolvimento não vale aqui).
+      EXPOR_DOCS: "false"
+    ports:
+      - "127.0.0.1:${API_PORTA_PROD:-8010}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    # Já buildada com VITE_API_URL=/api (o nginx da imagem encaminha /api/ para
+    # o serviço `api`): mesma origem, sem CORS.
+    image: ghcr.io/rlbuff7/mackenzie-sem-barreiras-frontend:${IMAGEM_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORTA_PROD:-8091}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # HTTPS sem conta (geolocalização do celular exige contexto seguro): Quick
+  # Tunnel da Cloudflare. Só sobe com `--profile tunel`. A URL
+  # https://<aleatório>.trycloudflare.com aparece nos logs (`docker compose -f
+  # docker-compose.prod.yml logs tunel`) e muda a cada subida. Só o frontend é
+  # exposto; a API responde por /api/ na mesma URL. Limites e alternativas:
+  # docs/implantacao.md.
+  tunel:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunel]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://frontend:80
+    depends_on:
+      frontend:
+        condition: service_healthy
+
+volumes:
+  pgdata_prod:
