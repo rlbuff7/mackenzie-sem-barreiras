@@ -167,13 +167,29 @@ export async function enviarAlerta(
   }
 
   if (resposta.status === 201) {
-    const dados = (await resposta.json()) as RespostaAlerta;
-    return { tipo: "sucesso", dados };
+    try {
+      const dados = (await resposta.json()) as RespostaAlerta;
+      return { tipo: "sucesso", dados };
+    } catch {
+      return {
+        tipo: "erro_rede",
+        mensagem:
+          "O servidor confirmou o recebimento, mas a resposta veio num formato inesperado. Recarregue a página para conferir se o alerta foi registrado.",
+      };
+    }
   }
 
   if (resposta.status === 422) {
-    const dados = (await resposta.json()) as RespostaErroValidacao;
-    return { tipo: "erro_validacao", dados };
+    try {
+      const dados = (await resposta.json()) as RespostaErroValidacao;
+      return { tipo: "erro_validacao", dados };
+    } catch {
+      return {
+        tipo: "erro_rede",
+        mensagem:
+          "O servidor recusou o alerta, mas a resposta veio num formato inesperado. Tente novamente.",
+      };
+    }
   }
 
   return {

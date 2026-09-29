@@ -105,26 +105,35 @@ export async function iniciarFormulario(
     botaoEnviar.textContent = "Enviando…";
     statusEnvio.textContent = "Enviando alerta…";
 
-    const resultado = await enviarAlerta(payload);
+    try {
+      const resultado = await enviarAlerta(payload);
 
-    botaoEnviar.disabled = false;
-    botaoEnviar.textContent = rotuloOriginal;
-
-    if (resultado.tipo === "sucesso") {
-      statusEnvio.textContent = resultado.dados.mensagem;
-      formulario.reset();
-      contadorDescricao.textContent = `0 / ${LIMITE_DESCRICAO} caracteres`;
-      pontoAtual = null;
-      controladorMapa.limparSelecao();
-      pontoSelecionadoTexto.textContent =
-        "Alerta enviado. Selecione um novo ponto para reportar outra barreira.";
-    } else if (resultado.tipo === "erro_validacao") {
-      statusEnvio.textContent = formatarMensagemErro(
-        resultado.dados.mensagem,
-        resultado.dados.erros,
-      );
-    } else {
-      statusEnvio.textContent = resultado.mensagem;
+      if (resultado.tipo === "sucesso") {
+        statusEnvio.textContent = resultado.dados.mensagem;
+        formulario.reset();
+        contadorDescricao.textContent = `0 / ${LIMITE_DESCRICAO} caracteres`;
+        pontoAtual = null;
+        controladorMapa.limparSelecao();
+        pontoSelecionadoTexto.textContent =
+          "Alerta enviado. Selecione um novo ponto para reportar outra barreira.";
+      } else if (resultado.tipo === "erro_validacao") {
+        statusEnvio.textContent = formatarMensagemErro(
+          resultado.dados.mensagem,
+          resultado.dados.erros,
+        );
+      } else {
+        statusEnvio.textContent = resultado.mensagem;
+      }
+    } catch (erro) {
+      // enviarAlerta já trata rede e JSON malformado internamente; este catch
+      // é uma rede de segurança para não deixar o botão travado em "Enviando…"
+      // caso surja alguma falha imprevista aqui na própria interface.
+      console.error("Falha inesperada ao processar o envio do alerta:", erro);
+      statusEnvio.textContent =
+        "Não foi possível concluir o envio por um erro inesperado. Tente novamente.";
+    } finally {
+      botaoEnviar.disabled = false;
+      botaoEnviar.textContent = rotuloOriginal;
     }
   });
 
