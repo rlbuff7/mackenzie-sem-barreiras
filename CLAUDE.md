@@ -53,6 +53,10 @@ mackenzie-sem-barreiras/
 ├── .env.example
 ├── CLAUDE.md
 ├── README.md
+├── .github/
+│   ├── workflows/
+│   │   └── ci-cd.yml        # M5.1: testes em todo push; publica imagens no GHCR em push na main
+│   └── actionlint.yaml      # ignora só o aviso de estilo do `if: false` intencional
 ├── scripts/
 │   └── ponta-a-ponta.sh     # M5: pilha ISOLADA (msb-e2e) + teste E2E por HTTP + down -v sempre
 ├── db/
@@ -97,6 +101,7 @@ mackenzie-sem-barreiras/
 │       └── estilos.css
 └── docs/
     ├── api.md                 # Contrato da API (fonte única, backend + frontend)
+    ├── ci-cd.md               # M5.1: o que cada job do GitHub Actions faz e como usá-lo
     ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
     ├── coleta-em-campo.md     # M6: protocolo de coleta em campo
     ├── figuras/               # figuras geradas pelos scripts (funil)
@@ -346,6 +351,8 @@ Trabalhe **um marco por vez**. Não antecipe marcos futuros sem pedido explícit
   *Ao final do M3 o núcleo científico do TCC está demonstrável.*
 - **M4** — frontend com mapa (Leaflet/OSM) e envio de alerta.
 - **M5** — integração ponta a ponta.
+- **M5.1** — CI/CD: todo push roda os testes (banco, backend, frontend, ponta a
+  ponta); push no `main` publica as imagens Docker no GHCR.
 - **M6** — coleta real em campo.
 
 ---
