@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checklist executável ANTES de abrir a coleta em campo (docs/implantacao.md §7,
+# Checklist executável ANTES de abrir a coleta em campo (docs/implantacao.md §4 e §7,
 # docs/coleta-em-campo.md §5). SÓ LÊ E RELATA: nunca apaga nem altera dado, nunca
 # sobe ou derruba nada; quando algo falha, sugere o comando (sem executá-lo).
 #
@@ -8,7 +8,7 @@
 #
 # Confere: TOKEN_ADMIN definido e EXPOR_DOCS=false (lidos do container da API, o
 # que de fato vale), serviços saudáveis, migrations aplicadas, funil real
-# zerado (recebidos = 0), e registra commit + hash dos seeds em
+# zerado (recebidos = 0), e registra commit, hash dos seeds e imagens em execução em
 # backend/scripts/saida/coleta-<data>.txt (não versionado). Se o profile `tunel`
 # estiver ativo, imprime a URL pública lida dos logs do cloudflared.
 # Sai com código 1 se algum item falhou.
@@ -22,6 +22,14 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 set -a; source .env; set +a   # .env é só configuração; o container é a fonte da verdade abaixo
+
+case "${1:-}" in
+    ""|--prod|--dev) ;;
+    *)
+        echo "uso: $0 [--prod|--dev]   (padrão: --prod, a pilha de produção)" >&2
+        exit 2
+        ;;
+esac
 
 if [[ "${1:-}" == "--dev" ]]; then
     arquivo_compose=docker-compose.yml
@@ -48,14 +56,19 @@ info()  { echo "  [info]   $1"; relatorio+=("info   $1"); }
 echo "== preparar-coleta: pilha de $rotulo ($arquivo_compose) =="
 
 echo "1. Configuração efetiva da API (lida do container)"
-if token_no_container="$(docker compose exec -T api printenv TOKEN_ADMIN 2>/dev/null)"; then
+if [[ -z "$(docker compose ps -q api 2>/dev/null)" ]]; then
+    falha "container da API não encontrado (pilha de $rotulo fora do ar?)" \
+          "docker compose -f $arquivo_compose up -d --wait"
+else
+    # printenv sai com 1 quando a variável não existe: isso é "sem token", não "sem container".
+    token_no_container="$(docker compose exec -T api printenv TOKEN_ADMIN 2>/dev/null || true)"
     if [[ -n "${token_no_container//[$'\r\n ']/}" ]]; then
         ok "TOKEN_ADMIN definido na API"
     else
-        falha "TOKEN_ADMIN vazio na API: /validacao/executar ficaria aberto" \
+        falha "TOKEN_ADMIN ausente ou vazio na API: /validacao/executar ficaria aberto" \
               "TOKEN_ADMIN=<segredo> docker compose -f $arquivo_compose up -d"
     fi
-    expor_docs="$(docker compose exec -T api printenv EXPOR_DOCS 2>/dev/null | tr -d '\r\n ' | tr 'A-Z' 'a-z')"
+    expor_docs="$(docker compose exec -T api printenv EXPOR_DOCS 2>/dev/null | tr -d '\r\n ' | tr 'A-Z' 'a-z' || true)"
     if [[ "$expor_docs" == "false" ]]; then
         # A variável sozinha não prova nada se a imagem for anterior à Task 8
         # (não lê EXPOR_DOCS): confere o efeito, /docs tem de dar 404.
@@ -70,9 +83,6 @@ if token_no_container="$(docker compose exec -T api printenv TOKEN_ADMIN 2>/dev/
         falha "EXPOR_DOCS=${expor_docs:-<vazio>} (esperado false)" \
               "defina EXPOR_DOCS=false e recrie a API (docker compose -f $arquivo_compose up -d)"
     fi
-else
-    falha "container da API não encontrado (pilha de $rotulo fora do ar?)" \
-          "docker compose -f $arquivo_compose up -d --wait"
 fi
 
 echo "2. Serviços saudáveis"
@@ -121,9 +131,15 @@ commit="$(git rev-parse --short HEAD 2>/dev/null || echo desconhecido)"
 sujo=""; [[ -n "$(git status --porcelain -- db/seeds db/migrations 2>/dev/null)" ]] && sujo=" (COM alterações não commitadas em db/)"
 hash_seeds="$(cat db/seeds/*.sql | sha256sum | cut -c1-16)"
 info "commit $commit$sujo; sha256 dos seeds $hash_seeds"
+for svc in api frontend; do
+    cid="$(docker compose ps -q "$svc" 2>/dev/null)"
+    if [[ -n "$cid" ]]; then
+        info "imagem $svc: $(docker inspect --format '{{.Config.Image}} {{.Image}}' "$cid")"
+    fi
+done
 
 echo "6. Túnel HTTPS"
-url_tunel="$(docker compose logs tunel 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)"
+url_tunel="$(docker compose logs tunel 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | grep -v '^https://api\.trycloudflare\.com$' | tail -1 || true)"
 if [[ -n "$url_tunel" ]]; then
     info "URL pública do túnel: $url_tunel   (confira no celular; some quando o túnel cair)"
 else
