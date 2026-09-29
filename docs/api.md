@@ -24,8 +24,20 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
     "mensagem": "Alerta recebido. Ele será validado quando outras pessoas confirmarem."}`
   - 201 `{"id": 13, "status": "descartado", "motivo_descarte": "fora_da_area",
     "mensagem": "O ponto está fora da área de estudo do projeto."}`
-  - 422 `{"mensagem": "Alerta inválido.", "erros": [{"campo": "latitude", "erro": "..."}]}`
-    (inclui JSON malformado: `campo: "corpo"`). O payload vai para `alertas_rejeitados`.
+  - 422 `{"mensagem": "Alerta inválido.", "erros": [{"campo": "latitude", "erro": "..."}]}`.
+    O payload vai para `alertas_rejeitados`. Erros do corpo inteiro saem com
+    `campo: "corpo"`:
+    - `"JSON malformado."`: sintaxe inválida, UTF-8 inválido, `NaN`/`Infinity`/
+      `-Infinity`, número que estoura o float (`1e999`) ou aninhamento profundo demais.
+      O corpo cru é guardado como texto (`{"corpo_invalido": "..."}`, até 2000
+      caracteres, U+0000 trocado por U+FFFD).
+    - `"O corpo tem um caractere que não pode ser gravado (U+0000 ou um substituto
+      UTF-16 isolado)."`: JSON válido, mas com `\u0000` ou um `\ud800` isolado em
+      alguma chave ou valor. O corpo inteiro é rejeitado (o caractere não é removido).
+    - `"Deve ser um objeto JSON (chave-valor)."`: JSON válido que não é objeto
+      (`42`, `"texto"`, `[]`, `null`).
+
+    Nenhum corpo dá 500 no estágio 1 (`app/validacao/entrada.py::interpretar_corpo`).
 - `GET /barreiras?bbox=minLon,minLat,maxLon,maxLat[&status=pendente|confirmada][&origem=real|simulacao]`
   `bbox` obrigatório (422 se ausente/malformado/min ≥ max/fora das faixas). `origem`
   padrão `real`. Até `LIMITE_BARREIRAS_POR_CONSULTA` (config, padrão 1000) itens.
