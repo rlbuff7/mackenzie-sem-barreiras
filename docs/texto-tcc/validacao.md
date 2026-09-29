@@ -156,8 +156,10 @@ Cada cluster, identificado pelo par (tipo, número do cluster), vira uma barreir
 O valor provisório é `MIN_CONFIRMACOES = 3` (pendência #4). Contar sessões e não alertas
 é a defesa contra o ataque Sybil mais simples: cinco relatos da mesma pessoa no mesmo
 lugar são uma pessoa só, e uma pessoa sozinha não confirma uma barreira. A sessão é um
-UUID aleatório gerado no navegador e guardado no `localStorage`; o servidor grava só o
-seu `sha256`, nunca o UUID cru nem o endereço IP (D1). A limitação é conhecida: quem limpa
+UUID aleatório gerado no navegador e guardado no `localStorage`. Nos relatos aceitos, o
+servidor grava só o seu `sha256`, nunca o UUID cru; os relatos reprovados no estágio 1
+guardam o corpo recebido inteiro, com o UUID cru, em `alertas_rejeitados.payload`
+(D1, R27). Nenhum relato guarda o endereço IP. A limitação é conhecida: quem limpa
 o navegador ou usa outro aparelho vira uma sessão nova (ver
 [`ameacas-validade.md`](ameacas-validade.md)).
 

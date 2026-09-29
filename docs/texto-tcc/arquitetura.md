@@ -151,13 +151,13 @@ O texto do TCC I fala em "R-Trees"; na defesa, o nome correto do índice criado 
    relato com o `sessao_id`.
 2. **Estágio 1 (schema), na entrada.** O corpo é validado (faixas de latitude e
    longitude, tipo existente e ativo, severidade de 1 a 3, campos extras proibidos). Se
-   reprovado, a API responde 422 com os erros em português, e o corpo vai para
-   `alertas_rejeitados`.
+   reprovado, a API responde 422 com os erros em português, e o corpo recebido vai
+   inteiro para `alertas_rejeitados.payload`, com o `sessao_id` cru (R27).
 3. **Estágio 2 (geofence), na entrada.** O ponto é testado contra a área de estudo. Dentro
    dela, o alerta é gravado como `bruto`; fora, é gravado como `descartado`, com
    `motivo_descarte = 'fora_da_area'`, e a API responde 201 informando o descarte (D4).
-   Nos dois casos o servidor grava apenas `sha256(sessao_id)`, nunca o identificador cru
-   nem o IP (D1).
+   Nos dois casos (relatos aceitos) o servidor grava apenas `sha256(sessao_id)`, nunca o
+   identificador cru nem o IP (D1).
 4. **Estágios 3 e 4, em lote.** `POST /validacao/executar` agrupa os alertas não
    descartados e cria as barreiras, `pendente` ou `confirmada`.
 5. O mapa pede `GET /barreiras` com o retângulo visível e mostra as barreiras com o seu

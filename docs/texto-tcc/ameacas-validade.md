@@ -12,10 +12,12 @@
 
 A promoção a barreira `confirmada` exige `MIN_CONFIRMACOES` **sessões distintas**, e a
 sessão é um UUID aleatório guardado no `localStorage` do navegador, gravado no servidor só
-como `sha256` (D1). A regra barra o caso mais simples, uma pessoa relatando várias vezes
-do mesmo navegador, mas não identifica pessoas: quem limpa os dados do navegador, usa uma
-janela anônima, outro navegador ou outro aparelho ganha uma sessão nova. Uma pessoa com
-três navegadores confirma sozinha uma barreira com o valor atual (3).
+como `sha256` nos relatos aceitos (os reprovados no estágio 1 guardam o corpo recebido
+inteiro, UUID cru incluso, em `alertas_rejeitados.payload`: D1, R27). A regra barra o
+caso mais simples, uma pessoa relatando várias vezes do mesmo navegador, mas não
+identifica pessoas: quem limpa os dados do navegador, usa uma janela anônima, outro
+navegador ou outro aparelho ganha uma sessão nova. Uma pessoa com três navegadores
+confirma sozinha uma barreira com o valor atual (3).
 
 - **Por que não há defesa mais forte:** o sistema não pede cadastro e não grava IP, por
   decisão de privacidade (LGPD). Conta de usuário, limite por IP ou identificação do
