@@ -87,6 +87,11 @@ MAX_TENTATIVAS = 10_000
 
 CATEGORIAS = ("aglomerado", "sessao_repetida", "ruido", "fora_da_area", "invalido")
 
+# Com `sessoes_variaveis`, cada aglomerado sorteia daqui quantas sessões distintas (e
+# quantos relatos, um por sessão) terá. Assim uns grupos passam e outros não passam
+# de min_confirmacoes, e a análise de sensibilidade mostra o efeito real dele.
+SESSOES_VARIAVEIS = (2, 3, 4, 5)
+
 # Cada inválido tem UM defeito só; o resto do payload é válido e dentro da área.
 VARIACOES_INVALIDAS = (
     "latitude_fora_da_faixa",
@@ -137,7 +142,9 @@ class OpcoesGeracao:
     """Quantas unidades de cada população gerar (os padrões são os da CLI).
 
     `aglomerados` e `sessao_repetida` contam GRUPOS; cada grupo tem
-    `pontos_por_aglomerado` relatos. As demais contam relatos (ou payloads).
+    `pontos_por_aglomerado` relatos. Com `sessoes_variaveis`, cada aglomerado tem, em
+    vez disso, k relatos de k sessões distintas, k sorteado de `SESSOES_VARIAVEIS`.
+    As demais contam relatos (ou payloads).
     `dispersao_metros` é o RAIO MÁXIMO em torno do centro do grupo (sorteio uniforme
     no disco): dois relatos do mesmo grupo ficam a no máximo 2 × dispersão.
     """
@@ -150,6 +157,7 @@ class OpcoesGeracao:
     ruido: int = 40
     fora_da_area: int = 30
     invalidos: int = 10
+    sessoes_variaveis: bool = False
 
     def __post_init__(self) -> None:
         for nome in ("aglomerados", "sessao_repetida", "ruido", "fora_da_area", "invalidos"):
@@ -361,7 +369,10 @@ def _gerar_grupos(
         centros_ocupados.append(centro_metros)
         tipo = rng.choice(tipos)
         sessao_do_grupo = _nova_sessao(rng) if categoria == "sessao_repetida" else None
-        for relato in range(opcoes.pontos_por_aglomerado):
+        relatos = opcoes.pontos_por_aglomerado
+        if categoria == "aglomerado" and opcoes.sessoes_variaveis:
+            relatos = rng.choice(SESSOES_VARIAVEIS)
+        for relato in range(relatos):
             desvio_norte_metros, desvio_leste_metros = _ponto_no_disco(rng, opcoes.dispersao_metros)
             norte_metros, leste_metros = (
                 centro_metros[0] + desvio_norte_metros,
@@ -373,10 +384,7 @@ def _gerar_grupos(
                 leste_metros,
                 tipo=tipo,
                 sessao_id=sessao_do_grupo or _nova_sessao(rng),
-                descricao=(
-                    f"SIMULAÇÃO: {nome} {grupo + 1} "
-                    f"(relato {relato + 1} de {opcoes.pontos_por_aglomerado})"
-                ),
+                descricao=f"SIMULAÇÃO: {nome} {grupo + 1} (relato {relato + 1} de {relatos})",
             )
             itens.append(ItemGerado(categoria, grupo, None, norte_metros, leste_metros, payload))
     return itens
@@ -809,15 +817,34 @@ def cabecalho_simulacao(titulo: str) -> str:
     return f"{linha}\n{ROTULO_SIMULACAO.upper()} · {titulo}\n{aviso}\n{linha}"
 
 
-def formatar_geracao(itens: Sequence[ItemGerado], opcoes: OpcoesGeracao, eps_metros: float) -> str:
+def formatar_geracao(
+    itens: Sequence[ItemGerado],
+    opcoes: OpcoesGeracao,
+    *,
+    eps_metros: float,
+    min_confirmacoes: int,
+) -> str:
     contagem = Counter(item.categoria for item in itens)
     grupos = {
         categoria: len({item.grupo for item in itens if item.categoria == categoria})
         for categoria in _CATEGORIAS_DE_GRUPO
     }
+    fixo = opcoes.pontos_por_aglomerado
+    if opcoes.sessoes_variaveis:
+        sessoes_do_aglomerado = "sessões sorteadas de 2 a 5"
+        destino_do_aglomerado = (
+            f"1 barreira por grupo: confirmada se sessões ≥ {min_confirmacoes}, senão pendente"
+        )
+    else:
+        sessoes_do_aglomerado = f"{fixo} sessões"
+        destino_do_aglomerado = (
+            f"1 barreira {status_esperado(fixo, min_confirmacoes)} por grupo "
+            f"({fixo} sessões; min_confirmacoes = {min_confirmacoes})"
+        )
     esperado = {
-        "aglomerado": "1 barreira confirmada por grupo",
-        "sessao_repetida": "1 barreira pendente por grupo",
+        "aglomerado": destino_do_aglomerado,
+        "sessao_repetida": f"1 barreira {status_esperado(1, min_confirmacoes)} por grupo "
+        "(1 sessão)",
         "ruido": "ruido_isolado",
         "fora_da_area": "descartado (fora_da_area)",
         "invalido": "rejeitado no schema (estágio 1)",
@@ -831,13 +858,15 @@ def formatar_geracao(itens: Sequence[ItemGerado], opcoes: OpcoesGeracao, eps_met
             esperado[categoria],
         ]
         for categoria in CATEGORIAS
+        if contagem[categoria]
     ]
     linhas.append(["total", "", sum(contagem.values()), "", ""])
     separacao = FATOR_SEPARACAO * eps_metros
     return (
-        f"[SIMULAÇÃO] Gerado (semente {opcoes.semente}; {opcoes.pontos_por_aglomerado} relatos "
-        f"por grupo, dispersão de até {formatar_metros(opcoes.dispersao_metros)}; separação "
-        f"mínima {formatar_metros(separacao)} = {FATOR_SEPARACAO} × eps de "
+        f"[SIMULAÇÃO] Gerado (semente {opcoes.semente}; aglomerados com "
+        f"{sessoes_do_aglomerado}, sessões repetidas com {fixo} relatos; dispersão de até "
+        f"{formatar_metros(opcoes.dispersao_metros)}; separação mínima "
+        f"{formatar_metros(separacao)} = {FATOR_SEPARACAO} × eps de "
         f"{formatar_metros(eps_metros)})\n"
         + formatar_tabela(
             ["categoria", "grupos", "enviados", "unidade", "destino esperado"], linhas
@@ -952,9 +981,12 @@ def caminho_para_exibir(caminho: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def adicionar_opcoes_de_geracao(parser: argparse.ArgumentParser) -> None:
-    """Opções de `OpcoesGeracao`, compartilhadas com `analisar_sensibilidade`."""
-    padrao = OpcoesGeracao()
+def adicionar_opcoes_de_geracao(
+    parser: argparse.ArgumentParser, padrao: OpcoesGeracao | None = None
+) -> None:
+    """Opções de `OpcoesGeracao`, compartilhadas com `analisar_sensibilidade`, que
+    passa os seus próprios padrões em `padrao`."""
+    padrao = padrao or OpcoesGeracao()
     grupo = parser.add_argument_group("geração (SIMULAÇÃO)")
     grupo.add_argument(
         "--semente",
@@ -1000,6 +1032,13 @@ def adicionar_opcoes_de_geracao(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=padrao.invalidos,
         help="payloads malformados (padrão: %(default)s)",
+    )
+    grupo.add_argument(
+        "--sessoes-variaveis",
+        action=argparse.BooleanOptionalAction,
+        default=padrao.sessoes_variaveis,
+        help="cada aglomerado sorteia de 2 a 5 sessões distintas, em vez de "
+        f"--pontos-por-aglomerado (padrão: {'sim' if padrao.sessoes_variaveis else 'não'})",
     )
 
 
@@ -1098,11 +1137,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             + ", ".join(f"{n} de {tabela}" for tabela, n in apagados.items())
             + "\n"
         )
-    print(formatar_geracao(itens, opcoes, config.dbscan_eps_metros) + "\n")
+    print(
+        formatar_geracao(
+            itens,
+            opcoes,
+            eps_metros=config.dbscan_eps_metros,
+            min_confirmacoes=config.min_confirmacoes,
+        )
+        + "\n"
+    )
     print(formatar_entrada(registrados) + "\n")
     if resumo is not None:
         print(formatar_execucao(resumo) + "\n")
-        if opcoes.pontos_por_aglomerado < config.min_confirmacoes:
+        if not opcoes.sessoes_variaveis and opcoes.pontos_por_aglomerado < config.min_confirmacoes:
             print(
                 f"AVISO: {opcoes.pontos_por_aglomerado} relatos por aglomerado com "
                 f"MIN_CONFIRMACOES = {config.min_confirmacoes}: nenhum aglomerado pode ser "

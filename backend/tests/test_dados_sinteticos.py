@@ -29,6 +29,7 @@ from scripts.gerar_dados_sinteticos import (
     RAIO_FORA_MAXIMO_METROS,
     RAIO_FORA_MINIMO_METROS,
     RAIO_GERACAO_METROS,
+    SESSOES_VARIAVEIS,
     VARIACOES_INVALIDAS,
     EstadoAlerta,
     EstadoFinal,
@@ -146,6 +147,24 @@ def test_aglomerado_tem_uma_sessao_por_relato_e_sessao_repetida_uma_so() -> None
             assert len(relatos) == 4
             assert len({r.payload["sessao_id"] for r in relatos}) == sessoes_esperadas
             assert len({r.payload["tipo"] for r in relatos}) == 1
+
+
+def test_sessoes_variaveis_sorteiam_de_2_a_5_relatos_de_sessoes_distintas() -> None:
+    """Com `sessoes_variaveis`, cada aglomerado tem k relatos de k sessões distintas,
+    k sorteado de SESSOES_VARIAVEIS pela semente; a sessão repetida não muda."""
+    opcoes = OpcoesGeracao(sessoes_variaveis=True)
+    itens = _gerar(opcoes)
+    assert itens == _gerar(opcoes)
+
+    tamanhos = Counter(i.grupo for i in _da_categoria(itens, "aglomerado"))
+    assert set(tamanhos.values()) <= set(SESSOES_VARIAVEIS)
+    assert len(set(tamanhos.values())) >= 3  # 20 grupos: o sorteio varia de verdade
+    for grupo in tamanhos:
+        relatos = [i for i in _da_categoria(itens, "aglomerado") if i.grupo == grupo]
+        assert len({r.payload["sessao_id"] for r in relatos}) == len(relatos)
+    assert Counter(i.grupo for i in _da_categoria(itens, "sessao_repetida")) == {
+        grupo: 4 for grupo in range(5)
+    }
 
 
 def test_ruido_e_fora_da_area_tem_sessoes_distintas_e_sem_grupo() -> None:
