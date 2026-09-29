@@ -505,7 +505,7 @@ def test_avaliar_barreira_com_alerta_estranho_ao_grupo_nao_conta_acerto() -> Non
     assert avaliar(registrados, estado).por_categoria["aglomerado"].obtido == 0
 
 
-def test_avaliar_alerta_ausente_do_banco_conta_como_grupo_fragmentado() -> None:
+def test_avaliar_alerta_ausente_do_banco_conta_como_grupo_incompleto() -> None:
     """Um alerta do grupo sumiu do banco (apagado por fora entre a geração e a
     leitura): o grupo não foi recuperado inteiro, e a avaliação não quebra."""
     registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2)]
@@ -514,8 +514,41 @@ def test_avaliar_alerta_ausente_do_banco_conta_como_grupo_fragmentado() -> None:
     avaliacao = avaliar(registrados, estado)
 
     assert avaliacao.por_categoria["aglomerado"].obtido == 0
-    assert avaliacao.grupos_fragmentados == 1
+    assert (avaliacao.grupos_incompletos, avaliacao.grupos_fragmentados) == (1, 0)
     assert avaliacao.confusao["aglomerado"] == {"barreira_confirmada": 1, "ausente": 1}
+
+
+def test_avaliar_grupo_com_um_relato_reprovado_na_entrada_nao_conta_acerto() -> None:
+    """Três relatos aceitos numa barreira só deles, com o status certo, e um quarto
+    reprovado no estágio 1: o grupo gerado tinha quatro relatos, então não foi
+    recuperado inteiro. Contar só os aceitos daria 1 de 1 = 100%."""
+    registrados = [_registrado(i, "aglomerado", 0) for i in (1, 2, 3)]
+    registrados.append(_registrado(None, "aglomerado", 0))
+    estado = EstadoFinal(
+        alertas={i: _agrupado(10) for i in (1, 2, 3)}, barreiras={10: "confirmada"}
+    )
+
+    avaliacao = avaliar(registrados, estado)
+
+    resultado = avaliacao.por_categoria["aglomerado"]
+    assert (resultado.esperado, resultado.obtido) == (1, 0)
+    assert (avaliacao.grupos_incompletos, avaliacao.grupos_fragmentados) == (1, 0)
+
+
+def test_avaliar_grupo_todo_reprovado_continua_no_esperado() -> None:
+    """Um grupo inteiro reprovado na entrada não some do denominador: é um grupo
+    gerado que não virou barreira."""
+    registrados = [_registrado(None, "aglomerado", 0) for _ in range(4)]
+    registrados += [_registrado(None, "sessao_repetida", 0) for _ in range(2)]
+
+    avaliacao = avaliar(registrados, EstadoFinal(alertas={}, barreiras={}))
+
+    for categoria in ("aglomerado", "sessao_repetida"):
+        resultado = avaliacao.por_categoria[categoria]
+        assert (resultado.esperado, resultado.obtido) == (1, 0)
+    assert avaliacao.barreiras_esperadas == {"confirmada": 1, "pendente": 1}
+    assert avaliacao.barreiras_obtidas == {"confirmada": 0, "pendente": 0}
+    assert avaliacao.grupos_incompletos == 2
 
 
 def test_avaliar_ruido_agrupado_conta_como_ruido_em_barreira() -> None:

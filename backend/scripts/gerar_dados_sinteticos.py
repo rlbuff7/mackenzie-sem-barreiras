@@ -606,10 +606,13 @@ class Avaliacao:
     - `por_categoria`: acertos por categoria (ver `avaliar`).
     - `confusao`: categoria → destino final → contagem, em alertas (payloads para
       os inválidos). Só aparecem os destinos com contagem > 0.
-    - `barreiras_esperadas`/`barreiras_obtidas`: por status. Obtidas conta TODAS as
-      barreiras da simulação no banco.
-    - `grupos_fragmentados`: grupos cujos alertas não terminaram todos numa mesma
-      barreira (divididos entre barreiras, ou em parte/todo ruído).
+    - `barreiras_esperadas`/`barreiras_obtidas`: por status. Esperadas vêm dos grupos
+      GERADOS (um grupo reprovado na entrada continua no denominador); obtidas conta
+      TODAS as barreiras da simulação no banco.
+    - `grupos_incompletos`: grupos com algum relato reprovado no estágio 1 ou ausente
+      do banco. Nunca contam como acerto: o grupo gerado não chegou inteiro.
+    - `grupos_fragmentados`: grupos completos cujos alertas não terminaram todos numa
+      mesma barreira (divididos entre barreiras, ou em parte/todo ruído).
     - `fusoes_indevidas`: barreiras com alertas de mais de um grupo verdadeiro.
     - `ruido_em_barreira`: alertas de ruído que acabaram agrupados numa barreira.
     """
@@ -618,6 +621,7 @@ class Avaliacao:
     confusao: dict[str, dict[str, int]]
     barreiras_esperadas: dict[str, int]
     barreiras_obtidas: dict[str, int]
+    grupos_incompletos: int
     grupos_fragmentados: int
     fusoes_indevidas: int
     ruido_em_barreira: int
@@ -642,11 +646,13 @@ def destino_final(registrado: ItemRegistrado, estado: EstadoFinal) -> str:
 def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avaliacao:
     """Compara o destino de cada item com a verdade de quem o gerou.
 
-    Grupos (`aglomerado` → `confirmada`, `sessao_repetida` → `pendente`): um grupo
-    é ACERTO quando todos os seus alertas estão numa MESMA barreira, essa barreira
-    tem o status esperado e não tem nenhum outro alerta (de outro grupo, de ruído ou
-    de fora desta execução). Um grupo inteiro numa barreira de outro grupo é fusão,
-    não acerto; um grupo espalhado é fragmentação.
+    Grupos (`aglomerado` → `confirmada`, `sessao_repetida` → `pendente`): os grupos
+    são os GERADOS, com todos os seus relatos, aceitos ou não. Um grupo é ACERTO
+    quando todos os seus relatos viraram alertas, todos estão numa MESMA barreira,
+    essa barreira tem o status esperado e não tem nenhum outro alerta (de outro
+    grupo, de ruído ou de fora desta execução). Um relato reprovado na entrada ou
+    ausente do banco torna o grupo incompleto; um grupo inteiro numa barreira de
+    outro grupo é fusão; um grupo espalhado é fragmentação. Nenhum desses é acerto.
 
     Ruído, fora da área e inválidos: acerto por alerta (payload), quando o destino
     final é o esperado (`DESTINO_ESPERADO`).
@@ -657,14 +663,15 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
     for registrado, destino in zip(registrados, destinos, strict=True):
         confusao[registrado.item.categoria][destino] += 1
 
-    alertas_do_grupo: dict[tuple[str, int], set[int]] = defaultdict(set)
+    membros_do_grupo: dict[tuple[str, int], list[ItemRegistrado]] = defaultdict(list)
     grupo_do_alerta: dict[int, tuple[str, int]] = {}
     for registrado in registrados:
         item = registrado.item
-        if item.grupo is not None and registrado.resultado.aceito:
+        if item.grupo is not None:
             chave = (item.categoria, item.grupo)
-            alertas_do_grupo[chave].add(registrado.resultado.id)
-            grupo_do_alerta[registrado.resultado.id] = chave
+            membros_do_grupo[chave].append(registrado)
+            if registrado.resultado.aceito:
+                grupo_do_alerta[registrado.resultado.id] = chave
 
     membros_da_barreira: dict[int, set[int]] = defaultdict(set)
     for alerta_id, alerta in estado.alertas.items():
@@ -672,12 +679,13 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
             membros_da_barreira[alerta.barreira_id].add(alerta_id)
 
     acertos_de_grupo: Counter[str] = Counter()
-    grupos_fragmentados = 0
-    for (categoria, _), alerta_ids in alertas_do_grupo.items():
-        # Alerta ausente do snapshot (apagado por fora) conta como fora de barreira.
-        barreiras_do_grupo = {
-            estado.alertas[i].barreira_id if i in estado.alertas else None for i in alerta_ids
-        }
+    grupos_incompletos = grupos_fragmentados = 0
+    for (categoria, _), membros in membros_do_grupo.items():
+        alerta_ids = {m.resultado.id for m in membros if m.resultado.aceito}
+        if len(alerta_ids) < len(membros) or not alerta_ids <= estado.alertas.keys():
+            grupos_incompletos += 1
+            continue
+        barreiras_do_grupo = {estado.alertas[i].barreira_id for i in alerta_ids}
         if len(barreiras_do_grupo) != 1 or None in barreiras_do_grupo:
             grupos_fragmentados += 1
             continue
@@ -698,7 +706,7 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
     por_categoria: dict[str, ResultadoCategoria] = {}
     for categoria in CATEGORIAS:
         if categoria in _CATEGORIAS_DE_GRUPO:
-            esperado = sum(1 for chave in alertas_do_grupo if chave[0] == categoria)
+            esperado = sum(1 for chave in membros_do_grupo if chave[0] == categoria)
             obtido = acertos_de_grupo[categoria]
             unidade = "grupos"
         else:
@@ -722,6 +730,7 @@ def avaliar(registrados: Sequence[ItemRegistrado], estado: EstadoFinal) -> Avali
             "confirmada": status_obtidos["confirmada"],
             "pendente": status_obtidos["pendente"],
         },
+        grupos_incompletos=grupos_incompletos,
         grupos_fragmentados=grupos_fragmentados,
         fusoes_indevidas=fusoes_indevidas,
         ruido_em_barreira=sum(
@@ -882,9 +891,10 @@ def formatar_avaliacao(avaliacao: Avaliacao) -> str:
             "[SIMULAÇÃO] Barreiras esperadas × obtidas (aglomerado → confirmada, "
             "sessão repetida → pendente)\n" + barreiras,
             "[SIMULAÇÃO] Taxa de acerto por categoria\n" + acertos,
-            f"[SIMULAÇÃO] Grupos fragmentados: {avaliacao.grupos_fragmentados} · fusões "
-            f"indevidas: {avaliacao.fusoes_indevidas} · ruído classificado como barreira: "
-            f"{avaliacao.ruido_em_barreira}",
+            "[SIMULAÇÃO] Grupos incompletos (relato reprovado na entrada ou ausente): "
+            f"{avaliacao.grupos_incompletos} · fragmentados: {avaliacao.grupos_fragmentados}"
+            f" · fusões indevidas: {avaliacao.fusoes_indevidas} · ruído classificado como "
+            f"barreira: {avaliacao.ruido_em_barreira}",
         ]
     )
 
@@ -898,6 +908,7 @@ def avaliacao_para_json(avaliacao: Avaliacao) -> dict[str, Any]:
         "confusao": avaliacao.confusao,
         "barreiras_esperadas": avaliacao.barreiras_esperadas,
         "barreiras_obtidas": avaliacao.barreiras_obtidas,
+        "grupos_incompletos": avaliacao.grupos_incompletos,
         "grupos_fragmentados": avaliacao.grupos_fragmentados,
         "fusoes_indevidas": avaliacao.fusoes_indevidas,
         "ruido_em_barreira": avaliacao.ruido_em_barreira,
