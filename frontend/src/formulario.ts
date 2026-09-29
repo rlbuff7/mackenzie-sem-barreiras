@@ -91,21 +91,23 @@ export async function iniciarFormulario(
       return;
     }
 
-    const payload: PayloadAlerta = {
-      latitude: pontoAtual.latitude,
-      longitude: pontoAtual.longitude,
-      tipo: campoTipo.value,
-      severidade: lerSeveridadeSelecionada(formulario),
-      descricao: campoDescricao.value.trim() === "" ? null : campoDescricao.value,
-      sessao_id: obterSessaoId(),
-    };
-
+    const ponto = pontoAtual;
     botaoEnviar.disabled = true;
     const rotuloOriginal = botaoEnviar.textContent;
     botaoEnviar.textContent = "Enviando…";
     statusEnvio.textContent = "Enviando alerta…";
 
     try {
+      // Dentro do `try`: se a sessão não puder ser criada, a falha aparece na
+      // mensagem do `catch` e o botão volta, em vez de o envio sumir calado.
+      const payload: PayloadAlerta = {
+        latitude: ponto.latitude,
+        longitude: ponto.longitude,
+        tipo: campoTipo.value,
+        severidade: lerSeveridadeSelecionada(formulario),
+        descricao: campoDescricao.value.trim() === "" ? null : campoDescricao.value,
+        sessao_id: obterSessaoId(),
+      };
       const resultado = await enviarAlerta(payload);
 
       if (resultado.tipo === "sucesso") {
@@ -127,7 +129,8 @@ export async function iniciarFormulario(
     } catch (erro) {
       // enviarAlerta já trata rede e JSON malformado internamente; este catch
       // é uma rede de segurança para não deixar o botão travado em "Enviando…"
-      // caso surja alguma falha imprevista aqui na própria interface.
+      // caso surja alguma falha imprevista aqui na própria interface (inclusive
+      // ao criar o identificador da sessão).
       console.error("Falha inesperada ao processar o envio do alerta:", erro);
       statusEnvio.textContent =
         "Não foi possível concluir o envio por um erro inesperado. Tente novamente.";
