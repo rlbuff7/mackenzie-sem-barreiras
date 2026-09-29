@@ -10,6 +10,11 @@ Uso (a partir de `backend/`; o matplotlib fica num grupo opcional):
     uv sync --group analise
     uv run python -m scripts.gerar_figura_funil --origem simulacao
 
+    # dados reais da coleta, do banco da pilha de PRODUÇÃO (docs/coleta-em-campo.md §6);
+    # a porta vale só para este comando (sem export)
+    POSTGRES_PORTA=${POSTGRES_PORTA_PROD:-5435} \\
+        uv run python -m scripts.gerar_figura_funil --origem real
+
 Decisões da figura:
 
 - **Unidade explícita.** O funil do pôster do TCC I trocava de unidade no meio
@@ -24,6 +29,10 @@ Decisões da figura:
   subtítulo diz que os dados são sintéticos. O rodapé avisa que as proporções entre as
   barras (inválidos, fora da área, ruído, grupos) foram escolhidas no gerador: são o
   cenário de CONTROLE, não taxas observadas, e não podem ser lidas como tais.
+- **De onde vieram os números.** O script imprime de que banco lê
+  (`host:porta/banco`, da configuração) e, com `origem=real`, o rodapé da figura diz
+  "dados de <host:porta/banco>": a pilha de desenvolvimento e a de produção têm bancos
+  com o mesmo nome, e só a porta diz qual deles produziu a figura da coleta.
 - **Cor = estágio.** Um só tom de azul, do claro (entrada) ao escuro (estágio 4),
   validado como rampa ordinal pelo validador da skill `dataviz`. "Agrupados" e
   "barreiras formadas" são o mesmo estágio 3 contado em duas unidades, e por isso
@@ -41,7 +50,7 @@ from typing import Any
 
 import psycopg
 
-from app.config import obter_configuracoes
+from app.config import Configuracoes, obter_configuracoes
 from app.validacao.entrada import ORIGENS_VALIDAS
 from app.validacao.estatisticas import calcular_estatisticas
 from scripts.gerar_dados_sinteticos import formatar_metros
@@ -93,8 +102,16 @@ def _instante(texto_iso: str) -> str:
     return datetime.fromisoformat(texto_iso).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def montar_funil(estatisticas: dict[str, Any]) -> Funil:
+def descrever_banco(config: Configuracoes) -> str:
+    """`host:porta/banco` de onde a configuração lê (nunca usuário nem senha)."""
+    return f"{config.postgres_host}:{config.postgres_porta}/{config.postgres_db}"
+
+
+def montar_funil(estatisticas: dict[str, Any], banco: str | None = None) -> Funil:
     """Transforma a resposta de `calcular_estatisticas` nos estágios da figura.
+
+    `banco` é o `host:porta/banco` de onde as estatísticas foram lidas
+    (`descrever_banco`); com `origem=real`, ele vai para o rodapé da figura.
 
     Alertas: recebidos → passaram do schema (estágio 1) → dentro da área
     (estágio 2) → agrupados em clusters (estágio 3). Barreiras: formadas pelos
@@ -221,6 +238,8 @@ def montar_funil(estatisticas: dict[str, Any]) -> Funil:
         f"Fonte: GET /validacao/estatisticas?origem={origem}, consultado em "
         f"{_instante(estatisticas['gerado_em'])}."
     )
+    if origem == "real" and banco is not None:
+        fonte += f" Dados de {banco}."
     return Funil(origem, titulo, subtitulo, legenda, fonte, estagios, aviso)
 
 
@@ -528,12 +547,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     config = obter_configuracoes()
+    banco = descrever_banco(config)
+    print(f"Lendo as estatísticas de origem={args.origem} do banco {banco}.", flush=True)
     with psycopg.connect(config.conninfo) as conexao:
         estatisticas = calcular_estatisticas(conexao, origem=args.origem)
         conexao.rollback()  # só leitura
 
     try:
-        funil = montar_funil(estatisticas)
+        funil = montar_funil(estatisticas, banco)
     except OrigemNaoProcessada as erro:
         print(f"erro: {erro}", file=sys.stderr)
         return 1
@@ -552,6 +573,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if funil.aviso is not None:
         print(funil.aviso)
     print(funil.legenda)
+    print(funil.fonte)
     for caminho in caminhos:
         print(f"Figura: {caminho.relative_to(_RAIZ_REPO)}")
     return 0

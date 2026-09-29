@@ -16,7 +16,7 @@ import psycopg
 import pytest
 from psycopg import sql
 
-from app.config import obter_configuracoes
+from app.config import Configuracoes, obter_configuracoes
 from app.validacao.entrada import ResultadoEntrada, registrar_alerta
 from app.validacao.estatisticas import ROTULOS_POR_ORIGEM
 from app.validacao.geofence import ponto_dentro_da_area
@@ -58,7 +58,7 @@ from scripts.gerar_dados_sinteticos import (
     registrar_populacoes,
     sufixo_das_opcoes,
 )
-from scripts.gerar_figura_funil import OrigemNaoProcessada, montar_funil
+from scripts.gerar_figura_funil import OrigemNaoProcessada, descrever_banco, montar_funil
 from tests.auxiliares import inserir_alerta
 
 # G8: valores de teste explícitos, sem passar por Configuracoes.
@@ -1133,3 +1133,34 @@ def test_funil_dos_dados_reais_nao_leva_o_aviso_do_gerador() -> None:
     funil = montar_funil(_estatisticas(parametros, origem="real"))
 
     assert funil.aviso is None
+
+
+def test_funil_dos_dados_reais_diz_no_rodape_de_que_banco_leu() -> None:
+    """Dev e produção têm bancos com o mesmo nome: a porta diz qual produziu a figura."""
+    parametros = {"eps_metros": 8.0, "min_pontos": 2, "min_confirmacoes": 3}
+
+    funil = montar_funil(_estatisticas(parametros, origem="real"), "localhost:5435/msb")
+
+    assert funil.fonte.endswith("Dados de localhost:5435/msb.")
+
+
+def test_funil_da_simulacao_nao_muda_o_rodape_com_o_banco() -> None:
+    parametros = {"eps_metros": 8.0, "min_pontos": 2, "min_confirmacoes": 3}
+
+    funil = montar_funil(_estatisticas(parametros), "localhost:5434/msb")
+
+    assert "Dados de" not in funil.fonte
+
+
+def test_descrever_banco_usa_a_porta_do_ambiente_sem_usuario_nem_senha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`POSTGRES_PORTA` no ambiente vale sobre o `POSTGRES_PORTA_HOST` do `.env`: é
+    assim que a figura da coleta lê o banco da pilha de produção (5435)."""
+    monkeypatch.setenv("POSTGRES_PORTA", "5435")
+    config = Configuracoes()
+
+    descricao = descrever_banco(config)
+
+    # Exatamente host:porta/banco: nada de usuário nem senha na figura.
+    assert descricao == f"{config.postgres_host}:5435/{config.postgres_db}"
