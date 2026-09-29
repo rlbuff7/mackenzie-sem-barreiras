@@ -118,6 +118,10 @@ _CATEGORIAS_DE_GRUPO = ("aglomerado", "sessao_repetida")
 _RAIZ_REPO = Path(__file__).resolve().parent.parent.parent
 DIRETORIO_SAIDA = Path(__file__).resolve().parent / "saida"
 
+# (norte, leste) em METROS no plano local centrado no campus: é assim que o gerador
+# sorteia e compara posições. Só `deslocar_ponto` converte para graus.
+PontoMetros = tuple[float, float]
+
 # Elipsoide WGS84 (o do SRID 4326).
 _SEMIEIXO_MAIOR_METROS = 6_378_137.0
 _ACHATAMENTO = 1 / 298.257223563
@@ -228,8 +232,8 @@ def gerar_populacoes(
     tipos = list(tipos)
     separacao_metros = FATOR_SEPARACAO * eps_metros
 
-    centros_ocupados: list[tuple[float, float]] = []
-    pontos_por_tipo: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    centros_ocupados: list[PontoMetros] = []
+    pontos_por_tipo: dict[str, list[PontoMetros]] = defaultdict(list)
     itens: list[ItemGerado] = []
 
     for categoria, quantidade in (
@@ -269,21 +273,21 @@ def _gerador(semente: int, categoria: str) -> random.Random:
     return random.Random(f"{semente}/{categoria}")
 
 
-def _ponto_no_disco(rng: random.Random, raio_metros: float) -> tuple[float, float]:
+def _ponto_no_disco(rng: random.Random, raio_metros: float) -> PontoMetros:
     """(norte, leste) uniforme na ÁREA do disco: raio = R·√u, não R·u (que
     concentraria os pontos perto do centro)."""
-    raio = raio_metros * math.sqrt(rng.random())
+    raio_sorteado_metros = raio_metros * math.sqrt(rng.random())
     angulo = rng.uniform(0, 2 * math.pi)
-    return raio * math.cos(angulo), raio * math.sin(angulo)
+    return raio_sorteado_metros * math.cos(angulo), raio_sorteado_metros * math.sin(angulo)
 
 
 def _ponto_no_anel(
     rng: random.Random, raio_minimo_metros: float, raio_maximo_metros: float
-) -> tuple[float, float]:
+) -> PontoMetros:
     """(norte, leste) uniforme na área do anel entre os dois raios."""
-    raio = math.sqrt(rng.uniform(raio_minimo_metros**2, raio_maximo_metros**2))
+    raio_sorteado_metros = math.sqrt(rng.uniform(raio_minimo_metros**2, raio_maximo_metros**2))
     angulo = rng.uniform(0, 2 * math.pi)
-    return raio * math.cos(angulo), raio * math.sin(angulo)
+    return raio_sorteado_metros * math.cos(angulo), raio_sorteado_metros * math.sin(angulo)
 
 
 def _nova_sessao(rng: random.Random) -> str:
@@ -292,17 +296,17 @@ def _nova_sessao(rng: random.Random) -> str:
 
 
 def _longe_de_todos(
-    ponto: tuple[float, float], outros: Sequence[tuple[float, float]], distancia_metros: float
+    ponto: PontoMetros, outros: Sequence[PontoMetros], distancia_metros: float
 ) -> bool:
     return all(math.hypot(ponto[0] - n, ponto[1] - e) >= distancia_metros for n, e in outros)
 
 
 def _sortear_longe(
     rng: random.Random,
-    outros: Sequence[tuple[float, float]],
+    outros: Sequence[PontoMetros],
     separacao_metros: float,
     descricao: str,
-) -> tuple[float, float]:
+) -> PontoMetros:
     """Amostragem com rejeição: sorteia no disco de geração até achar um ponto a
     pelo menos `separacao_metros` de todos os `outros`."""
     for _ in range(MAX_TENTATIVAS):
@@ -345,26 +349,29 @@ def _gerar_grupos(
     *,
     tipos: list[str],
     separacao_metros: float,
-    centros_ocupados: list[tuple[float, float]],
+    centros_ocupados: list[PontoMetros],
 ) -> list[ItemGerado]:
     """Grupos de `aglomerado` (uma sessão por relato) ou de `sessao_repetida` (uma
     sessão para o grupo todo). Acrescenta os centros sorteados a `centros_ocupados`."""
     nome = "aglomerado" if categoria == "aglomerado" else "sessão repetida"
     itens: list[ItemGerado] = []
     for grupo in range(quantidade):
-        centro = _sortear_longe(
+        centro_metros = _sortear_longe(
             rng, centros_ocupados, separacao_metros, f"o centro do grupo {grupo + 1} ({nome})"
         )
-        centros_ocupados.append(centro)
+        centros_ocupados.append(centro_metros)
         tipo = rng.choice(tipos)
         sessao_do_grupo = _nova_sessao(rng) if categoria == "sessao_repetida" else None
         for relato in range(opcoes.pontos_por_aglomerado):
-            desvio_norte, desvio_leste = _ponto_no_disco(rng, opcoes.dispersao_metros)
-            norte, leste = centro[0] + desvio_norte, centro[1] + desvio_leste
+            desvio_norte_metros, desvio_leste_metros = _ponto_no_disco(rng, opcoes.dispersao_metros)
+            norte_metros, leste_metros = (
+                centro_metros[0] + desvio_norte_metros,
+                centro_metros[1] + desvio_leste_metros,
+            )
             payload = _payload(
                 rng,
-                norte,
-                leste,
+                norte_metros,
+                leste_metros,
                 tipo=tipo,
                 sessao_id=sessao_do_grupo or _nova_sessao(rng),
                 descricao=(
@@ -372,7 +379,7 @@ def _gerar_grupos(
                     f"(relato {relato + 1} de {opcoes.pontos_por_aglomerado})"
                 ),
             )
-            itens.append(ItemGerado(categoria, grupo, None, norte, leste, payload))
+            itens.append(ItemGerado(categoria, grupo, None, norte_metros, leste_metros, payload))
     return itens
 
 
@@ -382,26 +389,26 @@ def _gerar_ruido(
     *,
     tipos: list[str],
     separacao_metros: float,
-    pontos_por_tipo: dict[str, list[tuple[float, float]]],
+    pontos_por_tipo: dict[str, list[PontoMetros]],
 ) -> list[ItemGerado]:
     """Relatos isolados: cada um a ≥ `separacao_metros` de qualquer outro ponto
     gerado do MESMO tipo (o DBSCAN agrupa por tipo, então só esses importam)."""
     itens: list[ItemGerado] = []
     for indice in range(quantidade):
         tipo = rng.choice(tipos)
-        norte, leste = _sortear_longe(
+        norte_metros, leste_metros = _sortear_longe(
             rng, pontos_por_tipo[tipo], separacao_metros, f"o ruído {indice + 1} ({tipo})"
         )
-        pontos_por_tipo[tipo].append((norte, leste))
+        pontos_por_tipo[tipo].append((norte_metros, leste_metros))
         payload = _payload(
             rng,
-            norte,
-            leste,
+            norte_metros,
+            leste_metros,
             tipo=tipo,
             sessao_id=_nova_sessao(rng),
             descricao="SIMULAÇÃO: ruído isolado",
         )
-        itens.append(ItemGerado("ruido", None, None, norte, leste, payload))
+        itens.append(ItemGerado("ruido", None, None, norte_metros, leste_metros, payload))
     return itens
 
 
@@ -412,16 +419,18 @@ def _gerar_fora_da_area(
     itens: list[ItemGerado] = []
     for _ in range(opcoes.fora_da_area):
         tipo = rng.choice(tipos)
-        norte, leste = _ponto_no_anel(rng, RAIO_FORA_MINIMO_METROS, RAIO_FORA_MAXIMO_METROS)
+        norte_metros, leste_metros = _ponto_no_anel(
+            rng, RAIO_FORA_MINIMO_METROS, RAIO_FORA_MAXIMO_METROS
+        )
         payload = _payload(
             rng,
-            norte,
-            leste,
+            norte_metros,
+            leste_metros,
             tipo=tipo,
             sessao_id=_nova_sessao(rng),
             descricao="SIMULAÇÃO: fora da área",
         )
-        itens.append(ItemGerado("fora_da_area", None, None, norte, leste, payload))
+        itens.append(ItemGerado("fora_da_area", None, None, norte_metros, leste_metros, payload))
     return itens
 
 
@@ -434,11 +443,11 @@ def _gerar_invalidos(
     itens: list[ItemGerado] = []
     for indice in range(opcoes.invalidos):
         variacao = VARIACOES_INVALIDAS[indice % len(VARIACOES_INVALIDAS)]
-        norte, leste = _ponto_no_disco(rng, RAIO_GERACAO_METROS)
+        norte_metros, leste_metros = _ponto_no_disco(rng, RAIO_GERACAO_METROS)
         payload = _payload(
             rng,
-            norte,
-            leste,
+            norte_metros,
+            leste_metros,
             tipo=rng.choice(tipos),
             sessao_id=_nova_sessao(rng),
             descricao=f"SIMULAÇÃO: inválido ({variacao})",
@@ -453,7 +462,7 @@ def _gerar_invalidos(
             del payload["sessao_id"]
         elif variacao == "campo_extra":
             payload["campo_extra"] = "campo que não existe no contrato"
-        itens.append(ItemGerado("invalido", None, variacao, norte, leste, payload))
+        itens.append(ItemGerado("invalido", None, variacao, norte_metros, leste_metros, payload))
     return itens
 
 

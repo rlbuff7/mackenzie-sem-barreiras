@@ -605,12 +605,14 @@ def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:
     a primeira fusão possível é a menor distância entre grupos do mesmo tipo; o
     primeiro ruído a ganhar vizinho é o mais próximo de outro ponto do mesmo tipo."""
 
-    def item(categoria: str, grupo: int | None, norte: float, tipo: str = "degrau") -> ItemGerado:
+    def item(
+        categoria: str, grupo: int | None, norte_metros: float, tipo: str = "degrau"
+    ) -> ItemGerado:
         return ItemGerado(
             categoria=categoria,
             grupo=grupo,
             variacao=None,
-            norte_metros=norte,
+            norte_metros=norte_metros,
             leste_metros=0.0,
             payload={"tipo": tipo},
         )

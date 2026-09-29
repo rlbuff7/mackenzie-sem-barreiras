@@ -182,13 +182,19 @@ def _maior_salto_da_arvore(pontos: Sequence[ItemGerado]) -> float:
     mantém todos os pontos ligados por vizinhos de vizinhos."""
     if len(pontos) < 2:
         return 0.0
-    ate_a_arvore = {i: _distancia_metros(pontos[0], pontos[i]) for i in range(1, len(pontos))}
+    distancias_ate_a_arvore_metros = {
+        i: _distancia_metros(pontos[0], pontos[i]) for i in range(1, len(pontos))
+    }
     maior_salto_metros = 0.0
-    while ate_a_arvore:
-        mais_perto = min(ate_a_arvore, key=ate_a_arvore.__getitem__)
-        maior_salto_metros = max(maior_salto_metros, ate_a_arvore.pop(mais_perto))
-        for i in ate_a_arvore:
-            ate_a_arvore[i] = min(ate_a_arvore[i], _distancia_metros(pontos[mais_perto], pontos[i]))
+    while distancias_ate_a_arvore_metros:
+        mais_perto = min(
+            distancias_ate_a_arvore_metros, key=distancias_ate_a_arvore_metros.__getitem__
+        )
+        maior_salto_metros = max(maior_salto_metros, distancias_ate_a_arvore_metros.pop(mais_perto))
+        for i in distancias_ate_a_arvore_metros:
+            distancias_ate_a_arvore_metros[i] = min(
+                distancias_ate_a_arvore_metros[i], _distancia_metros(pontos[mais_perto], pontos[i])
+            )
     return maior_salto_metros
 
 
