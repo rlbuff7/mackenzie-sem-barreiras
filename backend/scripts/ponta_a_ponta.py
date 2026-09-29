@@ -241,6 +241,16 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             f"HTTP {resposta.status_code}: {resposta.text}",
         )
 
+        # Com TOKEN_ADMIN definido (D7), sem o header a execução é recusada.
+        # Prova que o token chegou ao container da API, e não só a este script.
+        if token_admin:
+            resposta = pedir(api, "POST", "/validacao/executar", params={"origem": "real"})
+            v.checar(
+                "POST /validacao/executar sem X-Token-Admin é recusado (401, TOKEN_ADMIN definido)",
+                resposta.status_code == 401,
+                f"HTTP {resposta.status_code}: {resposta.text}",
+            )
+
         # Estágios 3 e 4 em lote.
         cabecalhos = {"X-Token-Admin": token_admin} if token_admin else {}
         resposta = pedir(

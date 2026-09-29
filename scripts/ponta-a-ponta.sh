@@ -19,9 +19,35 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 
-# Projeto e portas isolados. Exportados ANTES de qualquer `docker compose` ou
-# `./db/banco.sh`: são variáveis de ambiente do shell, então têm prioridade
-# sobre o .env na interpolação do docker-compose.yml (${VAR:-padrão}).
+# O teste em Python (backend/scripts/ponta_a_ponta.py) lê TOKEN_ADMIN do
+# ambiente: com o token definido, POST /validacao/executar exige o header
+# X-Token-Admin (D7), e sem o .env carregado aqui o teste recebia 401. Quem
+# chamou o script tem prioridade sobre o .env, a mesma regra que o docker
+# compose usa na interpolação: `TOKEN_ADMIN=... ./scripts/ponta-a-ponta.sh`
+# testa com um token temporário sem editar o .env (o docker-compose.yml passa
+# esse mesmo TOKEN_ADMIN para o container da API).
+carregar_env_sem_sobrescrever_o_shell() {
+    local nome
+    local -A do_shell=()
+    while IFS= read -r nome; do
+        if [[ -v "$nome" ]]; then
+            do_shell["$nome"]="${!nome}"
+        fi
+    done < <(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' .env)
+    set -a
+    # shellcheck source=/dev/null
+    source .env
+    set +a
+    for nome in "${!do_shell[@]}"; do
+        export "$nome=${do_shell[$nome]}"
+    done
+}
+carregar_env_sem_sobrescrever_o_shell
+
+# Projeto e portas isolados. Exportados DEPOIS do .env (para valerem sempre) e
+# ANTES de qualquer `docker compose` ou `./db/banco.sh`: são variáveis de
+# ambiente do shell, então têm prioridade sobre o .env na interpolação do
+# docker-compose.yml (${VAR:-padrão}).
 # COMPOSE_PROJECT_NAME não existe no .env, então sobrevive ao `source .env`
 # que db/banco.sh faz internamente — e `docker compose exec` (usado por
 # banco.sh) identifica o container pelo nome do SERVIÇO dentro do projeto,
