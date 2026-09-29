@@ -90,6 +90,13 @@ services:
     depends_on:
       api:
         condition: service_healthy
+        # O nginx resolve "api" (proxy /api/) só ao subir. Se a api for recriada
+        # (novo build, mudança no .env), ela pode voltar com outro IP e o proxy
+        # ficaria apontando para o antigo (502) até o frontend reiniciar:
+        # `restart: true` faz o `docker compose up` reiniciar o frontend junto
+        # (conferido). Recriar SÓ a api (`docker compose up -d api`) não
+        # reinicia o frontend: use `docker compose up -d` sem nome de serviço.
+        restart: true
     healthcheck:
       # nginx:alpine não tem curl; usa o wget do busybox, que já vem na
       # imagem. "127.0.0.1", não "localhost": nosso nginx.conf substitui o
