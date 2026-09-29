@@ -3,8 +3,9 @@
 SIMULAÇÃO: todo dado gerado aqui é sintético e gravado com `origem='simulacao'` (G10).
 
 Cobre `scripts/gerar_dados_sinteticos.py` (geração determinística, distâncias mínimas,
-geofence, inválidos, limpeza, avaliação e um teste de eficácia ponta a ponta) e
-`scripts/analisar_sensibilidade.py` (cada rodada da grade é desfeita).
+geofence, inválidos, limpeza, avaliação e um teste de eficácia ponta a ponta),
+`scripts/analisar_sensibilidade.py` (cada rodada da grade é desfeita) e a montagem dos
+estágios de `scripts/gerar_figura_funil.py` (sem testar o matplotlib).
 """
 
 import math
@@ -41,6 +42,7 @@ from scripts.gerar_dados_sinteticos import (
     limpar_simulacao,
     registrar_populacoes,
 )
+from scripts.gerar_figura_funil import OrigemNaoProcessada, montar_funil
 from tests.auxiliares import inserir_alerta
 
 # G8: valores de teste explícitos, sem passar por Configuracoes.
@@ -638,3 +640,47 @@ def test_distancias_de_referencia_sem_pares_ficam_indefinidas() -> None:
     assert referencias.maior_salto_dentro_de_grupo_metros is None
     assert referencias.menor_entre_grupos_metros is None
     assert referencias.menor_do_ruido_metros is None
+
+
+# --- figura do funil (só a montagem dos estágios; o matplotlib não é testado) ---
+
+
+def _estatisticas(parametros: dict | None) -> dict:
+    return {
+        "origem": "simulacao",
+        "rotulo": "SIMULAÇÃO — dados sintéticos",
+        "alertas": {
+            "recebidos": 180,
+            "rejeitados_schema": 10,
+            "descartados": {"fora_da_area": 30},
+            "aguardando_pipeline": 0,
+            "ruido_isolado": 40,
+            "agrupados": 100,
+        },
+        "barreiras": {"total": 25, "pendentes": 5, "confirmadas": 20},
+        "parametros": parametros,
+        "executado_em": None if parametros is None else "2026-09-29T03:00:00+00:00",
+        "gerado_em": "2026-09-29T03:05:00+00:00",
+    }
+
+
+def test_funil_recusa_origem_nunca_processada() -> None:
+    with pytest.raises(OrigemNaoProcessada, match="rode o pipeline antes"):
+        montar_funil(_estatisticas(None))
+
+
+def test_funil_monta_os_estagios_com_a_unidade_de_cada_um() -> None:
+    funil = montar_funil(_estatisticas({"eps_metros": 8.0, "min_pontos": 2, "min_confirmacoes": 3}))
+
+    assert [(e.valor, e.unidade) for e in funil.estagios] == [
+        (180, "alertas"),
+        (170, "alertas"),
+        (140, "alertas"),
+        (100, "alertas"),
+        (25, "barreiras"),
+        (20, "barreiras"),
+    ]
+    assert "SIMULAÇÃO" in funil.titulo
+    assert "eps = 8 m" in funil.legenda
+    assert "min_confirmacoes = 3" in funil.legenda
+    assert "2026-09-29" in funil.legenda
