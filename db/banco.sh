@@ -54,9 +54,11 @@ set -a; source .env; set +a
 #   --prod   pilha de produção (docker-compose.prod.yml); recusado em preparar-teste
 #   --teste  banco "${POSTGRES_DB}_teste" (resolvido aqui, com o .env), útil em backup/restaurar
 opcao_teste=0
+opcao_prod=0
+banco_alvo_do_ambiente="${BANCO_ALVO:-}"   # antes do source do .env
 while [[ "${1:-}" == --prod || "${1:-}" == --teste ]]; do
     case "$1" in
-        --prod)  export COMPOSE_FILE=docker-compose.prod.yml ;;
+        --prod)  export COMPOSE_FILE=docker-compose.prod.yml; opcao_prod=1 ;;
         --teste) opcao_teste=1 ;;
     esac
     shift
@@ -71,6 +73,24 @@ fi
 # já definido na chamada (ex.: BANCO_ALVO="${POSTGRES_DB}_teste" ./db/banco.sh migrar).
 BANCO_ALVO="${BANCO_ALVO:-$POSTGRES_DB}"
 [[ $opcao_teste -eq 1 ]] && BANCO_ALVO="${POSTGRES_DB}_teste"
+
+# As mensagens de recusa sugerem um comando para copiar e colar: ele TEM de
+# carregar as mesmas opções (--prod, --teste, BANCO_ALVO=) que apontaram para o
+# alvo atual, senão o comando copiado atingiria outro banco (o principal!).
+prefixo_do_comando() {
+    local p=""
+    [[ -n "$banco_alvo_do_ambiente" && $opcao_teste -eq 0 ]] && p="BANCO_ALVO=$banco_alvo_do_ambiente "
+    p+="$0 "
+    [[ $opcao_prod -eq 1 || "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]] && p+="--prod "
+    [[ $opcao_teste -eq 1 ]] && p+="--teste "
+    printf '%s' "$p"
+}
+
+descrever_alvo() {
+    local pilha="desenvolvimento"
+    [[ "${COMPOSE_FILE:-}" == *docker-compose.prod.yml ]] && pilha="PRODUÇÃO"
+    echo "Alvo: banco $BANCO_ALVO da pilha de $pilha"
+}
 
 psql_no_container() {
     docker compose exec -T db \
@@ -155,7 +175,8 @@ zerar_real() {
         {
             echo "nada foi apagado. Isto apaga TODOS os dados reais (origem='real') e"
             echo "é só para ANTES da coleta em campo (docs/coleta-em-campo.md §5)."
-            echo "Para apagar: ./db/banco.sh zerar-real --sim-apagar-dados-reais"
+            descrever_alvo
+            echo "Para apagar: $(prefixo_do_comando)zerar-real --sim-apagar-dados-reais"
         } >&2
         exit 1
     fi
@@ -211,7 +232,8 @@ restaurar() {
     if [[ "$confirmacao" != "--sim-substituir-banco" ]]; then
         {
             echo "nada foi feito. Isto SUBSTITUI o banco $BANCO_ALVO pelo conteúdo de $arquivo."
-            echo "Para continuar: $0 restaurar $arquivo --sim-substituir-banco"
+            descrever_alvo
+            echo "Para continuar: $(prefixo_do_comando)restaurar $arquivo --sim-substituir-banco"
         } >&2
         exit 1
     fi
@@ -235,28 +257,50 @@ restaurar() {
 
     local existe
     existe="$("${admin[@]}" -At -c "SELECT 1 FROM pg_database WHERE datname = '${BANCO_ALVO}'")"
+    local afastado=0
+    # Desfaz a troca se algo falhar ou o script for interrompido (Ctrl-C, kill)
+    # entre os dois RENAME; se nem isso der, imprime o SQL para recuperar à mão.
+    reverter_troca() {
+        trap - INT TERM ERR
+        set +e
+        echo >&2
+        echo "interrompido durante a troca: tentando devolver o banco original..." >&2
+        local ok=1
+        if [[ $afastado -eq 1 ]]; then
+            "${admin[@]}" -c "ALTER DATABASE ${BANCO_ALVO} RENAME TO ${temporario}_perdido" > /dev/null 2>&1 || true
+            "${admin[@]}" -c "ALTER DATABASE ${antigo} RENAME TO ${BANCO_ALVO}" \
+                -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" > /dev/null 2>&1 || ok=0
+        fi
+        if [[ $ok -eq 1 ]]; then
+            "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" > /dev/null 2>&1 || true
+            "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario}_perdido WITH (FORCE)" > /dev/null 2>&1 || true
+            echo "erro: troca desfeita; $BANCO_ALVO é o banco original." >&2
+        else
+            {
+                echo "NÃO consegui devolver o banco. Seus dados estão em ${antigo}. Para recuperar à mão, no psql do banco postgres:"
+                echo "  ALTER DATABASE ${BANCO_ALVO} RENAME TO ${BANCO_ALVO}_descartado;  -- só se ${BANCO_ALVO} existir"
+                echo "  ALTER DATABASE ${antigo} RENAME TO ${BANCO_ALVO};"
+                echo "  ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true;"
+            } >&2
+        fi
+        exit 1
+    }
+    trap reverter_troca INT TERM ERR
     if [[ -n "$existe" ]]; then
         # Impede novas conexões e derruba as atuais, para o RENAME não falhar.
-        if ! "${admin[@]}" \
-                -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS false" \
-                -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${BANCO_ALVO}' AND pid <> pg_backend_pid()" \
-                -c "ALTER DATABASE ${BANCO_ALVO} RENAME TO ${antigo}" > /dev/null; then
-            "${admin[@]}" -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" > /dev/null 2>&1 || true
-            "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" || true
-            echo "erro: não consegui afastar o banco atual; $BANCO_ALVO não foi tocado." >&2
-            exit 1
-        fi
+        "${admin[@]}" \
+            -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS false" \
+            -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${BANCO_ALVO}' AND pid <> pg_backend_pid()" \
+            -c "ALTER DATABASE ${BANCO_ALVO} RENAME TO ${antigo}" > /dev/null
+        afastado=1
     fi
-    if ! "${admin[@]}" -c "ALTER DATABASE ${temporario} RENAME TO ${BANCO_ALVO}"; then
-        if [[ -n "$existe" ]]; then
-            "${admin[@]}" -c "ALTER DATABASE ${antigo} RENAME TO ${BANCO_ALVO}" \
-                -c "ALTER DATABASE ${BANCO_ALVO} ALLOW_CONNECTIONS true" || true
-        fi
-        "${admin[@]}" -c "DROP DATABASE IF EXISTS ${temporario} WITH (FORCE)" || true
-        echo "erro: a troca de nomes falhou; o banco original foi devolvido." >&2
-        exit 1
+    "${admin[@]}" -c "ALTER DATABASE ${temporario} RENAME TO ${BANCO_ALVO}"
+    trap - INT TERM ERR
+    if [[ -n "$existe" ]] && ! "${admin[@]}" -c "DROP DATABASE IF EXISTS ${antigo} WITH (FORCE)"; then
+        echo "restaurado: $BANCO_ALVO. Mas o banco antigo ficou como ${antigo}; apague depois com:" >&2
+        echo "  $(prefixo_do_comando)psql   e   DROP DATABASE ${antigo} WITH (FORCE);  (no banco postgres)" >&2
+        exit 0
     fi
-    [[ -n "$existe" ]] && "${admin[@]}" -c "DROP DATABASE IF EXISTS ${antigo} WITH (FORCE)"
     echo "restaurado: $BANCO_ALVO"
 }
 
