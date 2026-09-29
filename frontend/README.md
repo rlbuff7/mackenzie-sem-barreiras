@@ -35,7 +35,7 @@ segredo aqui, é só a URL da API).
 
 ```
 src/
-├── main.ts        # ponto de entrada: liga mapa, formulário e os botões de seleção de ponto
+├── main.ts        # ponto de entrada: liga mapa, formulário, botões de seleção de ponto e a lista acessível de barreiras
 ├── api.ts         # cliente HTTP tipado, um a um com o Contrato da API (docs/api.md)
 ├── sessao.ts       # sessao_id (UUID) em localStorage, com fallback em memória
 ├── mapa.ts         # mapa Leaflet: tiles OSM, área de estudo, barreiras por bbox, seleção de ponto
@@ -66,10 +66,13 @@ src/
 - **Contraste AA** conferido nas combinações de texto/fundo e nas cores dos marcadores
   contra o fundo branco do próprio marcador (não contra o mapa, cuja cor de fundo
   varia).
-- **Limitação conhecida:** os marcadores de barreira no mapa não entram na ordem de
-  tabulação (`marker.options.keyboard = false`). Com até `LIMITE_BARREIRAS_POR_CONSULTA`
-  (1000) marcadores na mesma bbox, colocar todos no Tab tornaria a navegação por
-  teclado impraticável. Quem usa teclado ainda consegue reportar uma barreira nova
-  (o fluxo principal) inteiramente sem mouse; só a inspeção individual de marcadores
-  existentes depende de apontar (mouse/toque). Ver seção "Concerns" do relatório da
-  tarefa para o registro completo dessa decisão.
+- **Marcadores fora do Tab, com alternativa em lista.** Os marcadores de barreira no
+  mapa não entram na ordem de tabulação (`marker.options.keyboard = false`): com até
+  `LIMITE_BARREIRAS_POR_CONSULTA` (1000) marcadores na mesma bbox, colocar todos no Tab
+  tornaria a navegação por teclado impraticável. Em troca, a seção "Barreiras nesta área
+  do mapa" mostra a mesma coleção como uma lista de botões reais — cada um focável,
+  trazendo tipo, status por extenso e confirmações, e que ao ser ativado centraliza o
+  mapa na barreira e abre o popup dela. A contagem da lista fica numa região
+  `aria-live` própria, atualizada só quando o número muda (para não repetir o anúncio a
+  cada recarga sem novidade); a lista em si não é `aria-live` (evita ler dezenas de
+  itens inteiros a cada atualização).
