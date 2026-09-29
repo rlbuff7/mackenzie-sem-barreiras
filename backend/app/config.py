@@ -54,9 +54,10 @@ class Configuracoes(BaseSettings):
     # NoDecode: sem isso, pydantic-settings tentaria decodificar CORS_ORIGENS
     # como JSON antes do validador abaixo rodar, e uma string separada por
     # vírgula não é JSON válido.
-    cors_origens: Annotated[list[str], NoDecode] = Field(
-        default=["http://localhost:5173", "http://localhost:8080"]
-    )
+    # Só o servidor de dev do Vite (porta 5173) precisa de CORS: o frontend em
+    # container fala com a API pela MESMA origem, via proxy do nginx
+    # (`frontend/nginx.conf`, R19) — não entra aqui.
+    cors_origens: Annotated[list[str], NoDecode] = Field(default=["http://localhost:5173"])
     # Header X-Token-Admin exigido por POST /validacao/executar (D7). Vazio =
     # sem proteção, só em desenvolvimento.
     token_admin: str = ""
