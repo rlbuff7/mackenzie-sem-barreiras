@@ -47,6 +47,11 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `"SIMULAÇÃO — dados sintéticos"`; RFC 7946 §6.1 permite membros extras); cada
   Feature: geometry Point e
   `properties: {"id", "tipo", "tipo_nome", "confirmacoes", "status", "atualizado_em"}`.
+  `atualizado_em` é o instante da **última execução do pipeline** daquela origem (o
+  mesmo `executado_em` das estatísticas), não a data do primeiro relato nem da última
+  confirmação: cada execução apaga e recria as barreiras da origem (D6), então os `id`
+  e as datas das barreiras mudam a cada execução. Não guarde o `id` de uma barreira
+  entre execuções.
 - `POST /validacao/executar?origem=real|simulacao` (padrão `real`; D7) →
   200 `{"origem", "rotulo", "alertas_processados", "agrupados", "ruido_isolado",
   "barreiras_pendentes", "barreiras_confirmadas", "parametros": {"eps_metros",
