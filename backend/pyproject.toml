@@ -11,6 +11,11 @@ dependencies = [
 ]
 
 [dependency-groups]
+# Só para a figura do funil (scripts/gerar_figura_funil.py): `uv sync --group analise`.
+# Não é grupo padrão, então não entra no `uv sync` comum nem na imagem da API.
+analise = [
+    "matplotlib",
+]
 dev = [
     "pytest",
     "httpx",
