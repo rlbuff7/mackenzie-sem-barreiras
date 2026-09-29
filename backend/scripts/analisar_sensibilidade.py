@@ -74,6 +74,7 @@ from scripts.gerar_dados_sinteticos import (
     formatar_tabela,
     formatar_taxa,
     gerar_populacoes,
+    grupos_fora_de_alcance,
     ler_estado_final,
     ler_tipos_ativos,
     limpar_simulacao,
@@ -422,6 +423,23 @@ def gravar_csv(caminho: Path, linhas: Sequence[dict[str, object]]) -> None:
         escritor.writerows(linhas)
 
 
+def cabecalho_do_controle(*, min_pontos: int, fusoes_zero_por_construcao: bool) -> str:
+    """Título da tabela do controle. Só diz que as fusões são 0 por construção quando
+    a dispersão garante isso (`grupos_fora_de_alcance`); senão, houve AVISO antes, e
+    as fusões do controle passam a ser uma medida de verdade."""
+    nota = (
+        "As fusões do controle são 0 por construção (grupos a ≥ 4 × eps da config): não "
+        "medem robustez."
+        if fusoes_zero_por_construcao
+        else "Com esta dispersão, as fusões do controle ficam sem essa garantia (ver o "
+        "AVISO acima): aqui elas medem algo."
+    )
+    return (
+        f"[SIMULAÇÃO] CONTROLE: grade eps × min_confirmacoes (minpoints = {min_pontos}), "
+        f"cada rodada num savepoint desfeito. {nota}"
+    )
+
+
 def formatar_grade_controle(rodadas: Sequence[RodadaSensibilidade], config: Configuracoes) -> str:
     linhas = []
     for rodada in rodadas:
@@ -601,11 +619,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(aviso + "\n")
     referencias = distancias_de_referencia(itens)
     print(formatar_referencias(referencias, min_pontos=config.dbscan_min_points) + "\n")
+    fusoes_zero_por_construcao = grupos_fora_de_alcance(
+        opcoes, eps_metros=config.dbscan_eps_metros, eps_maximo_metros=max(GRADE_EPS_METROS)
+    )
     print(
-        "[SIMULAÇÃO] CONTROLE: grade eps × min_confirmacoes (minpoints = "
-        f"{config.dbscan_min_points}), cada rodada num savepoint desfeito. As "
-        "fusões do controle são 0 por construção (grupos a ≥ 4 × eps da config): não medem "
-        "robustez.\n" + formatar_grade_controle(rodadas, config) + "\n"
+        cabecalho_do_controle(
+            min_pontos=config.dbscan_min_points,
+            fusoes_zero_por_construcao=fusoes_zero_por_construcao,
+        )
+        + "\n"
+        + formatar_grade_controle(rodadas, config)
+        + "\n"
     )
     if opcoes.sequencias:
         print(

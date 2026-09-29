@@ -226,6 +226,16 @@ class ItemGerado:
     sequencia: int | None = None
 
 
+def grupos_fora_de_alcance(
+    opcoes: OpcoesGeracao, *, eps_metros: float, eps_maximo_metros: float | None = None
+) -> bool:
+    """True se relatos de grupos de controle vizinhos ficam SEMPRE fora do alcance do
+    maior eps usado: 4 × eps − 2 × dispersão > eps máximo (com um eps só, dispersão
+    < 1,5 × eps). Só então as "0 fusões" do controle são garantidas por construção."""
+    alcance_metros = max(eps_metros, eps_maximo_metros or eps_metros)
+    return FATOR_SEPARACAO * eps_metros - 2 * opcoes.dispersao_metros > alcance_metros
+
+
 def avisos_de_geracao(
     opcoes: OpcoesGeracao,
     *,
@@ -245,7 +255,9 @@ def avisos_de_geracao(
     avisos = []
     alcance_metros = max(eps_metros, eps_maximo_metros or eps_metros)
     menor_entre_grupos_metros = FATOR_SEPARACAO * eps_metros - 2 * opcoes.dispersao_metros
-    if menor_entre_grupos_metros <= alcance_metros:
+    if not grupos_fora_de_alcance(
+        opcoes, eps_metros=eps_metros, eps_maximo_metros=eps_maximo_metros
+    ):
         limite_metros = (FATOR_SEPARACAO * eps_metros - alcance_metros) / 2
         avisos.append(
             f"AVISO: com dispersão de até {formatar_metros(opcoes.dispersao_metros)}, relatos "

@@ -25,6 +25,7 @@ from scripts.analisar_sensibilidade import (
     PADRAO_SENSIBILIDADE,
     DistanciasDeReferencia,
     analisar_grade,
+    cabecalho_do_controle,
     distancias_de_referencia,
     executar_analise,
     formatar_referencias,
@@ -49,6 +50,7 @@ from scripts.gerar_dados_sinteticos import (
     avisos_de_geracao,
     deslocar_ponto,
     gerar_populacoes,
+    grupos_fora_de_alcance,
     ler_estado_final,
     ler_tipos_ativos,
     limpar_simulacao,
@@ -354,6 +356,25 @@ def test_avisa_quando_a_dispersao_poe_grupos_vizinhos_ao_alcance(
     )
 
     assert any("dispersão" in aviso for aviso in avisos) is avisa
+    garantido = grupos_fora_de_alcance(
+        OpcoesGeracao(dispersao_metros=dispersao_metros),
+        eps_metros=_EPS_METROS,
+        eps_maximo_metros=eps_maximo_metros,
+    )
+    assert garantido is not avisa
+
+
+@pytest.mark.parametrize("garantido", [True, False])
+def test_cabecalho_do_controle_so_diz_0_fusoes_por_construcao_quando_a_dispersao_garante(
+    garantido: bool,
+) -> None:
+    """Com a dispersão que quebra a separação (houve AVISO), não se pode dizer que as
+    fusões do controle são 0 por construção."""
+    texto = cabecalho_do_controle(min_pontos=2, fusoes_zero_por_construcao=garantido)
+
+    assert "minpoints = 2" in texto
+    assert ("0 por construção" in texto) is garantido
+    assert ("sem essa garantia" in texto) is not garantido
 
 
 def test_avisa_quando_nenhum_aglomerado_pode_ser_confirmado() -> None:
