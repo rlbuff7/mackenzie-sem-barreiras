@@ -16,6 +16,7 @@ anotada aqui.
 | 4 | **Calibração** do DBSCAN e da promoção | `eps` = 8 m, `minpoints` = 2, `MIN_CONFIRMACOES` = 3 | `.env` | Aberto. Subsídio (SIMULAÇÃO): `backend/scripts/saida/sensibilidade-semente-42.csv`, gerado por `uv run python -m scripts.analisar_sensibilidade`; leitura abaixo |
 | 5 | **Divisão de responsabilidades** entre os integrantes | — | — | Aberto |
 | 6 | **Atributos quantitativos** da barreira (altura do degrau, inclinação da rampa) | Não modelados. Só `tipo` + `severidade` (1–3). | — | Aberto (novo) |
+| 7 | **O estágio 3 conta alertas, não sessões.** O `minpoints` do DBSCAN conta ALERTAS: uma sessão que reporta duas vezes no mesmo lugar já forma um cluster, e o que seria ruído vira uma barreira `pendente`, visível no mapa. Relatos repetidos de uma sessão também podem ligar (encadear) dois clusters reais. A regra das sessões distintas (anti-Sybil) só protege a PROMOÇÃO (estágio 4). | Como está: `minpoints` conta alertas; só `confirmacoes` conta sessões distintas | `app/validacao/clustering.py`, `app/validacao/pipeline.py` | Aberto (novo, revisão final de 29/09/2026). **Não implementar sem decisão** |
 
 Observações:
 
@@ -64,6 +65,13 @@ Observações:
     separa mais de 20% das barreiras a 15 m.
   - Calibrar com a orientadora e com o erro de GPS medido na coleta de campo (M6), não
     com estes números.
+- **#7, opções** (decisão metodológica da orientadora; nada implementado):
+  (a) manter e discutir no texto: a barreira de uma sessão só nunca passa de
+  `pendente`, e o protocolo pede "uma barreira, um relato por sessão"
+  (`coleta-em-campo.md` §2); (b) deduplicar por sessão antes do DBSCAN (um ponto por
+  sessão e tipo numa vizinhança, ou `minpoints` contado em sessões distintas), o que
+  muda o núcleo do método e pede nova rodada dos testes e da análise de sensibilidade.
+  A simulação já exercita o caso: a população `sessao_repetida` (D8) vira `pendente`.
 - **#6** vem da Etapa 1 da metodologia do artigo ("atributos quantificáveis
   (altura do degrau, ângulo da rampa)"). Se entrar no escopo, cabe como coluna
   opcional sem quebrar o pipeline.

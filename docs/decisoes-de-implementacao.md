@@ -10,7 +10,7 @@ para que as referências continuem rastreáveis sem esses arquivos.
 Outros identificadores já têm definição no próprio repositório:
 
 - **M0–M6, M5.1**: marcos de desenvolvimento ([`CLAUDE.md`](../CLAUDE.md) §8).
-- **#1–#6**: pendências com a orientadora; **T1–T6**: pendências técnicas da equipe
+- **#1–#7**: pendências com a orientadora; **T1–T6**: pendências técnicas da equipe
   ([`decisoes-pendentes.md`](decisoes-pendentes.md)).
 - **§N**: seção do `CLAUDE.md` ou do documento em que a referência aparece.
 

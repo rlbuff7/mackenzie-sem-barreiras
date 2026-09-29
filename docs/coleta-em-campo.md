@@ -7,7 +7,7 @@ pendências formais: [`decisoes-pendentes.md`](decisoes-pendentes.md).
 
 Convenção usada abaixo: cada item traz uma marca —
 
-- **[ORIENTADORA]** — depende de decisão da orientadora (`decisoes-pendentes.md` #1–#6).
+- **[ORIENTADORA]** — depende de decisão da orientadora (`decisoes-pendentes.md` #1–#7).
   Enquanto pendente, a coleta usa o valor provisório já no `.env`/nos seeds.
 - **[EQUIPE]** — depende só de decisão interna dos integrantes (ex.: hospedagem, HTTPS).
   Nada aqui exige a orientadora, mas também nada está decidido ainda.
@@ -280,6 +280,7 @@ Resumo — detalhe completo em [`decisoes-pendentes.md`](decisoes-pendentes.md):
 | 4 | Calibração do DBSCAN/promoção | A coleta usa os valores provisórios do `.env` (eps 8 m, `min_confirmacoes` 3). Ver §7 para o procedimento de recalibração depois. |
 | 5 | Divisão de responsabilidades | Sem decisão formal, combinar informalmente entre os integrantes presentes no dia (checklist §5). |
 | 6 | Atributos quantitativos (altura do degrau, ângulo da rampa) | Não coletados nesta rodada — só `tipo` + `severidade` (1–3). Se entrar no escopo depois, é uma migration nova, não uma reinterpretação dos dados já coletados. |
+| 7 | Estágio 3 contar alertas, não sessões | A coleta roda com a regra atual. A boa prática "uma barreira, um relato por sessão" (§2) reduz o efeito; os dados brutos ficam guardados, então uma deduplicação decidida depois pode ser aplicada reexecutando o pipeline. |
 
 Nenhum destes bloqueia tecnicamente a coleta: todos têm um valor provisório já
 implementado e configurável. Eles bloqueiam a **defesa** do trabalho, que precisa
