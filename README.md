@@ -11,7 +11,7 @@ valida os reports antes de persistir em banco espacial (PostgreSQL + PostGIS).
 Contexto completo do projeto, decisões e convenções: [CLAUDE.md](CLAUDE.md).
 Pontos em aberto: [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md).
 Significado dos identificadores citados no código e nos commits (G1–G12, D1–D8,
-R1–R26, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
+R1–R27, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
 
 ## Estrutura
 
@@ -24,6 +24,15 @@ docs/        contrato da API, decisões pendentes, protocolo de coleta e docs/ac
 ```
 
 Árvore completa e comentada: [`CLAUDE.md` §3](CLAUDE.md).
+
+## Onde clonar o projeto
+
+Clone dentro do sistema de arquivos do WSL (por exemplo `~/projetos`), nunca sob
+`/mnt/c` nem dentro do OneDrive: bind mounts em `/mnt/c` são lentos, o
+`uvicorn --reload` (inotify) não enxerga as mudanças de arquivo ali, e o OneDrive pode
+interferir em arquivos sendo gravados e no `.git`. O banco usa um volume nomeado do
+Docker (não uma pasta do projeto) porque o Postgres exige permissões POSIX no diretório
+de dados, que o NTFS/OneDrive não oferece (comentário do volume em `docker-compose.yml`).
 
 ## Rodando localmente
 

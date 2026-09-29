@@ -40,7 +40,7 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 
 | Id | Regra | Por quê |
 |---|---|---|
-| G1 | Trabalhar só no checkout do repositório no WSL, nunca na cópia antiga no OneDrive. | A cópia em `/mnt/c/.../OneDrive` estava desatualizada e o diretório de dados do Postgres exige permissões POSIX que o `/mnt/c` (NTFS) não oferece, o `/mnt/c` é lento e o OneDrive interfere nos arquivos (ver `CLAUDE.md`/`README.md`). |
+| G1 | Trabalhar só no checkout do repositório no WSL, nunca na cópia antiga no OneDrive. | A cópia em `/mnt/c/.../OneDrive` estava desatualizada e o Postgres exige permissões POSIX no diretório de dados, que o NTFS/OneDrive (`/mnt/c`) não oferece (comentário do volume em `docker-compose.yml`); além disso `/mnt/c` é lento e o OneDrive interfere nos arquivos (README, seção "Onde clonar o projeto"). |
 | G2 | Git: branch `tcc2`, sem push/merge/rebase pelos implementadores, commits pequenos em português (`<escopo>: <resumo>`), caminhos explícitos, trailer de coautoria. | Histórico legível e revisável tarefa a tarefa. |
 | G3 | Stack: Python 3.12 via `uv`, FastAPI, Pydantic v2, psycopg 3 sem ORM (SQL com parâmetros), frontend TypeScript + Vite + Leaflet sem framework; nada instalado no sistema. | Mantém a stack do `CLAUDE.md` §2 e evita dependências ocultas. |
 | G4 | Banco: serviço `db` do compose em `127.0.0.1:5434`, `.env` nunca versionado, operações por `./db/banco.sh`, migrations imutáveis. | Reprodutibilidade e `CLAUDE.md` §10. |
