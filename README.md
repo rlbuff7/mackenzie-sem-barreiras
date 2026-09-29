@@ -110,6 +110,13 @@ ponta. Todo push em `main` publica as imagens Docker da API e do frontend,
 prontas para implantar. Detalhes de cada job, como acompanhar as execuções e
 como usar as imagens publicadas: [`docs/ci-cd.md`](docs/ci-cd.md).
 
+## Implantação e coleta
+
+A pilha de produção (`docker-compose.prod.yml`, imagens do GHCR, `TOKEN_ADMIN`
+obrigatório), o HTTPS sem conta para o celular (profile `tunel`), backup/restauração,
+o checklist `scripts/preparar-coleta.sh` e o roteiro do dia de coleta:
+[`docs/implantacao.md`](docs/implantacao.md).
+
 ## Backend
 
 `docker compose up` já sobe a API (serviço `api`, build de `backend/Dockerfile`).
