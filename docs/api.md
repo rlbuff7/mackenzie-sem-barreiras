@@ -41,7 +41,10 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
 - `GET /barreiras?bbox=minLon,minLat,maxLon,maxLat[&status=pendente|confirmada][&origem=real|simulacao]`
   `bbox` obrigatório (422 se ausente/malformado/min ≥ max/fora das faixas). `origem`
   padrão `real`. Até `LIMITE_BARREIRAS_POR_CONSULTA` (config, padrão 1000) itens.
-  → 200 GeoJSON `FeatureCollection`; cada Feature: geometry Point e
+  → 200 GeoJSON `FeatureCollection` com o membro extra `rotulo` no topo (o mesmo texto
+  das estatísticas para a origem: `"Dados reais de campo"` ou
+  `"SIMULAÇÃO — dados sintéticos"`; RFC 7946 §6.1 permite membros extras); cada
+  Feature: geometry Point e
   `properties: {"id", "tipo", "tipo_nome", "confirmacoes", "status", "atualizado_em"}`.
 - `POST /validacao/executar?origem=real|simulacao` (padrão `real`; D7) →
   200 `{"origem", "rotulo", "alertas_processados", "agrupados", "ruido_isolado",

@@ -72,6 +72,8 @@ export interface FeatureBarreira {
 
 export interface ColecaoBarreiras {
   type: "FeatureCollection";
+  /** De onde vêm as barreiras (G10): o mesmo texto das estatísticas para a origem. */
+  rotulo: string;
   features: FeatureBarreira[];
 }
 
