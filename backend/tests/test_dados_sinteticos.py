@@ -26,6 +26,7 @@ from scripts.analisar_sensibilidade import (
     DistanciasDeReferencia,
     analisar_grade,
     distancias_de_referencia,
+    executar_analise,
     formatar_referencias,
     linha_csv,
 )
@@ -883,6 +884,62 @@ def test_analisar_grade_mede_as_sequencias_a_parte_e_elas_se_fundem_com_eps_gran
     assert linha["espacamento_sequencia_metros"] == 15
     assert linha["isolamento_sequencia_metros"] == 100
     assert linha["menor_entre_barreiras_da_sequencia_metros"] is not None
+
+
+def _fotografia_do_banco(conexao: psycopg.Connection) -> dict[str, list[tuple]]:
+    """Todas as linhas que a análise poderia tocar, com as colunas que importam
+    (status, ligações, geometria), em ordem de id."""
+    consultas = {
+        "alertas": "SELECT id, origem, status, motivo_descarte, barreira_id, sessao_hash, "
+        "tipo_id, geom FROM alertas ORDER BY id",
+        "barreiras": "SELECT id, origem, status, confirmacoes, tipo_id, geom, criado_em "
+        "FROM barreiras ORDER BY id",
+        "alertas_rejeitados": "SELECT id, origem, payload, erros FROM alertas_rejeitados "
+        "ORDER BY id",
+        "execucoes_pipeline": "SELECT origem, eps_metros, min_pontos, min_confirmacoes, "
+        "srid_calculo, executado_em FROM execucoes_pipeline ORDER BY origem",
+    }
+    return {tabela: conexao.execute(sql).fetchall() for tabela, sql in consultas.items()}
+
+
+def test_executar_analise_nao_deixa_nenhum_rastro_no_banco(conexao: psycopg.Connection) -> None:
+    """R18: a análise de sensibilidade inteira (limpar, gerar, cada rodada da grade)
+    roda numa transação desfeita. Uma população canônica já processada, com a sua
+    linha em execucoes_pipeline, e os dados reais ficam idênticos, linha a linha.
+
+    A análise usa OUTRA população (com sequências) e OUTROS parâmetros (eps 12,
+    min_confirmacoes 2) que a execução existente (eps 8, min_confirmacoes 3): se algo
+    vazasse da transação, as linhas e a execução registrada mudariam."""
+    config = obter_configuracoes()
+    registrar_populacoes(conexao, _gerar(_OPCOES_PEQUENAS), config=config)
+    inserir_alerta(conexao, origem="real")
+    for origem in ("simulacao", "real"):
+        executar_pipeline(
+            conexao,
+            origem=origem,
+            eps_metros=_EPS_METROS,
+            min_pontos=_MIN_PONTOS,
+            min_confirmacoes=_MIN_CONFIRMACOES,
+            srid_calculo=_SRID_CALCULO,
+            srid_armazenamento=_SRID_ARMAZENAMENTO,
+        )
+    antes = _fotografia_do_banco(conexao)
+    assert len(antes["barreiras"]) == 5 and len(antes["execucoes_pipeline"]) == 2
+
+    resultado = executar_analise(
+        conexao,
+        OpcoesGeracao(semente=3, aglomerados=4, ruido=4, sequencias=1, sessoes_variaveis=True),
+        config=config,
+        grade_eps_metros=(12,),
+        grade_min_confirmacoes=(2,),
+    )
+
+    assert _fotografia_do_banco(conexao) == antes
+    assert resultado.alertas_de_simulacao_antes == 3 * 4 + 2 * 4 + 5 + 3
+    (rodada,) = resultado.rodadas
+    assert (rodada.eps_metros, rodada.min_confirmacoes) == (12, 2)
+    assert rodada.controle.por_categoria["aglomerado"].esperado == 4
+    assert rodada.sequencia.por_categoria["sequencia"].esperado == 4
 
 
 def test_distancias_de_referencia_explicam_fragmentacao_e_fusao() -> None:

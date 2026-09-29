@@ -14,8 +14,9 @@ separadamente (R16):
   ≥ 4 × eps da config): isso não mede robustez.
 - **Sequências** (`--sequencias`, 5 por padrão aqui): linhas de barreiras DISTINTAS a
   `--espacamento-sequencia-metros` (15 m) umas das outras, isoladas a 4 × o maior eps
-  da grade de todo o resto. É a população que mede o encadeamento (T5): a partir de
-  que eps barreiras vizinhas de verdade se fundem numa só.
+  da grade de todo ponto do mesmo tipo fora delas. É a população que mede o
+  encadeamento (T5): a partir de que eps barreiras vizinhas de verdade se fundem numa
+  só.
 
 Uso (a partir de `backend/`):
 
@@ -25,18 +26,18 @@ Saída: tabela rotulada "SIMULAÇÃO" no console e
 `backend/scripts/saida/sensibilidade-semente-<N>.csv` (cada linha com a coluna
 `rotulo`, para que nenhum recorte do CSV perca a marca de simulação).
 
-Honestidade do que fica no banco (G10, R14):
+A análise NÃO GRAVA NADA no banco (R18). Tudo roda numa única transação, desfeita
+(rollback) no fim (`executar_analise`):
 
-1. Apaga os dados de simulação existentes (como `--limpar`), gera a simulação UMA
-   vez e faz commit.
-2. Cada combinação da grade roda dentro de uma transação DESFEITA (rollback): as
-   medições são lidas dentro dela e nada fica gravado, nem em `barreiras` nem em
-   `execucoes_pipeline`.
-3. No fim, roda o pipeline UMA vez com os parâmetros da CONFIGURAÇÃO e faz commit.
+1. apaga a simulação existente (como `--limpar`) e gera a da análise UMA vez;
+2. roda cada combinação da grade num SAVEPOINT desfeito, lendo as medições dentro dele;
+3. desfaz a transação inteira.
 
-Assim o banco, `execucoes_pipeline` e `GET /validacao/estatisticas?origem=simulacao`
-(e a figura do funil, que lê as estatísticas) correspondem sempre à rodada da
-configuração, nunca a uma combinação da grade. Os dados reais nunca são tocados.
+O banco continua exatamente como estava antes: normalmente a simulação canônica do
+gerador, com a sua linha em `execucoes_pipeline`. Assim as estatísticas e a figura do
+funil nunca passam a mostrar a população de estresse desta análise, e a ordem em que
+os scripts rodam não importa. Os resultados ficam só no console e no CSV. Os dados
+reais nunca são tocados.
 """
 
 import argparse
@@ -67,8 +68,8 @@ from scripts.gerar_dados_sinteticos import (
     avisos_de_geracao,
     cabecalho_simulacao,
     caminho_para_exibir,
+    contar_alertas_da_simulacao,
     distancia_de_isolamento_metros,
-    formatar_execucao,
     formatar_metros,
     formatar_tabela,
     formatar_taxa,
@@ -117,11 +118,10 @@ def analisar_grade(
 ) -> list[RodadaSensibilidade]:
     """Roda o pipeline da simulação para cada combinação e avalia o resultado.
 
-    Cada rodada fica dentro de `conexao.transaction(force_rollback=True)`: com a
-    conexão ociosa isso é um BEGIN … ROLLBACK; dentro de uma transação já aberta
-    (a fixture dos testes), um SAVEPOINT desfeito. Nos dois casos a rodada não
-    deixa rastro. Como o pipeline reconstrói tudo do zero (D6), cada rodada começa
-    do mesmo estado.
+    Cada rodada fica dentro de `conexao.transaction(force_rollback=True)`, que dentro
+    da transação da análise (`executar_analise`) ou da fixture dos testes é um
+    SAVEPOINT desfeito: a rodada não deixa rastro, e como o pipeline reconstrói tudo
+    do zero (D6), a seguinte começa do mesmo estado.
 
     O controle e as sequências são avaliados à parte, sobre o mesmo snapshot: cada
     avaliação só conta as barreiras que tocam os seus itens.
@@ -152,6 +152,57 @@ def analisar_grade(
                 )
             )
     return rodadas
+
+
+@dataclass(frozen=True)
+class ResultadoAnalise:
+    """O que `executar_analise` mediu. `alertas_de_simulacao_antes` é quantos alertas
+    de simulação o banco tinha antes, e continua tendo depois."""
+
+    itens: list[ItemGerado]
+    rodadas: list[RodadaSensibilidade]
+    alertas_de_simulacao_antes: int
+
+
+def executar_analise(
+    conexao: Connection,
+    opcoes: OpcoesGeracao,
+    *,
+    config: Configuracoes,
+    grade_eps_metros: Sequence[float] = GRADE_EPS_METROS,
+    grade_min_confirmacoes: Sequence[int] = GRADE_MIN_CONFIRMACOES,
+) -> ResultadoAnalise:
+    """A análise inteira dentro de `conexao.transaction(force_rollback=True)` (R18).
+
+    Apaga a simulação existente, gera a da análise (isolando as sequências a 4 × o maior
+    eps da grade), registra tudo pelo caminho da API e roda a grade. No fim a transação
+    é desfeita: nada disso fica no banco, nem a limpeza, nem a geração, nem as linhas
+    que o pipeline grava em `execucoes_pipeline`. Com a conexão ociosa, é um
+    BEGIN … ROLLBACK; dentro de uma transação já aberta (a fixture dos testes), um
+    SAVEPOINT desfeito.
+
+    Só as sequências de id (BIGSERIAL) avançam: o Postgres não as desfaz no rollback.
+    """
+    with conexao.transaction(force_rollback=True):
+        alertas_antes = contar_alertas_da_simulacao(conexao)
+        limpar_simulacao(conexao)
+        itens = gerar_populacoes(
+            opcoes,
+            tipos=ler_tipos_ativos(conexao),
+            eps_metros=config.dbscan_eps_metros,
+            eps_maximo_metros=max(grade_eps_metros),
+        )
+        registrados = registrar_populacoes(conexao, itens, config=config)
+        rodadas = analisar_grade(
+            conexao,
+            registrados,
+            grade_eps_metros=grade_eps_metros,
+            grade_min_confirmacoes=grade_min_confirmacoes,
+            min_pontos=config.dbscan_min_points,
+            srid_calculo=config.srid_calculo,
+            srid_armazenamento=config.srid_armazenamento,
+        )
+    return ResultadoAnalise(itens, rodadas, alertas_antes)
 
 
 @dataclass(frozen=True)
@@ -495,9 +546,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m scripts.analisar_sensibilidade",
         description=(
-            "SIMULAÇÃO: gera a simulação uma vez (apaga antes a simulação existente) e "
-            "mede o pipeline na grade eps × min_confirmacoes, cada rodada desfeita; no "
-            "fim confirma só a rodada com os parâmetros do .env."
+            "SIMULAÇÃO: mede o pipeline na grade eps × min_confirmacoes sobre uma "
+            "simulação gerada uma vez. Tudo roda numa transação desfeita: nada é gravado "
+            "no banco."
         ),
     )
     adicionar_opcoes_de_geracao(parser, PADRAO_SENSIBILIDADE)
@@ -511,43 +562,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(cabecalho_simulacao("análise de sensibilidade (pendência #4, T5)"))
     print(
         f"Banco: {config.postgres_db} em {config.postgres_host}:{config.postgres_porta} "
-        f"(origem = '{ORIGEM}')\n"
+        f"(origem = '{ORIGEM}'). A análise inteira roda numa transação desfeita no fim: "
+        "nada é gravado.\n"
     )
     try:
         with psycopg.connect(config.conninfo) as conexao:
-            apagados = limpar_simulacao(conexao)
-            itens = gerar_populacoes(
-                opcoes,
-                tipos=ler_tipos_ativos(conexao),
-                eps_metros=config.dbscan_eps_metros,
-                eps_maximo_metros=max(GRADE_EPS_METROS),
-            )
-            registrados = registrar_populacoes(conexao, itens, config=config)
-            conexao.commit()  # 1. a simulação, gerada uma vez
-
-            rodadas = analisar_grade(  # 2. cada rodada desfeita
-                conexao,
-                registrados,
-                grade_eps_metros=GRADE_EPS_METROS,
-                grade_min_confirmacoes=GRADE_MIN_CONFIRMACOES,
-                min_pontos=config.dbscan_min_points,
-                srid_calculo=config.srid_calculo,
-                srid_armazenamento=config.srid_armazenamento,
-            )
-
-            resumo = executar_pipeline(  # 3. a rodada da configuração, confirmada
-                conexao,
-                origem=ORIGEM,
-                eps_metros=config.dbscan_eps_metros,
-                min_pontos=config.dbscan_min_points,
-                min_confirmacoes=config.min_confirmacoes,
-                srid_calculo=config.srid_calculo,
-                srid_armazenamento=config.srid_armazenamento,
-            )
-            conexao.commit()
+            resultado = executar_analise(conexao, opcoes, config=config)
     except ValueError as erro:
-        print(f"erro: {erro}", file=sys.stderr)
+        print(f"erro: {erro}. Nada foi gravado no banco (rollback).", file=sys.stderr)
         return 1
+    itens, rodadas = resultado.itens, resultado.rodadas
 
     sessoes = (
         "de 2 a 5 sessões (sorteadas)"
@@ -558,8 +582,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         config.dbscan_eps_metros, max(GRADE_EPS_METROS)
     )
     print(
-        f"[SIMULAÇÃO] Simulação anterior apagada ({apagados['alertas']} alertas) e gerada "
-        f"de novo UMA vez, com commit: semente {opcoes.semente}; CONTROLE: "
+        f"[SIMULAÇÃO] Simulação da análise gerada UMA vez, dentro da transação: semente "
+        f"{opcoes.semente}; CONTROLE: "
         f"{opcoes.aglomerados} aglomerados com {sessoes}, {opcoes.sessao_repetida} sessões "
         f"repetidas de {opcoes.pontos_por_aglomerado} relatos, {opcoes.ruido} ruídos, "
         f"{opcoes.fora_da_area} fora da área, {opcoes.invalidos} inválidos (dispersão de até "
@@ -579,7 +603,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(formatar_referencias(referencias, min_pontos=config.dbscan_min_points) + "\n")
     print(
         "[SIMULAÇÃO] CONTROLE: grade eps × min_confirmacoes (minpoints = "
-        f"{config.dbscan_min_points}), cada rodada numa transação desfeita (rollback). As "
+        f"{config.dbscan_min_points}), cada rodada num savepoint desfeito. As "
         "fusões do controle são 0 por construção (grupos a ≥ 4 × eps da config): não medem "
         "robustez.\n" + formatar_grade_controle(rodadas, config) + "\n"
     )
@@ -591,12 +615,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             + formatar_grade_sequencias(rodadas, config)
             + "\n"
         )
-    print(
-        "[SIMULAÇÃO] Rodada final, confirmada no banco, com os parâmetros da configuração:\n"
-        + formatar_execucao(resumo)
-        + "\n  execucoes_pipeline e GET /validacao/estatisticas?origem=simulacao mostram "
-        "estes parâmetros, não os da grade.\n"
-    )
 
     sufixo = sufixo_das_opcoes(opcoes, PADRAO_SENSIBILIDADE)
     caminho = DIRETORIO_SAIDA / f"sensibilidade-semente-{opcoes.semente}{sufixo}.csv"
@@ -608,6 +626,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         ],
     )
     print(f"CSV (SIMULAÇÃO): {caminho_para_exibir(caminho)}")
+    print(
+        "Nada foi gravado no banco: a transação da análise foi desfeita (rollback). O banco "
+        f"continua como estava, com {resultado.alertas_de_simulacao_antes} alertas de "
+        "simulação e a mesma linha em execucoes_pipeline; as estatísticas e a figura do "
+        "funil não mudam."
+    )
     return 0
 
 
