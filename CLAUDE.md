@@ -72,13 +72,17 @@ mackenzie-sem-barreiras/
 │   │       ├── clustering.py    # estágio 3
 │   │       ├── pipeline.py      # estágio 4 + execução em lote (D6)
 │   │       └── estatisticas.py  # contagens do funil
-│   ├── scripts/
-│   │   └── gerar_dados_sinteticos.py
+│   ├── scripts/             # SIMULAÇÃO e figuras (§9); pontos de entrada, fazem commit
+│   │   ├── gerar_dados_sinteticos.py  # 5 populações + teste de eficácia
+│   │   ├── analisar_sensibilidade.py  # grade eps × min_confirmacoes
+│   │   ├── gerar_figura_funil.py      # docs/figuras/funil-<origem>.svg|png
+│   │   └── saida/                     # JSON e CSV gerados (não versionados)
 │   ├── tests/
 │   └── pyproject.toml / uv.lock
 ├── frontend/
 └── docs/
     ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
+    ├── figuras/               # figuras geradas pelos scripts (funil)
     └── academico/             # pôster e artigo do TCC I (não é código)
 ```
 
@@ -331,22 +335,76 @@ Trabalhe **um marco por vez**. Não antecipe marcos futuros sem pedido explícit
 
 ## 9. Dados sintéticos
 
-`scripts/gerar_dados_sinteticos.py` deve gerar três populações distintas, para que o
-pipeline possa ser avaliado:
+`backend/scripts/gerar_dados_sinteticos.py` gera **cinco** populações (D8), cada uma com
+o destino conhecido de antemão, para que o pipeline possa ser avaliado:
 
-- **Aglomerados verdadeiros** — N pontos do mesmo tipo, com dispersão de poucos metros,
-  vindos de sessões diferentes. Devem virar barreira confirmada.
-- **Ruído isolado** — pontos únicos, espalhados, sem vizinhos. Devem ser marcados como
-  ruído.
-- **Fora da área** — pontos fora do polígono de estudo. Devem ser descartados no
-  geofence.
+| População | O que é | Destino esperado | Estágio que prova |
+|---|---|---|---|
+| **Aglomerados verdadeiros** (`aglomerado`) | N relatos do mesmo tipo, com dispersão de poucos metros, cada um de uma sessão diferente | 1 barreira `confirmada` por grupo | 3 e 4 |
+| **Sessão repetida** (`sessao_repetida`) | UMA sessão relatando N vezes no mesmo lugar | 1 barreira `pendente` por grupo | 4 (sessões distintas) |
+| **Ruído isolado** (`ruido`) | relatos únicos, espalhados, sem vizinho do mesmo tipo | `ruido_isolado` | 3 |
+| **Fora da área** (`fora_da_area`) | relatos válidos fora do polígono de estudo | `descartado` (`fora_da_area`) | 2 |
+| **Inválidos** (`invalido`) | payloads com um defeito cada: latitude fora da faixa, tipo inexistente, severidade 7, campo faltando, campo extra | `alertas_rejeitados` | 1 |
 
-O script precisa reportar quantos pontos de cada categoria gerou, para comparar com o
-que o pipeline classificou. Isso é o teste de eficácia do algoritmo.
+Regras da geração:
+
+- Todo payload passa por `registrar_alerta(..., origem="simulacao")`, o mesmo caminho de
+  `POST /alertas`; nunca inserção direta.
+- Centro: centroide do campus (−23.5471938, −46.6524631). Grupos e ruído caem a até
+  400 m dele; "fora da área", entre 700 e 1500 m (o polígono provisório tem 500 m).
+- Separação mínima de 4 × eps (`DBSCAN_EPS_METROS`): entre os centros de dois grupos
+  quaisquer e entre cada ruído e qualquer outro ponto do mesmo tipo (amostragem com
+  rejeição). `--dispersao-metros` é o raio MÁXIMO em torno do centro do grupo.
+- Os pontos são sorteados em metros num plano local e convertidos para graus pelos raios
+  de curvatura do WGS84 na latitude do campus. Erro medido contra `geography`: no máximo
+  0,002% a 1,5 km (o teste exige < 0,1%).
+- Determinística pela semente (`--semente`, padrão 42). Cada população tem o seu gerador
+  aleatório, então mudar a quantidade de uma não move as outras.
+
+Comandos (a partir de `backend/`):
+
+```bash
+# gerar + pipeline + teste de eficácia (padrões: 20 aglomerados de 4 relatos, dispersão
+# de até 3 m, 5 sessões repetidas, 40 ruídos, 30 fora da área, 10 inválidos)
+uv run python -m scripts.gerar_dados_sinteticos --limpar --executar-pipeline --avaliar
+
+# análise de sensibilidade: eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4}
+uv run python -m scripts.analisar_sensibilidade
+
+# figura do funil (matplotlib num grupo opcional)
+uv sync --group analise
+uv run python -m scripts.gerar_figura_funil --origem simulacao
+```
+
+O script reporta quantos pontos de cada categoria gerou, para comparar com o que o
+pipeline classificou. Isso é o teste de eficácia do algoritmo. Com `--avaliar`, ele
+mostra a matriz categoria → destino final (em alertas), as barreiras esperadas × obtidas
+e a taxa de acerto por categoria. Um grupo só conta como acerto se TODOS os seus alertas
+estiverem numa mesma barreira, com o status esperado e sem nenhum alerta de fora do grupo.
+Com os padrões, o resultado é 100% em cada categoria: é o cenário bem separado de
+propósito. Relatório completo em `backend/scripts/saida/simulacao-semente-<N>.json`.
+
+A análise de sensibilidade gera a simulação uma vez (com commit), roda cada combinação da
+grade numa transação **desfeita** e, no fim, confirma só a rodada com os parâmetros do
+`.env`. Assim o banco, `execucoes_pipeline`, as estatísticas e a figura correspondem
+sempre à configuração, nunca a uma combinação da grade. Resultado em
+`backend/scripts/saida/sensibilidade-semente-<N>.csv`; leitura dos números em
+`docs/decisoes-pendentes.md` (#4 e T5).
+
+A figura (`docs/figuras/funil-<origem>.svg|png`) lê `calcular_estatisticas`. Ela tem um
+painel para alertas e outro para barreiras, e a legenda traz os parâmetros da última
+execução. Se a origem nunca foi processada, o script recusa desenhar.
+
+`--limpar` e a análise de sensibilidade apagam só `origem='simulacao'` (alertas,
+barreiras, rejeitados e a linha de `execucoes_pipeline`). Nenhum script toca
+`origem='real'`.
 
 **Regra de honestidade acadêmica:** dado sintético é para desenvolver e testar. Em
 qualquer saída, log, gráfico ou documento, deve estar rotulado como simulação. Nunca
-apresentar número sintético como resultado de coleta real.
+apresentar número sintético como resultado de coleta real. No código isso significa:
+`origem='simulacao'` em toda linha, descrição "SIMULAÇÃO: …" em todo relato gerado, e o
+rótulo "SIMULAÇÃO" no console, no JSON, em cada linha do CSV (coluna `rotulo`) e no título
+da figura.
 
 ---
 

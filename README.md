@@ -63,12 +63,52 @@ Os testes recriam `${POSTGRES_DB}_teste` do zero a cada execução
 (`../db/banco.sh preparar-teste`, chamado por `backend/tests/conftest.py`) —
 nunca tocam no banco de desenvolvimento.
 
+## Simulação
+
+> **Aviso de honestidade acadêmica.** Tudo nesta seção é **SIMULAÇÃO**: dados sintéticos
+> para desenvolver e avaliar o pipeline, gravados com `origem='simulacao'` e rotulados
+> "SIMULAÇÃO" em toda saída. Não são coleta real e não podem ser apresentados como tal.
+> Nenhum destes scripts toca os dados reais (`origem='real'`).
+
+Os scripts ficam em `backend/scripts/` e rodam contra o banco do `.env` (banco rodando,
+`migrar` aplicado). Todos a partir de `backend/`:
+
+```bash
+# 1. Gerar e avaliar: cria as 5 populações (aglomerados, sessão repetida, ruído,
+#    fora da área e inválidos) pelo mesmo caminho da API, roda o pipeline e compara
+#    cada categoria com o destino esperado.
+uv run python -m scripts.gerar_dados_sinteticos --limpar --executar-pipeline --avaliar
+
+# 2. Sensibilidade: mede eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4}
+#    sobre a mesma simulação. Cada rodada é desfeita; no fim só a rodada com os
+#    parâmetros do .env fica gravada.
+uv run python -m scripts.analisar_sensibilidade
+
+# 3. Figura do funil (docs/figuras/funil-simulacao.svg e .png), a partir das
+#    estatísticas do banco. O matplotlib fica num grupo opcional.
+uv sync --group analise
+uv run python -m scripts.gerar_figura_funil --origem simulacao
+```
+
+- `--limpar` apaga antes todos os dados de simulação. Sem ele, os novos se somam aos
+  antigos e a avaliação sai distorcida (o script avisa).
+- `--help` lista as opções de geração (`--semente`, `--aglomerados`,
+  `--pontos-por-aglomerado`, `--dispersao-metros`, `--sessao-repetida`, `--ruido`,
+  `--fora-da-area`, `--invalidos`). A análise de sensibilidade aceita as mesmas.
+- Saídas: tabelas no console e `backend/scripts/saida/simulacao-semente-<N>.json` e
+  `sensibilidade-semente-<N>.csv` (não versionados; rode de novo para regerar).
+- Com os padrões (semente 42), o teste de eficácia acerta 100% em cada categoria. Os
+  resultados da sensibilidade estão em [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md)
+  (#4 e T5).
+- No mapa, as barreiras simuladas só aparecem pedindo `origem=simulacao` em
+  `GET /barreiras`; o padrão é `real`.
+
 ## Marcos
 
 - [x] **M0**: Postgres + PostGIS via Docker Compose
 - [x] **M1**: migrations e seeds
 - [x] **M2**: `POST /alertas` e `GET /barreiras`
-- [ ] **M3**: dados sintéticos, pipeline de validação e estatísticas
+- [x] **M3**: dados sintéticos, pipeline de validação e estatísticas
 - [ ] **M4**: frontend com mapa
 - [ ] **M5**: integração ponta a ponta
 - [ ] **M6**: coleta em campo
