@@ -57,12 +57,13 @@ docker compose -f docker-compose.prod.yml up -d --wait
   `docker/metadata-action` em `.github/workflows/ci-cd.yml`): `latest` a cada push em
   `main`; `sha-<7 primeiros caracteres do commit>` em todo push de `main` ou de tag; e,
   para uma tag `vX.Y.Z` do repositório, `X.Y.Z` e `X.Y` (sem o `v`). Para fixar uma
-  versão conhecida: `IMAGEM_TAG=sha-050ec68 docker compose -f docker-compose.prod.yml
-  up -d --wait` (ou a linha `IMAGEM_TAG=sha-050ec68` no `.env`, para valer em todo
+  versão conhecida: `IMAGEM_TAG=sha-a732720 docker compose -f docker-compose.prod.yml
+  up -d --wait` (ou a linha `IMAGEM_TAG=sha-a732720` no `.env`, para valer em todo
   comando).
-  **Atenção:** `latest` só passa a incluir `EXPOR_DOCS` e os limites de envio depois
-  que o branch `fase2` for para `main` e o CI publicar; antes disso, `/api/docs` fica
-  aberto mesmo com a variável (o `preparar-coleta.sh` acusa isso).
+  **Atenção:** a primeira imagem com `EXPOR_DOCS` e os limites de envio é a do merge da
+  Fase 2 (`sha-a732720`, 30/09/2026); todo `latest` publicado desde então os inclui. Com
+  uma imagem anterior (ex.: `sha-050ec68`), `/api/docs` fica aberto mesmo com a variável
+  (o `preparar-coleta.sh` acusa isso).
 
 ## 3. Aplicar migrations
 
