@@ -11,7 +11,7 @@ valida os reports antes de persistir em banco espacial (PostgreSQL + PostGIS).
 Contexto completo do projeto, decisões e convenções: [CLAUDE.md](CLAUDE.md).
 Pontos em aberto: [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md).
 Significado dos identificadores citados no código e nos commits (G1–G12, D1–D8,
-R1–R37, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
+R1–R39, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
 
 ## Estrutura
 
@@ -56,15 +56,18 @@ curl -X POST localhost:8000/alertas -H 'Content-Type: application/json' -d \
   '{"latitude": -23.5472, "longitude": -46.6525, "tipo": "degrau", "sessao_id": "'"$sessao_id"'"}'
 ```
 
-> **Atenção: todo POST na pilha principal grava dado REAL** (`origem='real'`): este
+> **Atenção: todo POST grava dado com `origem='real'`** na pilha em que chega: este
 > `curl`, um envio pelo mapa em http://localhost:8081 e até um corpo inválido (que vira
-> uma linha em `alertas_rejeitados`). Esses dados entram no funil da coleta em campo.
-> Para testar sem sujar nada, use `./scripts/ponta-a-ponta.sh` (pilha isolada). Antes
-> da PRIMEIRA abertura da coleta, limpe o que os testes deixaram com
-> `./db/banco.sh zerar-real --sim-apagar-dados-reais` (sem o argumento, só mostra o
-> que seria apagado, quantos relatos e de quando). Depois de aberta, nunca: os relatos
-> reais são os dados do TCC, e reabrir a coleta num dia seguinte é
-> `./scripts/preparar-coleta.sh --reabrir` ([`docs/implantacao.md`](docs/implantacao.md) §8).
+> uma linha em `alertas_rejeitados`). Esta pilha de desenvolvimento **não** é a da coleta
+> em campo (a coleta roda na pilha de produção,
+> [`docs/implantacao.md`](docs/implantacao.md)), mas os relatos de teste daqui aparecem
+> no funil e na figura de origem real gerados nela. Para testar sem sujar nada, use
+> `./scripts/ponta-a-ponta.sh` (pilha isolada). Para limpar os testes desta pilha:
+> `./db/banco.sh zerar-real --sim-apagar-dados-reais` (sem o argumento, só mostra o que
+> seria apagado, quantos relatos e de quando). Na pilha de **produção** a limpeza é com
+> `--prod` e só antes da PRIMEIRA abertura da coleta (`implantacao.md` §7). Depois de
+> aberta, nunca: os relatos reais são os dados do TCC, e reabrir a coleta num dia
+> seguinte é `./scripts/preparar-coleta.sh --reabrir` (`implantacao.md` §8).
 
 URLs (portas padrão; ajustáveis por `*_PORTA_HOST` no `.env`):
 

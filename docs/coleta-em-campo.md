@@ -216,8 +216,11 @@ Antes de ir a campo:
       seeds e, principalmente, o polígono da área de estudo atual) e
       `./scripts/preparar-coleta.sh` sem falhas (ele confere token, docs, saúde,
       migrations e o funil real).
-- [ ] `./scripts/ponta-a-ponta.sh` verde com `TOKEN_ADMIN` e `EXPOR_DOCS=false`
-      exportados no shell (pilha isolada: prova que a cadeia inteira responde por HTTP,
+- [ ] `EXPOR_DOCS=false ./scripts/ponta-a-ponta.sh` verde na máquina de produção (o
+      prefixo vale só para esse comando, e o E2E lê o `TOKEN_ADMIN` do `.env`,
+      [`implantacao.md`](implantacao.md) §2). Não use `export TOKEN_ADMIN=...`: um `up`
+      da produção feito depois, no mesmo terminal, recriaria a API com o token do shell
+      (pilha isolada: prova que a cadeia inteira responde por HTTP,
       que a execução sem o header é recusada com 401, que `/docs`, `/redoc` e
       `/openapi.json` respondem 404, e confere o `preparar-coleta.sh` e o `zerar-real`
       com relatos reais).
@@ -247,7 +250,7 @@ Antes de ir a campo:
       com seeds alterados enquanto a coleta estiver aberta.
 - [ ] Registrar a versão em vigor: o `preparar-coleta.sh` grava o commit, o hash dos
       seeds e as imagens em execução (ID e RepoDigest do GHCR) em
-      `backend/scripts/saida/coleta-prod-<data-hora>.txt`, um arquivo por execução.
+      `backend/scripts/saida/coleta-prod[-reabrir]-<data-hora>.txt`, um arquivo por execução.
       Guarde esses registros com os backups: é o que permite ao texto citar exatamente
       que código, polígono e parâmetros produziram o funil real.
 
@@ -286,7 +289,7 @@ coleta. Se o `.env` mudou `API_PORTA_PROD` ou `POSTGRES_PORTA_PROD`, use as port
 
 # 1. Roda os estágios 3 e 4 (agrupamento + promoção) sobre origem=real.
 curl -fsS -X POST "http://localhost:${API_PORTA_PROD:-8010}/validacao/executar?origem=real" \
-  -H "X-Token-Admin: $(sed -n 's/^TOKEN_ADMIN=//p' .env)"
+  -H "X-Token-Admin: $(sed -n 's/^TOKEN_ADMIN=//p' .env | tail -n 1)"
 
 # 2. Confere o funil.
 curl -fsS "http://localhost:${API_PORTA_PROD:-8010}/validacao/estatisticas?origem=real"

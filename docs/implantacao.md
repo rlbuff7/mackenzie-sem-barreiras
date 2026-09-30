@@ -29,7 +29,8 @@ As duas podem rodar ao mesmo tempo.
 
 ```bash
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"   # gera o segredo do "executar"
-# grave o valor no .env DESTA máquina, numa linha:  TOKEN_ADMIN=<valor gerado>
+# no .env DESTA máquina, EDITE a linha TOKEN_ADMIN= que já existe (vem do .env.example):
+#   TOKEN_ADMIN=<valor gerado>        (uma linha só; não acrescente uma segunda)
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d --wait
 ```
@@ -45,8 +46,9 @@ docker compose -f docker-compose.prod.yml up -d --wait
   `./scripts/preparar-coleta.sh` não usam o token (põem um valor de enchimento só para o
   compose aceitar `exec`, `ps` e `logs`).
 - Para mandar o token no `executar` sem imprimi-lo na tela:
-  `-H "X-Token-Admin: $(sed -n 's/^TOKEN_ADMIN=//p' .env)"`
-  ([`coleta-em-campo.md`](coleta-em-campo.md) §6).
+  `-H "X-Token-Admin: $(sed -n 's/^TOKEN_ADMIN=//p' .env | tail -n 1)"`
+  ([`coleta-em-campo.md`](coleta-em-campo.md) §6). O `tail -n 1` pega a mesma linha que
+  o compose usa (a última), caso o `.env` tenha ficado com duas.
 - Se as duas pilhas rodam no mesmo checkout, a de desenvolvimento lê o mesmo `.env`:
   com o token lá, o `executar` do dev também passa a pedir o header (inofensivo).
 - `EXPOR_DOCS` é fixo em `false` na produção: `/api/docs`, `/api/redoc` e
@@ -139,18 +141,24 @@ pela URL é um relato real, que fica no funil do TCC.
 
 ## 7. Limpar o teste e abrir a coleta (só antes da PRIMEIRA abertura)
 
+Primeiro, só backup e conferência (nada é apagado aqui):
+
 ```bash
 ./db/banco.sh --prod backup                                  # por segurança, antes de apagar
 ./db/banco.sh --prod zerar-real                              # só mostra: contagens, quantos relatos e de quando
+```
+
+Leia a linha `relatos reais: N (...), de <data> a <data>` que o `zerar-real` imprimiu:
+tem de ser só o teste que você acabou de fazer (poucos relatos, de hoje, de minutos
+atrás). Se aparecer qualquer relato de outro dia, **pare**: a coleta já foi aberta antes,
+esses relatos são dados do TCC, e o caminho certo é o §8. O `zerar-real` vale só neste
+momento, uma vez. Só então, num comando separado (este bloco não vai junto do anterior
+de propósito):
+
+```bash
 ./db/banco.sh --prod zerar-real --sim-apagar-dados-reais     # remove os relatos de teste
 ./scripts/preparar-coleta.sh                                 # agora tem de estar tudo verde
 ```
-
-Antes do comando com `--sim-apagar-dados-reais`, leia a linha
-`relatos reais: N (...), de <data> a <data>` que o `zerar-real` imprime: tem de ser só o
-teste que você acabou de fazer (poucos relatos, de hoje, de minutos atrás). Se aparecer
-qualquer relato de outro dia, **pare**: a coleta já foi aberta antes, esses relatos são
-dados do TCC, e o caminho certo é o §8. O `zerar-real` vale só neste momento, uma vez.
 
 Só com o checklist todo `[ok]` (e a URL do túnel impressa) entregue a URL ao Maurício
 (§11): a coleta está aberta. A partir daqui, nunca mais `zerar-real` nesta pilha.
@@ -183,12 +191,16 @@ docker compose -f docker-compose.prod.yml --profile tunel up -d --wait --no-deps
    (a URL muda do mesmo jeito).
 3. **Confira com `--reabrir`.** Nesse modo o item 4 só informa
    "coleta em andamento: N relatos reais, de <data> a <data>" e nunca sugere apagar nada.
-   Compare o N com o do fim do dia anterior (o `coleta-prod-reabrir-*.txt` mais recente em
-   `backend/scripts/saida/`, gravado no passo 5, e os números que o Maurício anotou,
-   §11): ele só pode ter subido ou ficado igual. Se aparecer "nenhum relato real" num dia
-   em que já houve coleta, **pare**: o banco pode ter sido recriado; restaure o backup do
-   último dia (§9) antes de abrir. O `PRONTO para reabrir` e a URL impressa são o sinal
-   verde.
+   Compare o N com o do fim do dia anterior: o `coleta-prod-reabrir-<data de ontem>-*.txt`
+   mais recente em `backend/scripts/saida/`, gravado no passo 5 de ontem (**não** o que
+   este passo 3 acabou de gravar, que é o de hoje), e os números que o Maurício anotou
+   (§11). O N só pode ter subido ou ficado igual.
+   Se o banco estiver sem nenhum relato real, o item 4 **falha** e o script não dá
+   PRONTO: o banco pode ter sido recriado (volume perdido). **Pare**, restaure o backup
+   `prod-*.dump` do último dia (§9) e rode o `--reabrir` de novo antes de abrir. (Única
+   exceção: a coleta foi aberta e o túnel caiu antes do primeiro relato; aí rode
+   `./scripts/preparar-coleta.sh` sem `--reabrir`, que aceita `recebidos = 0`.)
+   O `PRONTO para reabrir` e a URL impressa são o sinal verde.
 4. **Passe a URL nova ao Maurício** (e ao grupo). Ele confere abrindo o mapa no celular,
    sem enviar relato.
 5. **No fim do dia:** `./scripts/preparar-coleta.sh --reabrir` de novo (o registro guarda
@@ -262,11 +274,15 @@ escuta em `127.0.0.1`. No dia seguinte, reabra pelo §8. No fim da coleta inteir
 
 ```bash
 docker compose -f docker-compose.prod.yml --profile tunel down            # para tudo, MANTÉM os dados
-docker compose -f docker-compose.prod.yml --profile tunel down -v         # APAGA o volume: só com backup em mãos
 ```
 
 O `--profile tunel` faz o `down` remover também o container do túnel e a rede. Nunca
 deixe o túnel no ar fora da janela de coleta.
+
+Apagar também o volume (o banco com os relatos) é outro comando, de propósito fora do
+bloco acima: só depois do último `executar`, com o backup final conferido (§9) e guardado
+fora da máquina, e só se for descartar a instalação:
+`docker compose -f docker-compose.prod.yml --profile tunel down -v`.
 
 Se um comando parar com "defina TOKEN_ADMIN", o token não está no `.env` desta máquina.
 Para `stop`, `ps`, `logs` e `down`, que não recriam a API, qualquer valor serve
