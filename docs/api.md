@@ -20,6 +20,9 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `latitude` ∈ [-90, 90]; `longitude` ∈ [-180, 180]; `tipo` código ativo; `severidade`
   1–3 ou ausente/null; `descricao` opcional, ≤ 500 caracteres (espaços nas pontas
   removidos; vazia vira null); `sessao_id` UUID; campos extras são rejeitados.
+  Tipos estritos: `latitude`/`longitude` só aceitam número JSON (inteiro vale;
+  `true` e `"-23.5"` não) e `severidade` só inteiro (`true`, `"2"`, `2.5` e `2.0` não).
+  Erros: `"Deve ser um número."` e `"Deve ser um número inteiro."`.
   - 201 `{"id": 12, "status": "bruto", "motivo_descarte": null,
     "mensagem": "Alerta recebido. Ele será validado quando outras pessoas confirmarem."}`
   - 201 `{"id": 13, "status": "descartado", "motivo_descarte": "fora_da_area",
@@ -38,6 +41,15 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
       (`42`, `"texto"`, `[]`, `null`).
 
     Nenhum corpo dá 500 no estágio 1 (`app/validacao/entrada.py::interpretar_corpo`).
+  - 413 `{"mensagem": "Corpo grande demais: o limite é 16 KiB."}`: corpo acima de
+    `LIMITE_CORPO_BYTES` (padrão 16384). É abuso, não relato: nada é gravado, nem em
+    `alertas_rejeitados`. A API confere o `Content-Length` antes de ler e corta a
+    leitura ao passar do limite. Pelo frontend, o nginx já barra antes
+    (`client_max_body_size 16k`, corpo HTML do nginx; mantenha os dois limites iguais).
+  - 429 (só pelo nginx do frontend, nunca pela API): mais de 30 envios por minuto de
+    média, com rajada de 20 (`limit_req` em `frontend/nginx.conf`, só `POST
+    /api/alertas`, corpo HTML). Atrás de um túnel o limite é coletivo. O frontend mostra
+    "Muitos envios em sequência; aguarde um minuto."
 - `GET /barreiras?bbox=minLon,minLat,maxLon,maxLat[&status=pendente|confirmada][&origem=real|simulacao]`
   `bbox` obrigatório (422 se ausente/malformado/min ≥ max/fora das faixas, com
   `campo: "bbox"`; formato abaixo). `origem`
@@ -87,6 +99,10 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `campo` é o nome do parâmetro; as mensagens são as mesmas do `POST /alertas`
   (`app/validacao/mensagens.py`). O 422 do `POST /alertas` continua o de cima
   (`"Alerta inválido."`).
+
+- **Documentação interativa:** `/docs`, `/redoc` e `/openapi.json` existem quando
+  `EXPOR_DOCS=true` (padrão, dev) e respondem 404 com `EXPOR_DOCS=false` (coleta
+  pública, `.env.example`).
 
 ## Estado de implementação
 

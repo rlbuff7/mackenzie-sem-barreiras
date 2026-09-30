@@ -1,7 +1,8 @@
 """`POST /alertas` (Contrato da API): estágios 1 (schema) e 2 (geofence) na entrada.
 
-Rota `async` porque precisa ler o CORPO CRU da requisição (`await
-request.body()`) antes de qualquer parse: um corpo que não é JSON válido ainda
+Rota `async` porque precisa ler o CORPO CRU da requisição, em fluxo com teto de
+`LIMITE_CORPO_BYTES` (`_ler_corpo_limitado`: confere o Content-Length e corta a
+leitura; acima do teto, 413), antes de qualquer parse: um corpo que não é JSON válido ainda
 precisa virar uma linha em `alertas_rejeitados` (contagem do funil), e o parse
 automático de corpo do FastAPI responderia 422 sozinho, sem passar por
 `registrar_alerta` — por isso a rota não declara `payload: AlertaEntrada` como
@@ -31,13 +32,44 @@ _MENSAGENS_POR_STATUS = {
 }
 
 
+def _mensagem_corpo_grande(limite_bytes: int) -> str:
+    limite = f"{limite_bytes // 1024} KiB" if limite_bytes % 1024 == 0 else f"{limite_bytes} bytes"
+    return f"Corpo grande demais: o limite é {limite}."
+
+
+async def _ler_corpo_limitado(request: Request, limite_bytes: int) -> bytes | None:
+    """Corpo cru da requisição, ou `None` se passar de `limite_bytes`.
+
+    Confere o `Content-Length` antes de ler qualquer byte e, como o cabeçalho
+    pode faltar (transferência em pedaços) ou mentir, também corta a leitura do
+    fluxo assim que o acumulado passa do limite: um corpo enorme nunca é
+    inteiro para a memória. Nada é gravado (abuso, não relato).
+    """
+    declarado = request.headers.get("content-length")
+    if declarado is not None and declarado.isdigit() and int(declarado) > limite_bytes:
+        return None
+    pedacos: list[bytes] = []
+    total = 0
+    async for pedaco in request.stream():
+        total += len(pedaco)
+        if total > limite_bytes:
+            return None
+        pedacos.append(pedaco)
+    return b"".join(pedacos)
+
+
 @router.post("/alertas", status_code=201, response_model=AlertaRegistrado)
 async def criar_alerta(
     request: Request,
     conexao: ConexaoDaRequisicao,
     config: Configuracoes = Depends(obter_configuracoes),
 ) -> AlertaRegistrado | JSONResponse:
-    corpo_bruto = await request.body()
+    corpo_bruto = await _ler_corpo_limitado(request, config.limite_corpo_bytes)
+    if corpo_bruto is None:
+        return JSONResponse(
+            status_code=413,
+            content={"mensagem": _mensagem_corpo_grande(config.limite_corpo_bytes)},
+        )
     # Um corpo que não se pode gravar vira um `CorpoInvalido`, tipo dedicado
     # (não um dict com chave-sentinela): `json.loads` nunca devolve uma
     # instância dele, então um cliente não consegue forjar este atalho enviando

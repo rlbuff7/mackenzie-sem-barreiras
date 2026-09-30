@@ -113,6 +113,20 @@ def test_recebidos_e_a_soma_de_todos_os_estagios(conexao: psycopg.Connection) ->
 
     alertas = calcular_estatisticas(conexao, origem="simulacao")["alertas"]
 
+    # Contagens independentes (`count(*)` direto nas tabelas), não a soma dos
+    # próprios campos da resposta: assim o teste falha se um estágio deixar de
+    # ser contado, em vez de comparar a função com ela mesma.
+    def contar(tabela: str, filtro: str = "TRUE") -> int:
+        return conexao.execute(
+            f"SELECT count(*) FROM {tabela} WHERE origem = 'simulacao' AND {filtro}"
+        ).fetchone()[0]
+
+    assert alertas["recebidos"] == contar("alertas") + contar("alertas_rejeitados") == 6
+    assert alertas["rejeitados_schema"] == contar("alertas_rejeitados")
+    assert sum(alertas["descartados"].values()) == contar("alertas", "status = 'descartado'")
+    assert alertas["aguardando_pipeline"] == contar("alertas", "status = 'bruto'")
+    assert alertas["ruido_isolado"] == contar("alertas", "status = 'ruido_isolado'")
+    assert alertas["agrupados"] == contar("alertas", "status = 'agrupado'")
     assert alertas["recebidos"] == (
         alertas["rejeitados_schema"]
         + sum(alertas["descartados"].values())

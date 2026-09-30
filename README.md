@@ -11,7 +11,7 @@ valida os reports antes de persistir em banco espacial (PostgreSQL + PostGIS).
 Contexto completo do projeto, decisões e convenções: [CLAUDE.md](CLAUDE.md).
 Pontos em aberto: [docs/decisoes-pendentes.md](docs/decisoes-pendentes.md).
 Significado dos identificadores citados no código e nos commits (G1–G12, D1–D8,
-R1–R26, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
+R1–R39, "Task N"): [docs/decisoes-de-implementacao.md](docs/decisoes-de-implementacao.md).
 
 ## Estrutura
 
@@ -24,6 +24,15 @@ docs/        contrato da API, decisões pendentes, protocolo de coleta e docs/ac
 ```
 
 Árvore completa e comentada: [`CLAUDE.md` §3](CLAUDE.md).
+
+## Onde clonar o projeto
+
+Clone dentro do sistema de arquivos do WSL (por exemplo `~/projetos`), nunca sob
+`/mnt/c` nem dentro do OneDrive: bind mounts em `/mnt/c` são lentos, o
+`uvicorn --reload` (inotify) não enxerga as mudanças de arquivo ali, e o OneDrive pode
+interferir em arquivos sendo gravados e no `.git`. O banco usa um volume nomeado do
+Docker (não uma pasta do projeto) porque o Postgres exige permissões POSIX no diretório
+de dados, que o NTFS/OneDrive não oferece (comentário do volume em `docker-compose.yml`).
 
 ## Rodando localmente
 
@@ -47,13 +56,18 @@ curl -X POST localhost:8000/alertas -H 'Content-Type: application/json' -d \
   '{"latitude": -23.5472, "longitude": -46.6525, "tipo": "degrau", "sessao_id": "'"$sessao_id"'"}'
 ```
 
-> **Atenção: todo POST na pilha principal grava dado REAL** (`origem='real'`): este
+> **Atenção: todo POST grava dado com `origem='real'`** na pilha em que chega: este
 > `curl`, um envio pelo mapa em http://localhost:8081 e até um corpo inválido (que vira
-> uma linha em `alertas_rejeitados`). Esses dados entram no funil da coleta em campo.
-> Para testar sem sujar nada, use `./scripts/ponta-a-ponta.sh` (pilha isolada). Antes
-> de abrir a coleta, limpe o que os testes deixaram com
-> `./db/banco.sh zerar-real --sim-apagar-dados-reais` (sem o argumento, só mostra o
-> que seria apagado); ver [`docs/coleta-em-campo.md`](docs/coleta-em-campo.md) §5.
+> uma linha em `alertas_rejeitados`). Esta pilha de desenvolvimento **não** é a da coleta
+> em campo (a coleta roda na pilha de produção,
+> [`docs/implantacao.md`](docs/implantacao.md)), mas os relatos de teste daqui aparecem
+> no funil e na figura de origem real gerados nela. Para testar sem sujar nada, use
+> `./scripts/ponta-a-ponta.sh` (pilha isolada). Para limpar os testes desta pilha:
+> `./db/banco.sh zerar-real --sim-apagar-dados-reais` (sem o argumento, só mostra o que
+> seria apagado, quantos relatos e de quando). Na pilha de **produção** a limpeza é com
+> `--prod` e só antes da PRIMEIRA abertura da coleta (`implantacao.md` §7). Depois de
+> aberta, nunca: os relatos reais são os dados do TCC, e reabrir a coleta num dia
+> seguinte é `./scripts/preparar-coleta.sh --reabrir` (`implantacao.md` §8).
 
 URLs (portas padrão; ajustáveis por `*_PORTA_HOST` no `.env`):
 
@@ -89,9 +103,12 @@ cd backend && uv run pytest   # API e validacao/, no banco de teste (${POSTGRES_
 (`COMPOSE_PROJECT_NAME=msb-e2e`, portas 55434/58000/58080, volume próprio), aplica
 migrations/seeds nela, roda `backend/scripts/ponta_a_ponta.py` (saúde, taxonomia,
 entrada de alertas, pipeline em lote, consulta de barreiras, estatísticas, o
-proxy `/api/` do frontend — R19 — e o próprio frontend) e **sempre** derruba
+proxy `/api/` do frontend — R19 — e o próprio frontend), confere
+`scripts/preparar-coleta.sh` (normal e `--reabrir`) e o `zerar-real` sem confirmação
+com os relatos reais que o teste deixou, e **sempre** derruba
 essa pilha no fim (`down -v`, mesmo em falha ou Ctrl-C) — nunca toca a pilha
-principal nem o banco dela.
+principal nem o banco dela. Requer bash >= 4.2 (arrays associativos e `[[ -v ]]`;
+o macOS traz o 3.2: instale um bash mais novo) e `python3` no PATH.
 
 ## Integração e entrega contínuas
 
@@ -100,6 +117,13 @@ testes automaticamente no GitHub Actions — banco, backend, frontend e ponta a
 ponta. Todo push em `main` publica as imagens Docker da API e do frontend,
 prontas para implantar. Detalhes de cada job, como acompanhar as execuções e
 como usar as imagens publicadas: [`docs/ci-cd.md`](docs/ci-cd.md).
+
+## Implantação e coleta
+
+A pilha de produção (`docker-compose.prod.yml`, imagens do GHCR, `TOKEN_ADMIN`
+obrigatório), o HTTPS sem conta para o celular (profile `tunel`), backup/restauração,
+o checklist `scripts/preparar-coleta.sh` e o roteiro do dia de coleta:
+[`docs/implantacao.md`](docs/implantacao.md).
 
 ## Backend
 

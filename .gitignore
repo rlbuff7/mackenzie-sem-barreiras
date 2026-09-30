@@ -27,3 +27,6 @@ desktop.ini
 
 # Saídas geradas pelos scripts de simulação
 backend/scripts/saida/
+
+# Backups do banco (db/banco.sh backup): dados de voluntários, nunca no Git
+backups/

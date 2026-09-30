@@ -122,8 +122,8 @@ export type ResultadoEnvioAlerta =
 /** Erro lançado quando a API responde com um formato inesperado. */
 export class ErroApiInesperado extends Error {}
 
-async function requisitarJson<T>(caminho: string): Promise<T> {
-  const resposta = await fetch(`${URL_BASE_API}${caminho}`);
+async function requisitarJson<T>(caminho: string, sinal?: AbortSignal): Promise<T> {
+  const resposta = await fetch(`${URL_BASE_API}${caminho}`, { signal: sinal });
   if (!resposta.ok) {
     throw new ErroApiInesperado(
       `Falha ao consultar ${caminho}: HTTP ${resposta.status}`,
@@ -149,12 +149,13 @@ export async function buscarAreaEstudo(): Promise<ColecaoAreaEstudo> {
  */
 export async function buscarBarreiras(
   bbox: readonly [number, number, number, number],
+  sinal?: AbortSignal,
 ): Promise<ColecaoBarreiras> {
   const parametros = new URLSearchParams({
     bbox: bbox.join(","),
     origem: "real",
   });
-  return requisitarJson<ColecaoBarreiras>(`/barreiras?${parametros.toString()}`);
+  return requisitarJson<ColecaoBarreiras>(`/barreiras?${parametros.toString()}`, sinal);
 }
 
 /**
@@ -203,6 +204,24 @@ export async function enviarAlerta(
           "O servidor recusou o alerta, mas a resposta veio num formato inesperado. Tente novamente.",
       };
     }
+  }
+
+  // 429 vem do nginx (limit_req em frontend/nginx.conf), com corpo HTML: não há
+  // o que ler nele, só a mensagem em português abaixo.
+  if (resposta.status === 429) {
+    return {
+      tipo: "erro_rede",
+      mensagem: "Muitos envios em sequência; aguarde um minuto.",
+    };
+  }
+
+  // 413: o corpo passou do limite (nginx ou API). Um relato de verdade nunca chega
+  // lá; a mensagem existe para o caso de a descrição ser colada de um texto enorme.
+  if (resposta.status === 413) {
+    return {
+      tipo: "erro_rede",
+      mensagem: "O relato ficou grande demais para ser enviado. Encurte a descrição.",
+    };
   }
 
   return {

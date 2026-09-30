@@ -49,7 +49,9 @@ outra ferramenta, sugira em texto e espere confirmação — não implemente.
 
 ```
 mackenzie-sem-barreiras/
-├── docker-compose.yml       # db + api + frontend
+├── docker-compose.yml       # db + api + frontend (desenvolvimento, build local)
+├── docker-compose.prod.yml  # PRODUÇÃO (coleta): imagens do GHCR, TOKEN_ADMIN obrigatório,
+│                            #   docs fechadas, portas *_PORTA_PROD; profile `tunel` (Quick Tunnel)
 ├── .env.example
 ├── CLAUDE.md
 ├── README.md
@@ -58,13 +60,19 @@ mackenzie-sem-barreiras/
 │   │   └── ci-cd.yml        # M5.1: testes em todo push; publica imagens no GHCR em push na main
 │   └── actionlint.yaml      # ignora só o aviso de estilo do `if: false` intencional
 ├── scripts/
-│   └── ponta-a-ponta.sh     # M5: pilha ISOLADA (msb-e2e) + teste E2E por HTTP + down -v sempre
+│   ├── ponta-a-ponta.sh     # M5: pilha ISOLADA (msb-e2e) + teste E2E por HTTP + down -v sempre
+│   └── preparar-coleta.sh   # M6: checklist SÓ LEITURA da coleta ([--prod|--dev] [--reabrir])
 ├── db/
-│   ├── banco.sh             # ./db/banco.sh {migrar|testar|psql|preparar-teste|zerar-real}
+│   ├── banco.sh             # ./db/banco.sh [--prod] [--teste] {migrar|testar|psql|preparar-teste|
+│   │                        #   backup|restaurar ARQ --sim-substituir-banco [--sim-pilha-diferente]|
+│   │                        #   zerar-real [--sim-apagar-dados-reais]}; --prod = pilha de produção,
+│   │                        #   --teste = banco <POSTGRES_DB>_teste
 │   ├── init/                # roda 1x com volume vazio: só habilita o postgis
 │   ├── migrations/          # SQL numerado, aplicado em ordem (schema_migrations)
 │   ├── seeds/               # upserts: tipos de barreira, polígono da área de estudo
-│   └── tests/               # testes do schema em SQL, terminam em ROLLBACK
+│   └── tests/
+│       ├── test_schema.sql        # testes do schema em SQL, terminam em ROLLBACK
+│       └── banco_sh_seguranca.sh  # recusas, backup/restauração e zerar-real do banco.sh (só banco de teste)
 ├── backend/
 │   ├── Dockerfile
 │   ├── app/
@@ -98,21 +106,28 @@ mackenzie-sem-barreiras/
 │       ├── sessao.ts           # sessao_id (UUID) em localStorage (D1)
 │       ├── mapa.ts             # Leaflet: tiles OSM, área de estudo, barreiras por bbox
 │       ├── formulario.ts       # formulário de envio de alerta
+│       ├── itens.ts            # comparação das barreiras visíveis (marcadores só refeitos se mudam)
+│       ├── itens.test.ts       # teste com node:test (npm run testar)
 │       ├── estilos.css
 │       └── fontes/             # Public Sans (woff2 + OFL), servida pelo próprio frontend
 └── docs/
     ├── api.md                 # Contrato da API (fonte única, backend + frontend)
     ├── ci-cd.md               # M5.1: o que cada job do GitHub Actions faz e como usá-lo
     ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
-    ├── decisoes-de-implementacao.md  # glossário: G1–G12, D1–D8, R1–R26, "Task N"
+    ├── decisoes-de-implementacao.md  # glossário: G1–G12, D1–D8, R1–R39, "Task N"
     ├── coleta-em-campo.md     # M6: protocolo de coleta em campo
+    ├── implantacao.md         # M6: pilha de produção, túnel, reabrir a coleta, backup (Victor/Maurício)
     ├── figuras/               # figuras geradas pelos scripts (funil)
+    ├── orientadora/           # pauta da reunião com a orientadora
+    ├── texto-tcc/             # RASCUNHOS de capítulos do TCC e referências (para a equipe revisar)
     └── academico/             # pôster e artigo do TCC I (não é código)
 ```
 
 Documentos acadêmicos (`.pdf`, `.doc`) ficam **sempre** em `docs/academico/`, nunca
 na raiz. A raiz guarda só o que as ferramentas exigem lá (`docker-compose.yml`,
-`CLAUDE.md`, `.env*`, `README.md`).
+`docker-compose.prod.yml`, `CLAUDE.md`, `.env*`, `README.md`). Os dumps de
+`./db/banco.sh backup` vão para `backups/` na raiz, ignorada pelo Git (têm dados de
+voluntários).
 
 ---
 
@@ -497,7 +512,10 @@ Não implemente nada que dependa destes pontos sem confirmar antes:
 2. **Taxonomia final** de tipos de barreira.
 3. **Polígono exato** da área de estudo.
 4. **Calibração** de `DBSCAN_EPS_METROS` e `MIN_CONFIRMACOES`.
-5. **Divisão de responsabilidades** entre os integrantes.
+
+Já decidida (fora desta lista): a **divisão de responsabilidades** entre os
+integrantes, em 29/09/2026 — código = rlbuff7; infra = Victor (VSWH); dados reais =
+Maurício (registro em `docs/decisoes-pendentes.md`, #5).
 
 Enquanto pendente: implemente com valor provisório, deixe configurável, e registre a
 pendência em `docs/decisoes-pendentes.md`.
@@ -522,7 +540,7 @@ Registradas aqui porque afetam a coerência entre código e texto:
 ## 13. Como trabalhar comigo neste repositório
 
 - Antes de criar arquivo novo, verifique se já existe algo equivalente.
-- Os identificadores G1–G12, D1–D8, R1–R26 e "Task N" citados no código e nos
+- Os identificadores G1–G12, D1–D8, R1–R39 e "Task N" citados no código e nos
   commits estão definidos em [`docs/decisoes-de-implementacao.md`](docs/decisoes-de-implementacao.md).
   Uma decisão nova desse tipo ganha uma linha lá.
 - Mudanças em schema do banco: **sempre** via migration, nunca `ALTER` manual.

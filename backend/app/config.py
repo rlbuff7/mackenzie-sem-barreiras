@@ -62,6 +62,14 @@ class Configuracoes(BaseSettings):
     # sem proteção, só em desenvolvimento.
     token_admin: str = ""
     limite_barreiras_por_consulta: int = 1000
+    # Tamanho máximo do corpo de POST /alertas, em bytes. Acima disso é abuso, não
+    # relato: 413 sem gravar nada (o nginx aplica o mesmo limite antes, em
+    # `frontend/nginx.conf`). Um relato de verdade tem cerca de 400 bytes.
+    limite_corpo_bytes: int = Field(default=16384, ge=1)
+    # Documentação interativa (/docs, /redoc, /openapi.json). Ligada no dev;
+    # `false` na coleta pública, para não publicar o esquema da API. Lido na
+    # montagem da app (app/main.py): mudar exige reiniciar a API.
+    expor_docs: bool = True
 
     @field_validator("cors_origens", mode="before")
     @classmethod

@@ -1,7 +1,8 @@
 # CI/CD do Mackenzie sem Barreiras (M5.1).
 #
 # CI: todo push (qualquer branch) e todo pull request para main rodam os testes
-# de banco, backend, frontend e ponta a ponta.
+# de banco, backend, frontend e ponta a ponta (este duas vezes: sem token e com a
+# configuração da coleta), e validam o compose de produção.
 # CD: todo push em main (ou tag v*) publica as imagens Docker da API e do
 # frontend no GHCR, prontas para implantar. A implantação em si NÃO é
 # automática (job `implantar`, desativado — ver docs/ci-cd.md).
@@ -49,6 +50,13 @@ jobs:
       - name: Preparar .env
         run: cp .env.example .env
 
+      # A pilha de produção (docker-compose.prod.yml) não sobe no CI; validar o
+      # arquivo, com o profile do túnel, pega erro de sintaxe ou de interpolação
+      # antes do dia da coleta. O TOKEN_ADMIN é de enchimento: o arquivo o exige
+      # (${TOKEN_ADMIN:?}) em todo comando, até no `config`.
+      - name: Validar o compose de produção (config -q, profile tunel)
+        run: TOKEN_ADMIN=ci docker compose -f docker-compose.prod.yml --profile tunel config -q
+
       - name: Subir o banco (PostGIS)
         run: docker compose up -d --wait db
 
@@ -57,6 +65,9 @@ jobs:
 
       - name: Testes de schema (SQL, em transação desfeita)
         run: ./db/banco.sh testar
+
+      - name: Testes de segurança do banco.sh (backup e restauração, só o banco de teste)
+        run: ./db/tests/banco_sh_seguranca.sh
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -104,6 +115,10 @@ jobs:
         working-directory: frontend
         run: npm run verificar
 
+      - name: Testes do frontend (node:test)
+        working-directory: frontend
+        run: npm run testar
+
       - name: Build de produção (Vite)
         working-directory: frontend
         run: npm run build
@@ -133,6 +148,18 @@ jobs:
 
       - name: Rodar o teste ponta a ponta
         run: ./scripts/ponta-a-ponta.sh
+
+      # De novo, com a configuração da coleta: TOKEN_ADMIN definido (executar sem
+      # o header dá 401) e EXPOR_DOCS=false (/docs, /redoc e /openapi.json dão
+      # 404); o preparar-coleta.sh --reabrir tem de ficar PRONTO. O token é
+      # aleatório, gerado aqui (a pilha é descartável), e mascarado no log.
+      - name: Rodar o teste ponta a ponta com a configuração da coleta (token e docs fechados)
+        run: |
+          TOKEN_ADMIN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          echo "::add-mask::$TOKEN_ADMIN"
+          export TOKEN_ADMIN
+          export EXPOR_DOCS=false
+          ./scripts/ponta-a-ponta.sh
 
   # CD: publica as imagens da API e do frontend no GHCR. Só em push direto
   # para main (nunca em pull_request) ou em tag de versão (v*) — nunca em

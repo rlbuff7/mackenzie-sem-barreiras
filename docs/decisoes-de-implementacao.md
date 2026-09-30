@@ -1,7 +1,7 @@
 # Decisões de implementação (glossário)
 
 O código, os commits e os documentos citam identificadores curtos: **G1–G12**, **D1–D8**,
-**R1–R26** e "Task N". Eles vêm do plano de implementação do TCC II e do registro de
+**R1–R39** e "Task N". Eles vêm do plano de implementação do TCC II e do registro de
 decisões tomadas durante a execução dele, que ficaram fora do repositório (pasta
 `.superpowers/`, não versionada: `plano-tcc2.md`, `globais.md` e o registro de
 progresso). Este arquivo guarda o significado de cada um, uma linha por identificador,
@@ -18,7 +18,13 @@ Outros identificadores já têm definição no próprio repositório:
 
 O plano de implementação do TCC II dividiu o trabalho dos marcos M2 a M6 (mais o
 M5.1) em **7 tarefas**, executadas entre 28 e 29/09/2026, cada uma revisada antes da
-seguinte. "Task N" no código ou num commit aponta para uma delas:
+seguinte. Uma **Fase 2** (29/09/2026, branch `fase2`) acrescentou as **Tasks 8 a 11**,
+para preparar a coleta real (M6) depois da revisão final da primeira fase: ajustes de
+entrada e privacidade, a pilha de produção com HTTPS sem conta, backup e checklist da
+coleta, melhorias pequenas e o material para a orientadora. As Tasks 8 a 10 rodaram em
+sequência (tocam os mesmos arquivos); a 11, só de documentos, correu em paralelo num
+worktree próprio. A Fase 2 terminou com uma revisão final e uma onda única de correções
+(R37). "Task N" no código ou num commit aponta para uma delas:
 
 | Task | Escopo | Marco |
 |---|---|---|
@@ -29,6 +35,10 @@ seguinte. "Task N" no código ou num commit aponta para uma delas:
 | 5 | Frontend com mapa e envio de alerta (worktree e branch próprios, em paralelo) | M4 |
 | 6 | Integração ponta a ponta (E2E) e protocolo da coleta em campo | M5, M6 |
 | 7 | CI/CD no GitHub Actions | M5.1 |
+| 8 | Ajustes antes da coleta: coordenadas e severidade estritas, limites de envio (413 e 429), `EXPOR_DOCS`, texto de privacidade exato (R27) | M6 |
+| 9 | Implantação sem conta: pilha de produção com as imagens do GHCR, túnel HTTPS (R30), `backup`/`restaurar`, checklist `scripts/preparar-coleta.sh` e `docs/implantacao.md` | M6 |
+| 10 | Melhorias pequenas: `/saude` com timeout curto, consulta de barreiras cancelável no mapa, lista permitida do `banco.sh` (R35), teste do frontend com `node:test` | M4, M5 |
+| 11 | Material para a orientadora (`docs/orientadora/`) e rascunhos do texto do TCC (`docs/texto-tcc/`), em paralelo, num worktree próprio | texto do TCC |
 
 `globais.md` (citado na migration 002) é o arquivo do plano que reunia as regras G, as
 decisões D e o contrato da API para quem implementava cada tarefa. O contrato hoje é
@@ -40,7 +50,7 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 
 | Id | Regra | Por quê |
 |---|---|---|
-| G1 | Trabalhar só no checkout do repositório no WSL, nunca na cópia antiga no OneDrive. | A cópia em `/mnt/c/.../OneDrive` estava desatualizada e o Postgres não roda sobre NTFS. |
+| G1 | Trabalhar só no checkout do repositório no WSL, nunca na cópia antiga no OneDrive. | A cópia em `/mnt/c/.../OneDrive` estava desatualizada e o Postgres exige permissões POSIX no diretório de dados, que o NTFS/OneDrive (`/mnt/c`) não oferece (comentário do volume em `docker-compose.yml`); além disso `/mnt/c` é lento e o OneDrive interfere nos arquivos (README, seção "Onde clonar o projeto"). |
 | G2 | Git: branch `tcc2`, sem push/merge/rebase pelos implementadores, commits pequenos em português (`<escopo>: <resumo>`), caminhos explícitos, trailer de coautoria. | Histórico legível e revisável tarefa a tarefa. |
 | G3 | Stack: Python 3.12 via `uv`, FastAPI, Pydantic v2, psycopg 3 sem ORM (SQL com parâmetros), frontend TypeScript + Vite + Leaflet sem framework; nada instalado no sistema. | Mantém a stack do `CLAUDE.md` §2 e evita dependências ocultas. |
 | G4 | Banco: serviço `db` do compose em `127.0.0.1:5434`, `.env` nunca versionado, operações por `./db/banco.sh`, migrations imutáveis. | Reprodutibilidade e `CLAUDE.md` §10. |
@@ -57,7 +67,7 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 
 | Id | Decisão | Por quê |
 |---|---|---|
-| D1 | `sessao_id` é um UUID gerado no navegador (`localStorage`); o servidor grava só `sha256(uuid)` e nunca guarda IP. | Resolve T3: identifica relatos do mesmo aparelho sem dado de identificação. |
+| D1 | `sessao_id` é um UUID gerado no navegador (`localStorage`); o servidor grava só `sha256(uuid)` nos relatos aceitos e nunca guarda IP; relatos reprovados no estágio 1 guardam o corpo recebido inteiro (UUID cru, descrição e campos extras) em `alertas_rejeitados.payload` (R27). | Resolve T3: identifica relatos do mesmo aparelho sem dado de identificação; o UUID é aleatório e só existe no aparelho. |
 | D2 | Coluna `origem` (`real`\|`simulacao`) em `alertas`, `alertas_rejeitados` e `barreiras` (migration 002); pela HTTP é sempre `real`. | G10: separar simulação de coleta real no próprio dado. |
 | D3 | O tipo é enviado pelo `codigo` (ex.: `"degrau"`), não pelo id; tipo inexistente ou inativo reprova no estágio 1. | Contrato estável mesmo se os ids da taxonomia mudarem. |
 | D4 | Alerta válido fora da área: HTTP 201 com `status="descartado"` e `motivo_descarte="fora_da_area"`; reprovado no schema: HTTP 422. | O alerta fora da área foi registrado e conta no funil (estágio 2). |
@@ -96,3 +106,16 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 | R24 | Sem Google Fonts: fonte hospedada no próprio frontend. | Privacidade (IP do voluntário) e coleta sem depender de internet boa. | 29/09, revisão final |
 | R25 | Este glossário. | Tornar rastreáveis as cerca de 140 referências a G, D, R e Task. | 29/09, revisão final |
 | R26 | O minpoints do estágio 3 contar alertas, não sessões, vira pendência para a orientadora, sem implementação. | Mudança metodológica do núcleo do TCC não é decisão do orquestrador. | 29/09, revisão final |
+| R27 | O texto de privacidade diz que relatos reprovados no estágio 1 guardam o corpo recebido inteiro (com o `sessao_id` cru) em `alertas_rejeitados.payload`. | Precisão: a frase "nunca o UUID cru" só valia para os relatos aceitos. | 29/09, Task 8 |
+| R28 | A divisão de responsabilidades (pendência #5) foi decidida pelo usuário: código = rlbuff7, infra = Victor, dados reais = Maurício. | Dá um dono a cada frente da coleta e a cada cartão do quadro da equipe. | 29/09, antes da Task 8 |
+| R29 | O quadro de tarefas (Kanban) da equipe é uma página compartilhada, com cartões que todos editam, fora do repositório; o repositório guarda o plano técnico. | A equipe precisa mover cartões sem fazer commit. | 29/09, antes da Task 8 |
+| R30 | HTTPS sem conta pelo Quick Tunnel do `cloudflared`, em container (profile `tunel` do `docker-compose.prod.yml`), preparado e documentado, sem exposição duradoura. | A geolocalização do celular exige HTTPS, e a hospedagem com conta ainda não foi escolhida (T6). | 29/09, Task 9 |
+| R31 | A fonte da G1 é o comentário do volume no `docker-compose.yml` mais a seção "Onde clonar o projeto" do README; os menores da revisão entram na mesma rodada. | A G1 citava arquivos sem o conteúdo; a nota também orienta quem cuida da infra. | 29/09, Task 8 |
+| R32 | `restaurar` valida o dump antes de tudo, restaura num banco temporário e só então troca os nomes; `--teste` no `banco.sh`; túnel com `restart: "no"`; o roteiro da primeira abertura em ordem: checklist, túnel, teste no celular, `zerar-real`, checklist de novo, abertura. | Nenhum caminho pode deixar o banco da coleta vazio ou pela metade, nem abrir uma URL pública sem ninguém decidir. | 29/09, Task 9 |
+| R33 | A autoria do TCC é decisão da equipe e da orientadora: nenhuma tarefa do plano altera listas de autores. | Não é decisão técnica. | 29/09, Task 11 |
+| R34 | O teste `db/tests/banco_sh_seguranca.sh` roda no job `banco-e-backend` do CI. | Uma regressão na restauração seria silenciosa. | 29/09, Task 9 |
+| R35 | O `banco.sh` preserva do shell só uma lista permitida (projeto e arquivo do compose, portas, `BANCO_ALVO`, `BACKUP_DIR`, `IMAGEM_TAG`); `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD` vêm sempre do `.env`, com aviso se o shell tiver outro valor. | Um `POSTGRES_DB` esquecido no shell faria backup ou restauração agir noutro banco em silêncio. | 29/09, Task 10 |
+| R36 | A discussão de autoria e os dados pessoais de terceiros (números de matrícula e um nome vindo dos metadados de um arquivo) saem do repositório, que é público; no lugar, uma linha neutra para conferir a lista de autores com a equipe e a orientadora. | Privacidade e R33: o repositório público não é lugar dessa discussão. | 29/09, revisão final da Fase 2 |
+| R37 | Uma única onda de correções depois da revisão final da Fase 2 (1 crítico, 8 importantes e 10 menores), com os adiados listados. | Um só ciclo, como na R22; o crítico (reabrir a coleta sem apagar dados reais) protege os dados do TCC. | 29/09, revisão final da Fase 2 |
+| R38 | Os números de matrícula e o nome de terceiro continuam no histórico do Git e no `.doc` do TCC I em `docs/academico/`; o histórico não é reescrito. | Reescrever o histórico de um repositório público exige force push, é irreversível para quem já clonou e cabe à equipe decidir; o `.doc` limpo entra quando o artigo for corrigido. | 30/09, revisão final da Fase 2 |
+| R39 | Os resíduos da re-revisão no caminho da coleta são corrigidos antes do merge: `--reabrir` com o banco sem relato real falha (pode ter sido recriado) e sugere restaurar, nunca `pull`; a comparação do dia 2 usa o registro de ontem; o token é lido com `tail -n 1`; os comandos destrutivos do §7 e do §10 de `implantacao.md` ficam em blocos próprios. | Um PRONTO com o banco vazio abriria um dia de coleta separado dos anteriores; comandos destrutivos colados junto com os de conferência rodam mesmo quando a conferência falha. | 30/09, re-revisão da Fase 2 |

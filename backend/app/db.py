@@ -38,6 +38,28 @@ async def lifespan(app: FastAPI):
         pool.close()
 
 
+def _emprestar_conexao(request: Request, timeout_segundos: float | None) -> Iterator[Connection]:
+    """Empresta uma conexão do pool para a duração de uma rota.
+
+    `timeout_segundos=None` usa o timeout padrão do pool (30 s); um número espera
+    só esse tempo antes de devolver 503 "banco indisponível".
+    """
+    pool: ConnectionPool = request.app.state.pool_conexoes
+    try:
+        conexao = pool.getconn(timeout=timeout_segundos)
+    except PoolTimeout as erro:
+        raise HTTPException(status_code=503, detail="banco indisponível") from erro
+
+    try:
+        yield conexao
+        conexao.commit()
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        pool.putconn(conexao)
+
+
 def obter_conexao(request: Request) -> Iterator[Connection]:
     """Empresta uma conexão do pool para a duração de uma rota.
 
@@ -59,21 +81,20 @@ def obter_conexao(request: Request) -> Iterator[Connection]:
     dentro de uma transação de teste, e este código não roda. `test_db.py` é a
     exceção: roda o código real, com um pool de conexões reais ao banco de teste.
     """
-    pool: ConnectionPool = request.app.state.pool_conexoes
-    try:
-        conexao = pool.getconn()
-    except PoolTimeout as erro:
-        raise HTTPException(status_code=503, detail="banco indisponível") from erro
+    yield from _emprestar_conexao(request, None)
 
-    try:
-        yield conexao
-        conexao.commit()
-    except Exception:
-        conexao.rollback()
-        raise
-    finally:
-        pool.putconn(conexao)
+
+# `/saude` é a sonda de "o banco responde?": esperar 30 s por uma conexão faria a
+# sonda (healthcheck, monitor) pendurar. Lido a cada chamada, para o teste poder
+# encurtar.
+TIMEOUT_SAUDE_SEGUNDOS = 2.0
+
+
+def obter_conexao_da_saude(request: Request) -> Iterator[Connection]:
+    """Como `obter_conexao`, mas espera no máximo `TIMEOUT_SAUDE_SEGUNDOS`."""
+    yield from _emprestar_conexao(request, TIMEOUT_SAUDE_SEGUNDOS)
 
 
 # Tipo do parâmetro de toda rota que usa o banco (ver `obter_conexao`).
 ConexaoDaRequisicao = Annotated[Connection, Depends(obter_conexao, scope="function")]
+ConexaoDaSaude = Annotated[Connection, Depends(obter_conexao_da_saude, scope="function")]

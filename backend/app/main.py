@@ -16,10 +16,7 @@ from app.db import lifespan
 from app.routers import alertas, barreiras, referencia, validacao
 from app.validacao.mensagens import traduzir_erros_da_requisicao
 
-app = FastAPI(title="Mackenzie sem Barreiras", lifespan=lifespan)
 
-
-@app.exception_handler(RequestValidationError)
 async def responder_requisicao_invalida(
     request: Request, erro: RequestValidationError
 ) -> JSONResponse:
@@ -36,16 +33,30 @@ async def responder_requisicao_invalida(
     )
 
 
-# CORS é montagem de app (não depende de requisição), então a configuração é
-# lida uma vez aqui — diferente das rotas, que sempre pedem `Depends(obter_configuracoes)`.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=obter_configuracoes().cors_origens,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def criar_app(*, expor_docs: bool) -> FastAPI:
+    """Monta a aplicação. `expor_docs=False` remove `/docs`, `/redoc` e
+    `/openapi.json` (404): na coleta pública o esquema da API não fica à mostra."""
+    aplicacao = FastAPI(
+        title="Mackenzie sem Barreiras",
+        lifespan=lifespan,
+        docs_url="/docs" if expor_docs else None,
+        redoc_url="/redoc" if expor_docs else None,
+        openapi_url="/openapi.json" if expor_docs else None,
+    )
+    aplicacao.add_exception_handler(RequestValidationError, responder_requisicao_invalida)
+    # CORS é montagem de app (não depende de requisição), então a configuração é
+    # lida uma vez aqui — diferente das rotas, que sempre pedem `Depends(obter_configuracoes)`.
+    aplicacao.add_middleware(
+        CORSMiddleware,
+        allow_origins=obter_configuracoes().cors_origens,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    aplicacao.include_router(referencia.router)
+    aplicacao.include_router(alertas.router)
+    aplicacao.include_router(barreiras.router)
+    aplicacao.include_router(validacao.router)
+    return aplicacao
 
-app.include_router(referencia.router)
-app.include_router(alertas.router)
-app.include_router(barreiras.router)
-app.include_router(validacao.router)
+
+app = criar_app(expor_docs=obter_configuracoes().expor_docs)

@@ -1,8 +1,10 @@
 """Testes HTTP de `GET /barreiras` (Contrato da API)."""
 
 import psycopg
+import pytest
 from fastapi.testclient import TestClient
 
+from app.routers.barreiras import buscar_barreiras_no_bbox, interpretar_bbox
 from app.validacao.estatisticas import ROTULOS_POR_ORIGEM
 
 _BBOX_CAMPUS = "-46.66,-23.55,-46.64,-23.54"
@@ -156,3 +158,67 @@ def test_colecao_traz_o_rotulo_da_origem(cliente: TestClient) -> None:
     assert real.json()["rotulo"] == ROTULOS_POR_ORIGEM["real"]
     assert simulacao.json()["rotulo"] == ROTULOS_POR_ORIGEM["simulacao"]
     assert simulacao.json()["rotulo"].startswith("SIMULAÇÃO")
+
+
+# --- funções do router, sem HTTP ---
+
+
+def test_interpretar_bbox_devolve_os_quatro_floats() -> None:
+    assert interpretar_bbox("-46.66,-23.55,-46.64,-23.54") == (-46.66, -23.55, -46.64, -23.54)
+
+
+@pytest.mark.parametrize(
+    ("texto", "trecho_da_mensagem"),
+    [
+        ("1,2,3", "4 valores"),
+        ("1,2,3,4,5", "4 valores"),
+        ("", "4 valores"),
+        ("a,b,c,d", "apenas números"),
+        ("-181,0,0,1", "longitude"),
+        ("0,0,181,1", "longitude"),
+        ("0,-91,1,0", "latitude"),
+        ("0,0,1,91", "latitude"),
+        ("1,0,0,1", "mínimo deve ser menor"),
+        ("0,1,1,1", "mínimo deve ser menor"),
+    ],
+)
+def test_interpretar_bbox_rejeita_com_mensagem_em_portugues(
+    texto: str, trecho_da_mensagem: str
+) -> None:
+    with pytest.raises(ValueError, match=trecho_da_mensagem):
+        interpretar_bbox(texto)
+
+
+def _buscar(conexao: psycopg.Connection, bbox: tuple[float, float, float, float], **filtros):
+    parametros = {"status": None, "origem": "real", "limite": 100, "srid_armazenamento": 4326}
+    return buscar_barreiras_no_bbox(conexao, bbox, **{**parametros, **filtros})
+
+
+def test_buscar_barreiras_no_bbox_filtra_por_bbox_origem_e_status(
+    conexao: psycopg.Connection,
+) -> None:
+    dentro = _inserir_barreira(conexao, longitude=-46.652, latitude=-23.547, status="confirmada")
+    pendente = _inserir_barreira(conexao, longitude=-46.653, latitude=-23.547, status="pendente")
+    _inserir_barreira(conexao, longitude=-46.50, latitude=-23.547)  # fora do bbox
+    _inserir_barreira(conexao, longitude=-46.652, latitude=-23.547, origem="simulacao")
+    bbox = (-46.66, -23.55, -46.64, -23.54)
+
+    todas = _buscar(conexao, bbox)
+    confirmadas = _buscar(conexao, bbox, status="confirmada")
+    simuladas = _buscar(conexao, bbox, origem="simulacao")
+
+    assert [f["properties"]["id"] for f in todas["features"]] == [dentro, pendente]
+    assert [f["properties"]["id"] for f in confirmadas["features"]] == [dentro]
+    assert len(simuladas["features"]) == 1
+    assert todas["rotulo"] == ROTULOS_POR_ORIGEM["real"]
+    assert simuladas["rotulo"] == ROTULOS_POR_ORIGEM["simulacao"]
+    assert todas["features"][0]["geometry"]["type"] == "Point"
+
+
+def test_buscar_barreiras_no_bbox_respeita_o_limite(conexao: psycopg.Connection) -> None:
+    for deslocamento in range(3):
+        _inserir_barreira(conexao, longitude=-46.652 + deslocamento / 1000, latitude=-23.547)
+
+    resultado = _buscar(conexao, (-46.66, -23.55, -46.64, -23.54), limite=2)
+
+    assert len(resultado["features"]) == 2

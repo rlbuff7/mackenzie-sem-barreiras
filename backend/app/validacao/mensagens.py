@@ -15,7 +15,7 @@ de parâmetros das rotas (query), que o FastAPI levanta como
 `RequestValidationError` e o handler de `app/main.py` devolve em português.
 """
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 _MENSAGEM_PADRAO = "Valor inválido."
@@ -54,7 +54,7 @@ def _numero_brasileiro(valor: object) -> str:
 
 # Erros que citam um limite do `ctx`: mensagem montada em cima do valor real
 # do `Field` (nunca hardcoded aqui — vem do próprio erro do Pydantic).
-_MENSAGENS_COM_LIMITE: dict[str, Any] = {
+_MENSAGENS_COM_LIMITE: dict[str, Callable[[dict[str, Any]], str]] = {
     "less_than_equal": lambda ctx: f"Deve ser menor ou igual a {_numero_brasileiro(ctx['le'])}.",
     "greater_than_equal": lambda ctx: f"Deve ser maior ou igual a {_numero_brasileiro(ctx['ge'])}.",
     "less_than": lambda ctx: f"Deve ser menor que {_numero_brasileiro(ctx['lt'])}.",

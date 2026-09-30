@@ -9,17 +9,17 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from app.db import ConexaoDaRequisicao
+from app.db import ConexaoDaRequisicao, ConexaoDaSaude
 
 router = APIRouter()
 
 
 @router.get("/saude")
-def saude(conexao: ConexaoDaRequisicao) -> dict[str, str]:
+def saude(conexao: ConexaoDaSaude) -> dict[str, str]:
     """Confirma que a API está de pé e que o banco responde a uma consulta trivial.
 
     Se o banco não responder, `obter_conexao` já devolve 503 antes de chegar
-    aqui (pool sem conexões disponíveis); veja `app/db.py`.
+    aqui (pool sem conexões disponíveis após 2 s); veja `app/db.py`.
     """
     conexao.execute("SELECT 1")
     return {"status": "ok", "banco": "ok"}

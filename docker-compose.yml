@@ -51,6 +51,9 @@ services:
       # `TOKEN_ADMIN=... ./scripts/ponta-a-ponta.sh` testa com um token
       # temporário sem editar o .env. Sem nada no shell, vale o do .env.
       TOKEN_ADMIN: ${TOKEN_ADMIN:-}
+      # Mesma razão do TOKEN_ADMIN: o shell (ou o .env, pela interpolação do
+      # compose) decide se /docs, /redoc e /openapi.json existem.
+      EXPOR_DOCS: ${EXPOR_DOCS:-true}
     ports:
       # Só localhost, como o banco: a API de desenvolvimento não fica exposta na rede.
       - "127.0.0.1:${API_PORTA_HOST:-8000}:8000"

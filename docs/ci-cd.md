@@ -13,9 +13,9 @@ jobs, na ordem em que dependem uns dos outros:
 
 | Job | O que faz | Depende de |
 |---|---|---|
-| `banco-e-backend` | Sobe só o serviço `db` (PostGIS), aplica migrations e seeds (`./db/banco.sh migrar`), roda os testes de schema (`./db/banco.sh testar`) e a suíte do backend: `uv sync --frozen`, `ruff check`, `ruff format --check`, `pytest` (bate no PostGIS real, num banco de teste à parte — G8). | — |
-| `frontend` | `npm ci`, checagem de tipos (`npm run verificar`, `tsc --noEmit`) e build de produção (`npm run build`). | — |
-| `ponta-a-ponta` | `./scripts/ponta-a-ponta.sh`: sobe uma pilha Docker Compose **isolada** (`msb-e2e`), roda o contrato inteiro da API por HTTP e sempre derruba a pilha no fim. | `banco-e-backend`, `frontend` |
+| `banco-e-backend` | Valida o compose de produção (`TOKEN_ADMIN=ci docker compose -f docker-compose.prod.yml --profile tunel config -q`), sobe só o serviço `db` (PostGIS), aplica migrations e seeds (`./db/banco.sh migrar`), roda os testes de schema (`./db/banco.sh testar`), os testes de segurança do `banco.sh` (`./db/tests/banco_sh_seguranca.sh`, só no banco de teste, R34) e a suíte do backend: `uv sync --frozen`, `ruff check`, `ruff format --check`, `pytest` (bate no PostGIS real, num banco de teste à parte — G8). | — |
+| `frontend` | `npm ci`, checagem de tipos (`npm run verificar`, `tsc --noEmit`), testes com `node:test` (`npm run testar`) e build de produção (`npm run build`). | — |
+| `ponta-a-ponta` | `./scripts/ponta-a-ponta.sh` **duas vezes**: sobe uma pilha Docker Compose **isolada** (`msb-e2e`), roda o contrato inteiro da API por HTTP, confere `preparar-coleta.sh` e `zerar-real` com os relatos reais que ficaram e sempre derruba a pilha no fim. A segunda execução usa a configuração da coleta (`TOKEN_ADMIN` aleatório e `EXPOR_DOCS=false`): cobre o 401 do `executar` sem o header, o 404 de `/docs`, `/redoc` e `/openapi.json` e o `PRONTO` do `preparar-coleta.sh --reabrir`. | `banco-e-backend`, `frontend` |
 | `publicar-imagens` | Publica as imagens da API e do frontend no GHCR. | `ponta-a-ponta` |
 
 `ponta-a-ponta` só roda se os dois primeiros passarem: é o job mais lento (builda
@@ -40,9 +40,10 @@ versão (`v*`) — **nunca** em `pull_request`, nunca em branch de feature. Ele:
 
 1. Autentica no `ghcr.io` com o `GITHUB_TOKEN` do próprio job (não precisa de nenhum
    secret extra).
-2. Gera as tags de cada imagem (`docker/metadata-action`): o sha curto do commit
-   sempre; `latest` só quando o push é em `main`; tags semver (`vX.Y.Z`, `vX.Y`) só
-   quando o push é de uma tag `v*`.
+2. Gera as tags de cada imagem (`docker/metadata-action`): `sha-<7 primeiros
+   caracteres do commit>` sempre (ex.: `sha-050ec68`); `latest` só quando o push é em
+   `main`; e, quando o push é de uma tag `vX.Y.Z`, as tags semver `X.Y.Z` e `X.Y` (sem
+   o `v`: é o que `pattern={{version}}` e `{{major}}.{{minor}}` produzem).
 3. Builda e publica (`docker/build-push-action`, com cache `type=gha`):
    - `ghcr.io/rlbuff7/mackenzie-sem-barreiras-api` (contexto `backend/`);
    - `ghcr.io/rlbuff7/mackenzie-sem-barreiras-frontend` (contexto `frontend/`).
@@ -117,8 +118,10 @@ docker pull ghcr.io/rlbuff7/mackenzie-sem-barreiras-api:latest
 docker pull ghcr.io/rlbuff7/mackenzie-sem-barreiras-frontend:latest
 ```
 
-Também existem tags pelo sha curto do commit (`ghcr.io/.../mackenzie-sem-barreiras-api:<sha>`)
-e, a partir de uma tag `vX.Y.Z` no repositório, tags semver (`:vX.Y.Z`, `:vX.Y`).
+Também existem tags pelo sha curto do commit, com o prefixo `sha-`
+(`ghcr.io/rlbuff7/mackenzie-sem-barreiras-api:sha-050ec68`) e, a partir de uma tag
+`vX.Y.Z` no repositório, tags semver sem o `v` (`:X.Y.Z`, `:X.Y`). Na pilha de produção,
+a versão é escolhida por `IMAGEM_TAG` ([`implantacao.md`](implantacao.md) §2).
 
 Antes de expor o frontend dessas imagens na internet, defina `TOKEN_ADMIN` no ambiente
 da API: o proxy `/api/` torna públicos `/api/validacao/executar` e `/api/docs` (ver o
