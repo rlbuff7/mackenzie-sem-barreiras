@@ -78,12 +78,14 @@ if [[ "$modo_dev" == 1 ]]; then
     arquivo_compose=docker-compose.yml
     porta_frontend="${FRONTEND_PORTA_HOST:-8081}"
     rotulo="desenvolvimento"
+    pilha_backup="dev"      # prefixo dos arquivos do ./db/banco.sh backup desta pilha
     flag_prod=""
     flag_dev="--dev "
 else
     arquivo_compose=docker-compose.prod.yml
     porta_frontend="${FRONTEND_PORTA_PROD:-8091}"
     rotulo="produção"
+    pilha_backup="prod"
     flag_prod="--prod "
     flag_dev=""
     # O compose de produção interpola TOKEN_ADMIN mesmo para ps/exec/logs. Este
@@ -151,6 +153,12 @@ else
         codigo_docs="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url_base/api/docs" || true)"
         if [[ "$codigo_docs" == "404" ]]; then
             ok "EXPOR_DOCS=false e /api/docs responde 404"
+        elif [[ $reabrir -eq 1 ]]; then
+            # Coleta em andamento: nada de pull (imagem nova = código novo entre um dia e
+            # outro). Um 502 ou "sem resposta" aqui costuma ser a API ou o frontend fora do ar.
+            falha "EXPOR_DOCS=false, mas GET /api/docs respondeu ${codigo_docs:-sem resposta} (API ou frontend fora do ar?)" \
+                  "confira o item 2 e o 'docker compose -f $arquivo_compose ps'; suba com 'docker compose -f $arquivo_compose up -d --wait'," \
+                  "  com a mesma imagem e sem pull no meio da coleta (docs/implantacao.md §8)"
         else
             falha "EXPOR_DOCS=false, mas GET /api/docs respondeu ${codigo_docs:-sem resposta} (imagem antiga, sem EXPOR_DOCS?)" \
                   "docker compose -f $arquivo_compose pull && docker compose -f $arquivo_compose up -d (ou fixe uma versão: IMAGEM_TAG=sha-<7 caracteres do commit> no .env)"
@@ -205,7 +213,14 @@ if estat="$(curl -fsS --max-time 10 "$url_base/api/validacao/estatisticas?origem
     if [[ $reabrir -eq 1 ]]; then
         # Coleta em andamento: relato real é dado do TCC. Nada aqui sugere apagar.
         if [[ "$recebidos" == "0" ]]; then
-            info "coleta em andamento, mas nenhum relato real no banco (recebidos = 0): se a coleta já recebeu relatos, o banco pode ter sido recriado; confira o backup do último dia antes de seguir"
+            # Coleta já aberta e banco sem relato real: ou o túnel caiu antes do primeiro
+            # relato (caso raro, que o modo normal resolve), ou o volume se perdeu e o banco
+            # foi recriado. Nunca PRONTO aqui: o dia seguinte entraria num banco vazio,
+            # separado dos dias anteriores.
+            falha "coleta em andamento, mas nenhum relato real no banco (recebidos = 0): o banco pode ter sido recriado" \
+                  "se a coleta já recebeu relatos em algum dia, NÃO abra: restaure o backup ${pilha_backup}-*.dump mais recente" \
+                  "  (./db/banco.sh ${flag_prod}restaurar <arquivo>, docs/implantacao.md §9) e rode $0 ${flag_dev}--reabrir de novo." \
+                  "Se a coleta foi aberta e ainda não chegou nenhum relato, rode $0 ${flag_dev}(sem --reabrir)"
         else
             info "coleta em andamento: ${recebidos:-?} relatos reais, $de_quando; são dados do TCC e ficam como estão"
         fi

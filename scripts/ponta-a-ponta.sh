@@ -86,6 +86,12 @@ docker compose up -d --build --wait
 echo "== aplicando migrations e seeds na pilha isolada =="
 ./db/banco.sh migrar
 
+# C1 (banco recriado): --reabrir com o banco SEM relato real nunca pode dar PRONTO.
+# Roda aqui, antes de o teste por HTTP gravar o primeiro relato; conferido mais abaixo.
+registros="$(mktemp -d)"
+saida_reabrir_vazio="$(REGISTRO_DIR="$registros" ./scripts/preparar-coleta.sh --dev --reabrir 2>&1)" \
+    && rc_reabrir_vazio=0 || rc_reabrir_vazio=$?
+
 echo "== rodando o teste ponta a ponta por HTTP =="
 (
     cd backend
@@ -120,7 +126,18 @@ recebidos_reais() {
         | python3 -c 'import json, sys; print(json.load(sys.stdin)["alertas"]["recebidos"])'
 }
 dh='[0-9]{2}/[0-9]{2}/[0-9]{4} [0-9]{2}:[0-9]{2}'
-registros="$(mktemp -d)"
+
+conferir "preparar-coleta --reabrir com o banco sem relatos reais não fica PRONTO (rc 1)" \
+    test "$rc_reabrir_vazio" -eq 1
+conferir "preparar-coleta --reabrir com o banco vazio manda restaurar o último backup" \
+    contem "$saida_reabrir_vazio" "restaure o backup dev-*.dump mais recente"
+conferir "preparar-coleta --reabrir com o banco vazio não diz que os relatos continuam no banco" \
+    nao_contem "$saida_reabrir_vazio" "PRONTO para reabrir"
+conferir "preparar-coleta --reabrir com o banco vazio nunca sugere zerar-real" \
+    nao_contem "$saida_reabrir_vazio" "zerar-real"
+conferir "preparar-coleta --reabrir com o banco vazio nunca sugere pull" \
+    nao_contem "$saida_reabrir_vazio" ".yml pull"
+
 recebidos_antes="$(recebidos_reais)"
 conferir "a pilha isolada tem relatos reais para conferir (recebidos = $recebidos_antes)" \
     test "$recebidos_antes" -gt 0
@@ -138,6 +155,7 @@ saida="$(REGISTRO_DIR="$registros" ./scripts/preparar-coleta.sh --dev --reabrir 
 conferir "preparar-coleta --reabrir informa os relatos reais e o intervalo de datas" \
     casa "$saida" "coleta em andamento: $recebidos_antes relatos reais, de $dh a $dh"
 conferir "preparar-coleta --reabrir nunca sugere zerar-real" nao_contem "$saida" "zerar-real"
+conferir "preparar-coleta --reabrir nunca sugere pull no meio da coleta" nao_contem "$saida" ".yml pull"
 if [[ -n "${TOKEN_ADMIN:-}" && "${EXPOR_DOCS:-true}" == [Ff][Aa][Ll][Ss][Ee] ]]; then
     # Configuração da coleta (token e docs fechados): tudo confere e fica PRONTO.
     conferir "preparar-coleta --reabrir com a configuração da coleta fica PRONTO (rc 0)" test "$rc" -eq 0
@@ -149,8 +167,8 @@ if [[ -n "${TOKEN_ADMIN:-}" && "${EXPOR_DOCS:-true}" == [Ff][Aa][Ll][Ss][Ee] ]];
 else
     conferir "preparar-coleta --reabrir sem token ou com docs abertos não fica PRONTO (rc 1)" test "$rc" -eq 1
 fi
-conferir "um registro por modo (nenhum sobrescreveu o outro)" \
-    test "$(find "$registros" -name 'coleta-dev-*.txt' | wc -l)" -eq 2
+conferir "um registro por execução (nenhum sobrescreveu o outro)" \
+    test "$(find "$registros" -name 'coleta-dev-*.txt' | wc -l)" -eq 3
 
 saida="$(./db/banco.sh zerar-real 2>&1)" && rc=0 || rc=$?
 conferir "zerar-real sem confirmação recusa (rc 1)" test "$rc" -eq 1
