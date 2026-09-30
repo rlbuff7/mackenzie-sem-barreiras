@@ -1,7 +1,7 @@
 # Decisões de implementação (glossário)
 
 O código, os commits e os documentos citam identificadores curtos: **G1–G12**, **D1–D8**,
-**R1–R37** e "Task N". Eles vêm do plano de implementação do TCC II e do registro de
+**R1–R39** e "Task N". Eles vêm do plano de implementação do TCC II e do registro de
 decisões tomadas durante a execução dele, que ficaram fora do repositório (pasta
 `.superpowers/`, não versionada: `plano-tcc2.md`, `globais.md` e o registro de
 progresso). Este arquivo guarda o significado de cada um, uma linha por identificador,
@@ -117,3 +117,5 @@ Valem para todas as tarefas. Onde uma regra repete o `CLAUDE.md`, o `CLAUDE.md` 
 | R35 | O `banco.sh` preserva do shell só uma lista permitida (projeto e arquivo do compose, portas, `BANCO_ALVO`, `BACKUP_DIR`, `IMAGEM_TAG`); `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD` vêm sempre do `.env`, com aviso se o shell tiver outro valor. | Um `POSTGRES_DB` esquecido no shell faria backup ou restauração agir noutro banco em silêncio. | 29/09, Task 10 |
 | R36 | A discussão de autoria e os dados pessoais de terceiros (números de matrícula e um nome vindo dos metadados de um arquivo) saem do repositório, que é público; no lugar, uma linha neutra para conferir a lista de autores com a equipe e a orientadora. | Privacidade e R33: o repositório público não é lugar dessa discussão. | 29/09, revisão final da Fase 2 |
 | R37 | Uma única onda de correções depois da revisão final da Fase 2 (1 crítico, 8 importantes e 10 menores), com os adiados listados. | Um só ciclo, como na R22; o crítico (reabrir a coleta sem apagar dados reais) protege os dados do TCC. | 29/09, revisão final da Fase 2 |
+| R38 | Os números de matrícula e o nome de terceiro continuam no histórico do Git e no `.doc` do TCC I em `docs/academico/`; o histórico não é reescrito. | Reescrever o histórico de um repositório público exige force push, é irreversível para quem já clonou e cabe à equipe decidir; o `.doc` limpo entra quando o artigo for corrigido. | 30/09, revisão final da Fase 2 |
+| R39 | Os resíduos da re-revisão no caminho da coleta são corrigidos antes do merge: `--reabrir` com o banco sem relato real falha (pode ter sido recriado) e sugere restaurar, nunca `pull`; a comparação do dia 2 usa o registro de ontem; o token é lido com `tail -n 1`; os comandos destrutivos do §7 e do §10 de `implantacao.md` ficam em blocos próprios. | Um PRONTO com o banco vazio abriria um dia de coleta separado dos anteriores; comandos destrutivos colados junto com os de conferência rodam mesmo quando a conferência falha. | 30/09, re-revisão da Fase 2 |
