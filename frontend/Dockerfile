@@ -16,7 +16,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json index.html ./
+# Todas as páginas HTML da raiz e o vite.config.ts (Vite multi-page: index.html + medicao.html).
+COPY tsconfig.json vite.config.ts *.html ./
 COPY src/ ./src/
 
 ARG VITE_API_URL=http://localhost:8000
