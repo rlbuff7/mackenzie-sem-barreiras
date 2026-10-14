@@ -1,0 +1,7 @@
+# Copie para /etc/caddy/Caddyfile e troque o nome do site pelo IP elástico com hífens no lugar
+# dos pontos, seguido de .sslip.io (ex.: IP 203.0.113.7 -> 203-0-113-7.sslip.io).
+# O Caddy pede e renova sozinho o certificado do Let's Encrypt (portas 80 e 443 abertas).
+# Só o frontend (nginx, porta 8091 em 127.0.0.1) é publicado; ele encaminha /api/ para a API.
+203-0-113-7.sslip.io {
+	reverse_proxy 127.0.0.1:8091
+}
