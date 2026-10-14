@@ -1,33 +1,73 @@
-# CLAUDE.md — Mackenzie sem Barreiras
+# CLAUDE.md — Navegação Acessível no Campus Mackenzie
 
 Contexto permanente do projeto. Leia antes de qualquer tarefa neste repositório.
+
+Última atualização: 14/10/2026
+
+> **Mudança de escopo em 08/10/2026.** Este repositório começou como "Mackenzie sem
+> Barreiras" (mapeamento colaborativo de barreiras urbanas via crowdsourcing). Em
+> reunião com a orientadora, o projeto foi redirecionado para **navegação e orientação
+> espacial acessível no campus**. A §15 lista o que foi aposentado e o que continua
+> valendo. Código antigo que não está citado aqui como ativo não deve ser estendido —
+> se precisar mexer nele, pergunte antes.
 
 ---
 
 ## 1. O que é este projeto
 
-Plataforma de **mapeamento colaborativo de acessibilidade urbana** no entorno da
-Universidade Presbiteriana Mackenzie (São Paulo/SP). Voluntários reportam barreiras
-físicas (calçada irregular, degrau, ausência de rampa, obstáculo) através de um mapa
-web. O sistema **filtra, agrupa e valida** esses reports antes de persistir em banco
-espacial.
+Software de **navegação e orientação espacial** para o campus da Universidade
+Presbiteriana Mackenzie (Higienópolis, São Paulo/SP).
 
-É um TCC de graduação (FCI/Mackenzie). TCC I entregou a fundamentação teórica e o
-desenho de arquitetura. TCC II é a entrega do software funcionando.
+Público prioritário: **pessoas com deficiência visual** (cegas e com baixa visão).
+Público complementar: estudantes, professores, funcionários e visitantes que não
+conhecem o campus.
+
+Duas formas de uso, complementares:
+
+- **Visual** — mapa 2D do campus, seleção de destino, rota desenhada na tela.
+- **Áudio** — orientações faladas durante o percurso, citando pontos de referência
+  ("à sua direita há uma escada que dá acesso ao Prédio 31").
+
+É um TCC de graduação (FCI/Mackenzie). TCC I entrega a base conceitual, os requisitos,
+a arquitetura e um protótipo demonstrativo. TCC II entrega o software avaliado com
+usuários.
+
+Orientadora: Profa. Dra. Ana Graziela de Almeida Valiengo.
+Consulta técnica de arquitetura: Prof. Jamilson.
+
+### Escopo geográfico — DECIDIDO
+
+**Apenas áreas externas do campus**: vias internas, praças, caminhos e acessos entre
+prédios. **Não entra no interior dos prédios.**
+
+Consequências que já valem como regra:
+
+- Nada de beacons BLE, Wi-Fi fingerprinting ou QR code indoor. O projeto volta a ser
+  custo zero (§14).
+- Destino de uma rota é sempre a **entrada** de um prédio, nunca uma sala. Cada prédio
+  precisa de um ou mais nós de entrada no grafo, com indicação de qual é acessível.
+- Navegação termina ao chegar na entrada, com mensagem explícita de chegada.
 
 ### Contribuição técnica central
 
-O diferencial acadêmico **não é** o mapa nem o formulário. É a **camada de validação**
-que transforma dados ruidosos de crowdsourcing em uma base confiável. Todo código em
-`backend/app/validacao/` é o núcleo do trabalho e merece tratamento cuidadoso:
-funções pequenas, nomes explícitos, testes, docstrings explicando a decisão.
+Roteamento e síntese de voz são problemas resolvidos; integrá-los não é contribuição.
+O que diferencia este trabalho é o **módulo de orientação espacial**: decidir *o que*
+falar, *quando* falar e *como* se comportar quando a localização está imprecisa.
+Código em `backend/app/orientacao/` é o núcleo do trabalho — funções pequenas, nomes
+explícitos, testes, docstrings explicando a decisão.
 
-### Base teórica
+### Princípio de segurança (não negociável)
 
-Volunteered Geographic Information (VGI), conceito de Goodchild (2007): cidadãos
-atuando como sensores urbanos. O contraponto conhecido na literatura (Haklay, 2010;
-Liu et al., 2018; Miyata et al., 2021, 2025) é que dado voluntário é ruidoso — daí a
-necessidade da validação.
+O sistema é **apoio à orientação**, nunca substituto de bengala, cão-guia ou das
+técnicas de mobilidade do usuário. Uma orientação errada para uma pessoa cega tem
+consequência física. Disso decorrem duas regras de código:
+
+- **Silêncio é melhor que palpite.** Sem precisão suficiente, o sistema diz que não
+  sabe — nunca arrisca uma direção.
+- **Nenhuma orientação que empurre o usuário para a via, para uma escada não anunciada
+  ou para um trecho não mapeado.**
+
+Essa frase precisa aparecer também na interface e no texto do TCC, não só aqui.
 
 ---
 
@@ -35,516 +75,443 @@ necessidade da validação.
 
 | Camada | Tecnologia | Observação |
 |---|---|---|
-| Frontend | TypeScript | Leaflet + OpenStreetMap na fase de protótipo; Google Maps API depois |
+| Frontend | TypeScript + Leaflet | Mapa 2D; tiles OpenStreetMap |
+| Áudio | Web Speech API (`SpeechSynthesis`) | Nativa do navegador, sem chave nem custo |
+| Háptico | Vibration API | **Não funciona no iOS** — ver §13.2 |
 | Backend | Python 3.11+ / FastAPI | Pydantic v2 para schemas |
 | Banco | PostgreSQL 16 + PostGIS 3.4 | rodando via Docker |
+| Roteamento | pgRouting | **autorizado neste escopo** (ver §6) |
 | Infra local | Docker Compose | nada instalado direto na máquina |
 
 **Não troque de stack sem autorização explícita.** Se algo parecer melhor resolvido com
 outra ferramenta, sugira em texto e espere confirmação — não implemente.
+
+Nota: pgRouting era proibido no escopo anterior. Com roteamento no centro do projeto,
+passou a ser o caminho padrão.
 
 ---
 
 ## 3. Estrutura de pastas
 
 ```
-mackenzie-sem-barreiras/
-├── docker-compose.yml       # db + api + frontend (desenvolvimento, build local)
-├── docker-compose.prod.yml  # PRODUÇÃO (coleta): imagens do GHCR, TOKEN_ADMIN obrigatório,
-│                            #   docs fechadas, portas *_PORTA_PROD; profile `tunel` (Quick Tunnel)
+campus-acessivel/
+├── docker-compose.yml
+├── docker-compose.prod.yml
 ├── .env.example
 ├── CLAUDE.md
-├── README.md
-├── .github/
-│   ├── workflows/
-│   │   └── ci-cd.yml        # M5.1: testes em todo push; publica imagens no GHCR em push na main
-│   └── actionlint.yaml      # ignora só o aviso de estilo do `if: false` intencional
-├── scripts/
-│   ├── ponta-a-ponta.sh     # M5: pilha ISOLADA (msb-e2e) + teste E2E por HTTP + down -v sempre
-│   └── preparar-coleta.sh   # M6: checklist SÓ LEITURA da coleta ([--prod|--dev] [--reabrir])
 ├── db/
-│   ├── banco.sh             # ./db/banco.sh [--prod] [--teste] {migrar|testar|psql|preparar-teste|
-│   │                        #   backup|restaurar ARQ --sim-substituir-banco [--sim-pilha-diferente]|
-│   │                        #   zerar-real [--sim-apagar-dados-reais]}; --prod = pilha de produção,
-│   │                        #   --teste = banco <POSTGRES_DB>_teste
-│   ├── init/                # roda 1x com volume vazio: só habilita o postgis
-│   ├── migrations/          # SQL numerado, aplicado em ordem (schema_migrations)
-│   ├── seeds/               # upserts: tipos de barreira, polígono da área de estudo
-│   └── tests/
-│       ├── test_schema.sql        # testes do schema em SQL, terminam em ROLLBACK
-│       └── banco_sh_seguranca.sh  # recusas, backup/restauração e zerar-real do banco.sh (só banco de teste)
+│   ├── migrations/          # SQL numerado, aplicado em ordem (imutável)
+│   └── seeds/               # pontos de interesse e grafo do campus
 ├── backend/
-│   ├── Dockerfile
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py        # lê .env, nada hardcoded
 │   │   ├── db.py            # pool de conexão
 │   │   ├── schemas/         # modelos Pydantic
 │   │   ├── routers/         # endpoints HTTP
-│   │   └── validacao/       # NÚCLEO DO TCC
-│   │       ├── entrada.py       # estágios 1 e 2 na entrada (registrar_alerta)
-│   │       ├── mensagens.py     # erros do schema em português
-│   │       ├── geofence.py      # estágio 2
-│   │       ├── clustering.py    # estágio 3
-│   │       ├── pipeline.py      # estágio 4 + execução em lote (D6)
-│   │       └── estatisticas.py  # contagens do funil
-│   ├── scripts/             # SIMULAÇÃO, figuras e o E2E (§9, M5); a sensibilidade nunca grava
-│   │   ├── gerar_dados_sinteticos.py  # 5 populações + teste de eficácia
-│   │   ├── analisar_sensibilidade.py  # grade eps × min_confirmacoes
-│   │   ├── gerar_figura_funil.py      # docs/figuras/funil-<origem>.svg|png
-│   │   ├── ponta_a_ponta.py           # M5: contrato inteiro da API por HTTP (httpx)
-│   │   └── saida/                     # JSON e CSV gerados (não versionados)
+│   │   ├── rotas/           # cálculo de caminho (pgRouting)
+│   │   └── orientacao/      # NÚCLEO DO TCC
+│   │       ├── posicao.py       # projeção na aresta, confiança da posição
+│   │       ├── rumo.py          # bearing, esquerda/direita/frente
+│   │       ├── referencias.py   # quais POIs citar
+│   │       └── mensagens.py     # texto falado + política de disparo
+│   ├── scripts/
 │   ├── tests/
-│   └── pyproject.toml / uv.lock
-├── frontend/                 # TypeScript + Vite + Leaflet, sem framework
-│   ├── Dockerfile             # M5: node:22-alpine (build) → nginx:alpine (serve dist/)
-│   ├── nginx.conf              # SPA + cache dos assets + proxy /api/ → api:8000 (R19, sem CORS); log sem IP
-│   ├── index.html
-│   └── src/
-│       ├── main.ts             # ponto de entrada: liga mapa, formulário, sessão
-│       ├── api.ts              # cliente HTTP tipado, um a um com docs/api.md
-│       ├── sessao.ts           # sessao_id (UUID) em localStorage (D1)
-│       ├── mapa.ts             # Leaflet: tiles OSM, área de estudo, barreiras por bbox
-│       ├── formulario.ts       # formulário de envio de alerta
-│       ├── itens.ts            # comparação das barreiras visíveis (marcadores só refeitos se mudam)
-│       ├── itens.test.ts       # teste com node:test (npm run testar)
-│       ├── estilos.css
-│       └── fontes/             # Public Sans (woff2 + OFL), servida pelo próprio frontend
+│   └── pyproject.toml
+├── frontend/
 └── docs/
-    ├── api.md                 # Contrato da API (fonte única, backend + frontend)
-    ├── ci-cd.md               # M5.1: o que cada job do GitHub Actions faz e como usá-lo
-    ├── decisoes-pendentes.md  # pendências da §11 + decisões técnicas em aberto
-    ├── decisoes-de-implementacao.md  # glossário: G1–G12, D1–D8, R1–R39, "Task N"
-    ├── coleta-em-campo.md     # M6: protocolo de coleta em campo
-    ├── implantacao.md         # M6: pilha de produção, túnel, reabrir a coleta, backup (Victor/Maurício)
-    ├── figuras/               # figuras geradas pelos scripts (funil)
-    ├── orientadora/           # pauta da reunião com a orientadora
-    ├── texto-tcc/             # RASCUNHOS de capítulos do TCC e referências (para a equipe revisar)
-    └── academico/             # pôster e artigo do TCC I (não é código)
+    ├── requisitos.md           # RF01–RF12, RNF01–RNF10
+    ├── arquitetura.md
+    ├── mapeamento-campus.md
+    ├── medicao-gps.md          # resultado do teste de campo (§11)
+    ├── protocolo-avaliacao.md  # teste com usuários (§12)
+    ├── decisoes-pendentes.md
+    └── academico/
 ```
-
-Documentos acadêmicos (`.pdf`, `.doc`) ficam **sempre** em `docs/academico/`, nunca
-na raiz. A raiz guarda só o que as ferramentas exigem lá (`docker-compose.yml`,
-`docker-compose.prod.yml`, `CLAUDE.md`, `.env*`, `README.md`). Os dumps de
-`./db/banco.sh backup` vão para `backups/` na raiz, ignorada pelo Git (têm dados de
-voluntários).
 
 ---
 
 ## 4. Modelo de dados
 
-### Regra fundamental: duas tabelas, não uma
+Tudo em **SRID 4326** para armazenar; cálculo métrico em **31983** (ver §5).
 
-`alertas` guarda **tudo** que chega com forma válida, inclusive o que foi descartado
-depois, com o motivo do descarte. `barreiras` guarda apenas o que sobreviveu à
-validação.
-
-Isso é intencional e não deve ser "otimizado". Sem a tabela de brutos não é possível
-gerar as estatísticas do funil de validação, que é o resultado empírico que o TCC
-precisa apresentar.
-
-Exceção: o payload reprovado no **estágio 1** (schema) não cabe em `alertas`, porque
-`geom NOT NULL` e a FK de `tipo_id` o impedem. Ele vai para `alertas_rejeitados`, para
-que o funil também conte esse estágio. Decidido em 28/09/2026: preserva as constraints
-de `alertas` em vez de afrouxá-las.
-
-### Tabelas
-
-**`tipos_barreira`** — taxonomia em tabela de referência, não em `ENUM` do Postgres.
-A lista ainda não está fechada com a orientadora; `ENUM` exigiria migration a cada
-alteração.
-
-**`area_estudo`** — polígono do entorno do Mackenzie, `GEOMETRY(Polygon, 4326)`.
-É contra ele que o geofence roda.
-
-**`alertas`** (resumo; a fonte da verdade são as migrations `001_schema_inicial.sql` e
-`002_origem_dos_dados.sql`, em `db/migrations/`)
+**`pontos_interesse`** — prédios, entradas, escadas, rampas, quadras, portões,
+qualquer coisa citável numa orientação.
 ```sql
-id              BIGSERIAL PRIMARY KEY
-geom            GEOMETRY(Point, 4326) NOT NULL
-tipo_id         INT NOT NULL REFERENCES tipos_barreira(id)
-severidade      SMALLINT CHECK (severidade BETWEEN 1 AND 3)
-descricao       TEXT
-sessao_hash     VARCHAR(64) NOT NULL  -- identifica reports da mesma origem
-criado_em       TIMESTAMPTZ NOT NULL DEFAULT now()
-status          VARCHAR(24) NOT NULL DEFAULT 'bruto'
-motivo_descarte VARCHAR(48)
-barreira_id     BIGINT REFERENCES barreiras(id)
-origem          VARCHAR(12) NOT NULL DEFAULT 'real'  -- 'real' | 'simulacao' (002, D2)
--- CHECK: status = 'descartado'  <=>  motivo_descarte preenchido
--- CHECK: status = 'agrupado'    <=>  barreira_id preenchido
+id            BIGSERIAL PRIMARY KEY
+geom          GEOMETRY(Point, 4326) NOT NULL
+tipo          VARCHAR(32) NOT NULL      -- predio, entrada, escada, rampa, quadra, portao
+nome          VARCHAR(120) NOT NULL     -- "Prédio 31"
+descricao     TEXT                      -- texto para leitura em voz
+acessivel     BOOLEAN                   -- NULL = não verificado
 ```
 
-`tipo_id` e `sessao_hash` são `NOT NULL` por causa do pipeline: o DBSCAN particiona
-por tipo, e `COUNT(DISTINCT sessao_hash)` ignora NULL em silêncio.
-
-Ciclo de vida (`status`):
-
-| status | significado | final? |
-|---|---|---|
-| `bruto` | passou do schema e do geofence; aguarda o pipeline | não |
-| `descartado` | motivo em `motivo_descarte` (ex.: `fora_da_area`) | **sim** |
-| `ruido_isolado` | sem vizinhos no DBSCAN | não: é reavaliado quando chegam alertas novos |
-| `agrupado` | pertence a um cluster, ligado a `barreira_id` | não |
-
-**`barreiras`** — barreira consolidada, com geometria representativa do cluster
-(centroide), tipo, contagem de confirmações, status (`pendente` / `confirmada`) e
-`origem`.
-
-A coluna `origem` (`real` | `simulacao`, migration 002) existe em `alertas`,
-`barreiras` e `alertas_rejeitados`: pela HTTP é sempre `real`, e só os scripts de
-simulação gravam `simulacao` (§9). O pipeline, as estatísticas e `GET /barreiras`
-sempre filtram por uma origem; as duas nunca se misturam.
-
-**`alertas_rejeitados`** — payloads reprovados no estágio 1 (ver exceção acima).
+**`nos`** — vértices do grafo pedonal (cruzamentos, bifurcações, entradas de prédio).
 ```sql
-id           BIGSERIAL PRIMARY KEY
-payload      JSONB NOT NULL        -- corpo recebido, como chegou
-erros        JSONB NOT NULL        -- erros de validação do schema
-recebido_em  TIMESTAMPTZ DEFAULT now()
-origem       VARCHAR(12) NOT NULL DEFAULT 'real'  -- migration 002
+id            BIGSERIAL PRIMARY KEY
+geom          GEOMETRY(Point, 4326) NOT NULL
+ponto_interesse_id BIGINT REFERENCES pontos_interesse(id)  -- quando o nó É uma entrada
 ```
 
-**`execucoes_pipeline`** (migration 003) — uma linha por origem com os parâmetros
-(`eps_metros`, `min_pontos`, `min_confirmacoes`, `srid_calculo`) e o `executado_em` da
-última execução do pipeline, gravada na mesma transação da execução. É de onde as
-estatísticas e a figura do funil leem os parâmetros (§6), e é apagada junto com os dados
-da origem por `--limpar` (simulação) e por `./db/banco.sh zerar-real` (real).
+**`arestas`** — trechos caminháveis entre dois nós. É o grafo que o pgRouting consome.
+```sql
+id            BIGSERIAL PRIMARY KEY
+geom          GEOMETRY(LineString, 4326) NOT NULL
+origem_id     BIGINT NOT NULL REFERENCES nos(id)
+destino_id    BIGINT NOT NULL REFERENCES nos(id)
+comprimento_m DOUBLE PRECISION NOT NULL   -- calculado em 31983
+tipo          VARCHAR(32) NOT NULL        -- calcada, rampa, escada, travessia
+acessivel_cadeirante BOOLEAN
+custo         DOUBLE PRECISION NOT NULL   -- comprimento + penalidades (ver §6)
+custo_inverso DOUBLE PRECISION NOT NULL   -- -1 quando o trecho é de mão única
+```
 
 ### Índices obrigatórios
 
 ```sql
-CREATE INDEX idx_alertas_geom   ON alertas   USING GIST (geom);
-CREATE INDEX idx_barreiras_geom ON barreiras USING GIST (geom);
+CREATE INDEX idx_poi_geom        ON pontos_interesse USING GIST (geom);
+CREATE INDEX idx_nos_geom        ON nos              USING GIST (geom);
+CREATE INDEX idx_arestas_geom    ON arestas          USING GIST (geom);
+CREATE INDEX idx_arestas_origem  ON arestas (origem_id);
+CREATE INDEX idx_arestas_destino ON arestas (destino_id);
 ```
 
-Nota de nomenclatura para o texto do TCC: o artigo escrito fala em "R-Tree". O PostGIS
-implementa indexação espacial via **GiST**. Nos documentos acadêmicos, mencionar R-Tree
-como conceito é aceitável, mas o código e a defesa devem dizer GiST.
+Nomenclatura para o texto do TCC: o PostGIS indexa via **GiST**. Citar R-Tree como
+conceito é aceitável no referencial; o código e a defesa dizem GiST.
 
 ---
 
 ## 5. Armadilha do SRID — leia antes de escrever qualquer query espacial
 
 O banco armazena em **SRID 4326 (WGS84)**, cuja unidade é **grau**, não metro.
+Neste projeto isso importa mais do que no anterior, porque praticamente toda consulta
+mede distância ou ângulo.
 
-Consequências práticas:
+- **Armazenar** em 4326 (é o que o GPS e o Leaflet usam).
+- **Calcular distância, comprimento de aresta e custo**: `ST_Transform(geom, 31983)`
+  (SIRGAS 2000 / UTM 23S, cobre São Paulo, unidade = metro).
+- `ST_DWithin` sobre `geometry` em 4326 compara **graus**. Para "POIs a até 20 m",
+  use `geography` ou reprojete.
+- `ST_Azimuth` devolve **radianos**, no sentido horário a partir do norte. Converta
+  com `degrees()` antes de qualquer comparação.
 
-- `ST_ClusterDBSCAN(geom, eps, minpoints)` interpreta `eps` na unidade do SRID.
-  Passar `eps = 8` significa **8 graus**, algo em torno de 800 km. Erro silencioso:
-  não quebra, só agrupa tudo.
-- `ST_DWithin` sobre `geometry` em 4326 tem o mesmo problema.
-
-Regra deste projeto:
-
-- **Armazenar** em 4326 (é o que o GPS e o frontend usam).
-- **Calcular distância** reprojetando para **SRID 31983** (SIRGAS 2000 / UTM 23S,
-  que cobre São Paulo), onde a unidade é metro:
-  `ST_Transform(geom, 31983)`.
-- Alternativa aceita para distâncias simples: cast para `geography`, que calcula em
-  metros — mas `ST_ClusterDBSCAN` não aceita `geography`, então para clustering use
-  sempre `ST_Transform`.
-
-Qualquer código novo que meça distância deve deixar a unidade explícita no nome da
-variável ou em comentário.
+Toda variável que carrega distância ou ângulo deixa a unidade explícita no nome
+(`distancia_m`, `rumo_graus`) ou em comentário.
 
 ---
 
-## 6. Pipeline de validação
+## 6. Roteamento
 
-Quatro estágios, espelhando o funil apresentado no pôster do TCC I:
+`pgr_dijkstra` sobre `arestas`, usando `custo` / `custo_inverso`.
 
-1. **Schema** (`schemas/`) — Pydantic rejeita latitude/longitude fora de faixa, tipo
-   inexistente, severidade inválida. Descarte com motivo `schema_invalido`, gravado em
-   `alertas_rejeitados` (não em `alertas`).
-2. **Geofence** (`validacao/geofence.py`) — `ST_Within` contra `area_estudo`. Ponto
-   fora do entorno é descartado com motivo `fora_da_area`.
-3. **Agrupamento** (`validacao/clustering.py`) — `ST_ClusterDBSCAN` sobre alertas do
-   **mesmo tipo**, em geometria reprojetada. Alertas próximos viram um cluster;
-   pontos isolados recebem status `ruido_isolado`. Ruído **não é descarte**: esses
-   alertas entram de novo em cada execução do pipeline, porque podem ganhar vizinhos.
-4. **Promoção** (`validacao/pipeline.py`) — cluster com pelo menos `MIN_CONFIRMACOES`
-   alertas de **sessões distintas** vira barreira `confirmada`. Abaixo disso, entra
-   como `pendente`.
-
-O estágio 4 usar sessões distintas é importante: impede que uma pessoa sozinha
-reportando cinco vezes no mesmo lugar produza uma "confirmação" falsa.
-
-### Execução em lote: reconstrução completa (D6)
-
-Os estágios 1 e 2 rodam na entrada, alerta por alerta. Os estágios 3 e 4 rodam em
-lote, em `executar_pipeline` (`POST /validacao/executar?origem=real|simulacao` ou os
-scripts de simulação), sempre sobre **uma origem por vez** e numa única transação.
-Antes de qualquer SQL, valida a origem e os parâmetros (`eps_metros > 0`, `min_pontos
->= 1`, `min_confirmacoes >= 1`; `ValueError` se não): um valor inválido nunca chega a
-apagar barreiras. `Configuracoes` exige as mesmas faixas ao ler o `.env`.
-
-1. `pg_advisory_xact_lock(CHAVE_LOCK_PIPELINE)`: uma segunda execução simultânea
-   espera a primeira terminar. O lock é liberado sozinho no commit/rollback de quem
-   chamou; as funções de `validacao/` nunca fazem commit.
-2. Reset: `agrupado` e `ruido_isolado` da origem voltam a `bruto`; as barreiras da
-   origem são apagadas.
-3. `rotular_clusters` (DBSCAN) sobre tudo que não é `descartado`.
-4. Uma barreira por cluster (tipo, cluster): centroide calculado em `SRID_CALCULO`
-   e gravado em `SRID_ARMAZENAMENTO`, `confirmacoes = COUNT(DISTINCT sessao_hash)`,
-   status `confirmada`/`pendente`. Os alertas do cluster viram `agrupado`; o ruído
-   vira `ruido_isolado`.
-5. Upsert em `execucoes_pipeline` com os parâmetros usados e `executado_em`, na mesma
-   transação: o estado do funil e os parâmetros que o produziram nunca se separam.
-
-Recalcular tudo, em vez de atualizar só o que mudou, porque no DBSCAN o rótulo de um
-alerta depende de todos os outros. Assim o **ruído é reavaliado** a cada execução, um
-alerta novo perto de uma barreira entra no cluster dela (T4), e duas execuções
-seguidas dão o mesmo resultado. `descartado` nunca é tocado. Custo aceito: os ids das
-barreiras mudam a cada execução.
-
-`executar_pipeline` recebe os parâmetros explicitamente (`eps_metros`, `min_pontos`,
-`min_confirmacoes`, `srid_calculo`, `srid_armazenamento`). A rota passa os do `.env`;
-a análise de sensibilidade passa outros sem mexer no `.env`.
-
-`ST_ClusterDBSCAN` roda com `OVER (PARTITION BY tipo_id ORDER BY id)`. O `ORDER BY id`
-torna o resultado reproduzível (numeração dos clusters e destino de pontos de borda
-não dependem da ordem física da tabela). Isso foi verificado no PostGIS 3.4.3 e está
-coberto por teste.
-
-### Estatísticas do funil
-
-`GET /validacao/estatisticas?origem=real|simulacao` (`validacao/estatisticas.py`)
-devolve contagens reais do banco, separadas por unidade:
-
-- `alertas` (conta **alertas**): `recebidos` (= `rejeitados_schema` + linhas de
-  `alertas`), `rejeitados_schema` (estágio 1), `descartados` por motivo
-  (`fora_da_area` sempre presente, mesmo com 0), `aguardando_pipeline` (`bruto`),
-  `ruido_isolado`, `agrupados`. `recebidos` é a soma de todos os outros.
-- `barreiras` (conta **barreiras**): `total`, `pendentes`, `confirmadas`.
-- `rotulo`: `"SIMULAÇÃO — dados sintéticos"` ou `"Dados reais de campo"` (§9). A
-  resposta de `POST /validacao/executar` traz o mesmo `rotulo`.
-- `parametros` e `executado_em`: os da **última execução** daquela origem, lidos de
-  `execucoes_pipeline`, **não** a configuração atual. Se o `.env` for recalibrado sem
-  rodar o pipeline de novo, ou se um script rodar com outros valores, a figura do funil
-  continua mostrando os parâmetros que de fato produziram os números. Origem nunca
-  processada: ambos `null`.
-- `gerado_em`: instante do cálculo (ISO-8601, UTC).
-- Tudo sai de **uma única consulta** (um snapshot): em READ COMMITTED, várias consultas
-  poderiam misturar o estado de antes e o de depois de uma execução confirmada no meio.
-
-Formato exato em [`docs/api.md`](docs/api.md).
-
-### Parâmetros — sempre em `.env`, nunca no código
+**Custo não é só comprimento.** Um caminho mais curto por escada é pior que um desvio
+por rampa. O custo de cada aresta é o comprimento em metros multiplicado por um fator
+de penalidade do tipo, configurável no `.env`:
 
 ```
-DBSCAN_EPS_METROS=8
-DBSCAN_MIN_POINTS=2
-MIN_CONFIRMACOES=3
-SRID_ARMAZENAMENTO=4326
-SRID_CALCULO=31983
+PENALIDADE_ESCADA=4.0
+PENALIDADE_TRAVESSIA=2.0
+PENALIDADE_TRECHO_NAO_VERIFICADO=1.5
 ```
 
-Esses valores são **provisórios**, escolhidos para prototipagem. Serão calibrados com
-a orientadora e com dados reais. Por isso não podem estar espalhados pelo código.
+Valores **provisórios**, a calibrar com a orientadora e com os testes. Por isso não
+podem estar espalhados pelo código.
+
+Perfis de usuário (cadeirante, deficiência visual, sem restrição) mudam as penalidades,
+não o grafo. Um perfil que não pode usar escada recebe custo proibitivo, não exclusão
+da aresta — assim a rota nunca fica sem solução silenciosamente.
 
 ---
 
-## 7. Contrato da API
+## 7. Módulo de orientação espacial (`app/orientacao/`)
 
-Contrato completo (corpos, respostas, códigos HTTP, mensagens exatas):
-[`docs/api.md`](docs/api.md). Resumo:
+É onde está a contribuição do trabalho. Quatro responsabilidades separadas:
+
+**`posicao.py`** — recebe lat/lon + precisão informada pelo navegador
+(`GeolocationPosition.coords.accuracy`, em metros) e projeta o ponto na aresta mais
+próxima da rota (*map matching*). Devolve também um **nível de confiança**. Se a
+precisão for pior que `PRECISAO_MINIMA_METROS`, a posição é marcada como não confiável
+e o sistema não emite orientação direcional.
+
+O map matching é o que salva o projeto da imprecisão do GPS: como o campus tem poucos
+caminhos possíveis, um erro de 15 m ainda permite afirmar "ele está no caminho entre o
+31 e o 32" com boa confiança.
+
+**`rumo.py`** — calcula o azimute do usuário (do histórico de posições ou da bússola) e
+o azimute até o alvo; a diferença define frente / direita / esquerda / atrás. Faixas em
+`.env` (`SETOR_FRENTE_GRAUS` etc.). Cuidado com o wrap em 0°/360°: a diferença é
+`((a - b + 540) % 360) - 180`.
+
+**`referencias.py`** — escolhe quais POIs citar: dentro de um raio, à frente do usuário,
+no máximo N por mensagem. Citar tudo é tão ruim quanto não citar nada.
+
+**`mensagens.py`** — monta o texto falado e decide **quando** falar. Regras: não repetir
+a mesma mensagem antes de `INTERVALO_MINIMO_SEGUNDOS`; priorizar aviso de mudança de
+direção sobre descrição de ambiente; frase curta, sem jargão, sem ler coordenada.
+
+Anúncio de ponto de referência usa **raio generoso** (`RAIO_ANCORA_METROS`, provisório
+15 m): "você está se aproximando do Prédio 31" continua verdadeiro mesmo com erro de
+GPS, enquanto "a porta está a 3 metros à sua direita" não.
+
+Toda função aqui tem teste. Casos de borda obrigatórios: precisão ruim, usuário parado
+(rumo indefinido), usuário fora da rota, fim do percurso.
+
+---
+
+## 8. Padrão háptico
+
+A vibração complementa o áudio porque som ambiente é a principal fonte de informação de
+quem não enxerga — e o app compete com ela. Padrão proposto:
+
+| Evento | Vibração |
+|---|---|
+| Ponto de referência próximo | 1 pulso curto |
+| Mudança de direção | 2 pulsos curtos |
+| Chegada ao destino | 1 pulso longo |
+| Fora da rota | 3 pulsos |
+
+Limitação a declarar no texto: `navigator.vibrate()` não é suportada no Safari/iOS.
+Enquanto a plataforma não for decidida (§13.2), a vibração é **complemento opcional** —
+nenhuma informação existe só no canal háptico.
+
+---
+
+## 9. Contrato da API
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/saude` | Sobe a API e confere se o banco responde. |
-| `GET` | `/tipos-barreira` | Taxonomia ativa, para o formulário do frontend. |
-| `GET` | `/area-estudo` | Polígono(s) da área de estudo, em GeoJSON. |
-| `POST` | `/alertas` | Recebe report do voluntário. Valida schema + geofence na entrada (estágios 1 e 2). |
-| `GET` | `/barreiras?bbox=minLon,minLat,maxLon,maxLat` | Barreiras validadas dentro do retângulo visível do mapa. |
-| `POST` | `/validacao/executar` | Roda o pipeline em lote sobre alertas de uma origem (`real`\|`simulacao`). Protegido por `X-Token-Admin`. |
-| `GET` | `/validacao/estatisticas` | Contagens do funil: brutos, descartados por motivo, agrupados, confirmados. |
+| `GET` | `/pontos-interesse?bbox=minLon,minLat,maxLon,maxLat` | POIs na área visível do mapa |
+| `GET` | `/pontos-interesse/{id}` | Detalhe de um POI, com a descrição falada |
+| `POST` | `/rotas` | Calcula rota: origem (lat/lon ou nó), destino (POI), perfil |
+| `POST` | `/orientacoes` | Dada posição + precisão + rumo + rota, devolve a próxima orientação |
 
-O parâmetro `bbox` é obrigatório em `/barreiras`. O mapa nunca deve pedir o banco
-inteiro — é justamente a consulta por bounding box que justifica o índice espacial.
+`bbox` é obrigatório em `/pontos-interesse`: o mapa nunca pede o banco inteiro — é a
+consulta por bounding box que justifica o índice espacial.
 
-O endpoint de estatísticas alimenta a figura do funil de validação no documento final.
-Ele precisa devolver números reais do banco, nunca valores fixos.
+`/orientacoes` é chamada repetidamente durante a navegação, então precisa ser barata.
+Se virar gargalo, o caminho é cache no cliente, não query mais esperta.
 
 ---
 
-## 8. Marcos de desenvolvimento
+## 10. Acessibilidade (RNF01, RNF02, RNF07)
+
+Não é camada de acabamento; entra desde o primeiro componente.
+
+- HTML semântico, foco visível, ordem de tabulação coerente.
+- Todo controle alcançável por teclado e rotulado para leitor de tela.
+- Alvos de toque grandes (mínimo ~44 px).
+- Contraste mínimo WCAG AA; nunca cor como única forma de transmitir informação.
+- O mapa não pode ser a única forma de completar uma tarefa: toda ação do mapa tem
+  equivalente em lista ou busca textual.
+- Testar com VoiceOver (iOS) e TalkBack (Android) de verdade, não só no emulador.
+
+---
+
+## 11. Medição de GPS no campus (fazer antes da arquitetura fechar)
+
+Substitui chute por número medido. Alimenta a entrega E3 e a conversa com o Prof.
+Jamilson. Resultado vai em `docs/medicao-gps.md`.
+
+**Pontos de controle (8 a 12):** praça aberta, caminho estreito entre prédios altos,
+entrada de 2–3 prédios, uma bifurcação, uma passagem coberta. Coordenada "verdadeira"
+tirada de imagem de satélite com zoom máximo.
+
+**Procedimento por ponto:** parar em cima, esperar 20–30 s, registrar lat, lon,
+`accuracy`, horário, nº do ponto e modelo do aparelho. Três medições por ponto. Anotar
+a condição (céu aberto, entre prédios, coberto). Levar dois aparelhos, de preferência um
+Android e um iPhone — a diferença entre eles já é resultado.
+
+**Trajeto em movimento:** caminhar uma rota típica gravando posição a cada 1–2 s. É o
+que mostra se o map matching resolve o serrilhado.
+
+**Aproveitar a ida para testar:** `DeviceOrientationEvent` nos dois aparelhos (o iOS
+pede permissão por gesto e exige HTTPS; o valor é estável ou fica pulando?) e
+`navigator.vibrate()` (confirmar que funciona no Android e falha no iOS).
+
+**Analisar:** erro real em metros (reprojetando para 31983); comparar com o `accuracy`
+reportado — **se o navegador reporta 10 m e o erro real é 25 m, esse campo não serve
+como critério de segurança, e isso é achado forte para o texto**; erro mediano e
+percentil 90 por tipo de zona; quantos pontos passam de 15 m.
+
+Duas pessoas, ~2 horas. Repetir um ou dois pontos em horário diferente.
+
+---
+
+## 12. Avaliação com usuários
+
+### 12.1 Teste com vendas (sugestão da orientadora)
+
+**Vale como teste interno de desenvolvimento, não como avaliação.** Serve para calibrar
+timing do áudio, conferir se "à sua direita" bate com a realidade, medir se a frase é
+longa demais para quem está andando, verificar se o sistema cala a boca quando o GPS
+piora e se a vibração é perceptível com o celular no bolso.
+
+**Não vale como resultado de usabilidade.** Pessoa vendada não é pessoa cega: falta
+ecolocalização, memória espacial treinada e técnica de bengala, e sobra ansiedade. Pior:
+quem é cego costuma achar áudio excessivo, porque ele compete com a escuta do ambiente —
+efeito que ninguém vendado sente, já que o áudio é a única informação que tem. Some-se o
+viés de quem escreveu o sistema conhecer o campus de olhos fechados.
+
+Regras quando fizer: alguém sempre ao lado pronto para segurar; campus vazio; quem venda
+não é quem programou aquele trecho; rota desconhecida. **Registrar sempre como
+simulação**, nunca como teste com usuário — mesma honestidade acadêmica da regra de dado
+sintético do escopo antigo.
+
+### 12.2 Avaliação com 10 usuários (TCC II)
+
+**Não começa sem aprovação do CEP.** Ver §13.8.
+
+Composição: 5–6 pessoas com deficiência visual (misturar cegueira congênita e adquirida,
+bengala e cão-guia) e 4–5 videntes que não conhecem o campus, para a parte visual e como
+comparação. Inclusão: maior de 18 anos, usuário de smartphone com leitor de tela no grupo
+prioritário, deslocamento autônomo. Recrutamento pelo núcleo de acessibilidade da
+universidade.
+
+Métricas:
+- **Objetivas** — taxa de conclusão, tempo até o destino, nº de desvios, nº de paradas
+  por confusão, **nº de orientações erradas emitidas** (crítica).
+- **Subjetivas** — SUS (comparável com a literatura) e NASA-TLX reduzido para carga
+  cognitiva.
+- **Qualitativas** — think-aloud durante o percurso e entrevista curta no fim.
+
+Sessão de ~40 min: consentimento lido em voz alta (cópia em áudio disponível),
+familiarização parada, 2–3 tarefas de navegação, think-aloud, questionários, entrevista.
+Gravar áudio e trajeto; vídeo só com consentimento específico e sem enquadrar rosto.
+
+Segurança: participante usa bengala ou cão normalmente; pesquisador acompanha a poucos
+passos; orientação perigosa = interrupção imediata registrada como falha grave;
+interrupção livre a qualquer momento; horário de menor movimento.
+
+Piloto com 1–2 pessoas antes, fora da amostra.
+
+**Plano B**, se o CEP não sair a tempo: avaliação com especialistas (profissionais de
+orientação e mobilidade, núcleo de acessibilidade) em vez de usuários finais. Vale menos,
+mas salva a entrega e tem mais peso que o teste com vendas.
+
+---
+
+## 13. Decisões pendentes
+
+Não implemente nada que dependa destes pontos sem confirmar antes.
+
+**Resolvidas em 14/10/2026:**
+- ~~Interno ou externo~~ → **somente externo** (§1). Beacons, Wi-Fi fingerprinting e QR
+  code saem do escopo.
+
+**Com a orientadora / Prof. Jamilson:**
+
+1. **Precisão mínima aceitável** para emitir orientação direcional. Provisório
+   `PRECISAO_MINIMA_METROS=15`; fechar com o resultado da §11.
+2. **Plataforma:** web mobile (PWA) ou app nativo. Amarra a vibração: o iOS não suporta
+   `navigator.vibrate()`. Provisório: web, pelo custo e pelo reaproveitamento do que
+   existe. Se vibração for requisito firme, a decisão muda.
+3. **Funciona offline?** Afeta a arquitetura inteira.
+4. **Extensão do mapeamento** no TCC I — recorte do campus, não o campus inteiro.
+5. **Calibração** das penalidades de custo e das faixas de setor angular.
+6. **Como identificar caminhos acessíveis** para cada perfil, e quem valida essa
+   classificação.
+7. **Contribuição científica.** Fechar onde está a novidade: no módulo de orientação, na
+   metodologia de avaliação, ou em ambos. Sem isso o TCC II vira "integramos bibliotecas
+   existentes".
+8. **Comitê de Ética.** Teste com pessoas com deficiência visual envolve população
+   vulnerável — submissão ao CEP pela Plataforma Brasil é provável e leva de 2 a 4 meses.
+   **É o item de maior risco de cronograma.** Levantar o prazo imediatamente e submeter
+   antes de qualquer recrutamento. O protocolo da §12.2 serve de anexo da submissão.
+
+Enquanto pendente: implemente com valor provisório, deixe configurável, e registre em
+`docs/decisoes-pendentes.md`.
+
+---
+
+## 14. Custos
+
+O projeto é desenhado para **custo zero**:
+
+- Tiles do mapa: OpenStreetMap, sem chave, sem cartão.
+- Roteamento: pgRouting no nosso próprio banco.
+- Voz: Web Speech API, nativa do navegador.
+- Localização, bússola e vibração: APIs do navegador.
+
+O Google Maps Platform cobraria por tiles, roteamento e busca de lugar — justamente as
+três coisas que não servem aqui: **o Google não conhece o caminho interno entre o Prédio
+31 e o 32, nem onde ficam as escadas do campus**. O grafo tem que ser nosso de qualquer
+jeito, então pagar por roteamento seria pagar por uma resposta errada. Além disso exige
+conta de faturamento com cartão mesmo dentro da camada gratuita, e muda o termo de
+consentimento (entra um terceiro recebendo IP dos participantes). **Não adotar sem
+decisão explícita da equipe.**
+
+Com a decisão de ficar só nas áreas externas, não sobra nenhum item com custo real.
+
+---
+
+## 15. O que foi aposentado na mudança de escopo
+
+Continua no repositório e no histórico, mas **não é mais desenvolvido**:
+
+- Camada de validação de crowdsourcing (`validacao/`): geofence, DBSCAN, promoção por
+  sessões distintas, `sessao_hash`
+- Tabelas `alertas`, `barreiras`, `alertas_rejeitados`, `area_estudo`
+- Gerador de dados sintéticos, análise de sensibilidade, figura do funil
+- Protocolo de coleta colaborativa em campo
+
+**Continua válido e em uso:** Docker Compose, PostGIS, sistema de migrations
+(`db/banco.sh`), FastAPI e sua estrutura, frontend Leaflet com proxy same-origin no
+nginx, CI/CD no GitHub Actions, pilha de produção com `TOKEN_ADMIN`, HTTPS via túnel
+(necessário para geolocalização e bússola), e a disciplina de SRID da §5.
+
+Material teórico de VGI (Goodchild, Haklay, Liu, Miyata) sai do referencial. Entra
+literatura de navegação assistiva e orientação espacial para pessoas cegas.
+
+---
+
+## 16. Marcos
 
 Trabalhe **um marco por vez**. Não antecipe marcos futuros sem pedido explícito.
 
-- **M0** — `docker compose up` sobe Postgres+PostGIS limpo e acessível.
-- **M1** — migrations e seeds aplicadas; tabelas, constraints e índices criados.
-- **M2** — `POST /alertas` e `GET /barreiras` funcionando.
-- **M3** — gerador de dados sintéticos + pipeline completo + endpoint de estatísticas.
-  *Ao final do M3 o núcleo científico do TCC está demonstrável.*
-- **M4** — frontend com mapa (Leaflet/OSM) e envio de alerta.
-- **M5** — integração ponta a ponta.
-- **M5.1** — CI/CD: todo push roda os testes (banco, backend, frontend, ponta a
-  ponta); push no `main` publica as imagens Docker no GHCR.
-- **M6** — coleta real em campo.
+**TCC I — entrega conceitual (próxima reunião: ~2 a 3 semanas após 08/10/2026)**
+- **E1** — escopo atualizado: problema, público-alvo, objetivos
+- **E2** — requisitos RF/RNF revisados, com critério de verificação por item
+- **E3** — diagrama de arquitetura + estudo das tecnologias de localização e áudio,
+  sustentado pela medição da §11
+- **E4** — plano de mapeamento do campus
+- **E5** — cronograma e divisão de responsabilidades
+- **E6** — protótipo demonstrativo (mapa 2D + rota + uma orientação falada), se der tempo
+
+**Código, em paralelo**
+- **M1** — migrations novas: `pontos_interesse`, `nos`, `arestas`, pgRouting habilitado
+- **M2** — recorte do campus digitalizado (não o campus todo)
+- **M3** — `GET /pontos-interesse` e `POST /rotas` funcionando
+- **M4** — `app/orientacao/` com testes; `POST /orientacoes`
+- **M5** — frontend: seleção de destino, rota desenhada, voz e vibração
+- **M6** — avaliação com usuários (depende do CEP, §13.8)
 
 ---
 
-## 9. Dados sintéticos
-
-`backend/scripts/gerar_dados_sinteticos.py` gera **cinco** populações de CONTROLE (D8),
-cada uma com o destino conhecido de antemão, para que o pipeline possa ser avaliado:
-
-| População | O que é | Destino esperado | Estágio que prova |
-|---|---|---|---|
-| **Aglomerados verdadeiros** (`aglomerado`) | N relatos do mesmo tipo, com dispersão de poucos metros, cada um de uma sessão diferente | 1 barreira `confirmada` por grupo | 3 e 4 |
-| **Sessão repetida** (`sessao_repetida`) | UMA sessão relatando N vezes no mesmo lugar | 1 barreira `pendente` por grupo | 4 (sessões distintas) |
-| **Ruído isolado** (`ruido`) | relatos únicos, espalhados, sem vizinho do mesmo tipo | `ruido_isolado` | 3 |
-| **Fora da área** (`fora_da_area`) | relatos válidos fora do polígono de estudo | `descartado` (`fora_da_area`) | 2 |
-| **Inválidos** (`invalido`) | payloads com um defeito cada: latitude fora da faixa, tipo inexistente, severidade 7, campo faltando, campo extra | `alertas_rejeitados` | 1 |
-
-O status esperado de cada grupo segue a regra do estágio 4, escrita à parte do pipeline:
-`confirmada` se o grupo tem pelo menos `MIN_CONFIRMACOES` sessões distintas, `pendente` se
-não. Um grupo com algum relato reprovado na entrada nunca conta como acerto.
-
-Duas opções de ESTRESSE, desligadas no gerador e ligadas por padrão na análise de
-sensibilidade (R16):
-
-- `--sessoes-variaveis`: cada aglomerado sorteia de 2 a 5 sessões distintas, então uns
-  passam e outros não passam de `min_confirmacoes`.
-- `--sequencias N` (população `sequencia`): linhas retas de `--barreiras-por-sequencia`
-  barreiras DISTINTAS do mesmo tipo, a `--espacamento-sequencia-metros` (15 m) umas das
-  outras, cada uma com `--pontos-por-aglomerado` sessões. Ficam a 4 × o maior eps usado
-  de todo ponto do mesmo tipo fora delas (o DBSCAN agrupa por tipo), então só se fundem
-  entre si. Esperado: cada barreira separada. É a
-  população que mede o encadeamento (T5).
-
-Regras da geração:
-
-- Todo payload passa por `registrar_alerta(..., origem="simulacao")`, o mesmo caminho de
-  `POST /alertas`; nunca inserção direta.
-- Centro: centroide do campus (−23.5471938, −46.6524631). Grupos e ruído caem a até
-  400 m dele; "fora da área", entre 700 e 1500 m (o polígono provisório tem 500 m).
-- Separação mínima de 4 × eps (`DBSCAN_EPS_METROS`): entre os centros de dois grupos
-  quaisquer e entre cada ruído e qualquer outro ponto do mesmo tipo (amostragem com
-  rejeição). `--dispersao-metros` é o raio MÁXIMO em torno do centro do grupo. Relatos de
-  grupos vizinhos ficam a ≥ 4 × eps − 2 × dispersão; os scripts avisam quando isso já
-  está ao alcance do eps (dispersão ≥ 1,5 × eps no gerador).
-- Os pontos são sorteados em metros num plano local e convertidos para graus pelos raios
-  de curvatura do WGS84 na latitude do campus. Erro medido contra `geography`: no máximo
-  0,002% a 1,5 km (o teste exige < 0,1%).
-- Determinística pela semente (`--semente`, padrão 42). Cada população tem o seu gerador
-  aleatório, então mudar a quantidade de uma não move as outras.
-
-Comandos (a partir de `backend/`):
-
-```bash
-# gerar + pipeline + teste de eficácia (padrões: 20 aglomerados de 4 relatos, dispersão
-# de até 3 m, 5 sessões repetidas, 40 ruídos, 30 fora da área, 10 inválidos)
-uv run python -m scripts.gerar_dados_sinteticos --limpar --executar-pipeline --avaliar
-
-# análise de sensibilidade: eps ∈ {2, 4, 8, 12, 20} m × min_confirmacoes ∈ {2, 3, 4},
-# com --sessoes-variaveis e 5 sequências por padrão
-uv run python -m scripts.analisar_sensibilidade
-
-# figura do funil (matplotlib num grupo opcional)
-uv sync --group analise
-uv run python -m scripts.gerar_figura_funil --origem simulacao
-```
-
-O script reporta quantos pontos de cada categoria gerou, para comparar com o que o
-pipeline classificou. Isso é o teste de eficácia do algoritmo. Com `--avaliar`, ele
-mostra a matriz categoria → destino final (em alertas), as barreiras esperadas × obtidas
-e a taxa de acerto por categoria. Um grupo só conta como acerto se TODOS os seus alertas
-estiverem numa mesma barreira, com o status esperado e sem nenhum alerta de fora do grupo.
-Com os padrões, o resultado é 100% em cada categoria: é o cenário bem separado de
-propósito. **Esses 100% conferem que a implementação está correta; não são evidência de
-robustez** (por construção, grupos vizinhos ficam fora do alcance do DBSCAN, e as "0
-fusões" do controle não medem nada). A robustez é o que a análise de sensibilidade
-mede. Relatório completo em `backend/scripts/saida/simulacao-semente-<N>.json`.
-
-A análise de sensibilidade **não toca o banco** (R18). Numa única transação, desfeita
-no fim, ela apaga a simulação existente, gera a sua uma vez e roda cada combinação da
-grade num savepoint desfeito. O banco continua como estava antes (normalmente a
-simulação canônica do gerador, com a sua linha em `execucoes_pipeline`), então as
-estatísticas e a figura nunca mostram a população de estresse, e a ordem em que os
-scripts rodam não importa. Ela avalia à parte o controle (efeito de `min_confirmacoes`
-em confirmadas × pendentes) e as sequências (barreiras verdadeiras × obtidas, fusões,
-por eps). Resultado só no console e em
-`backend/scripts/saida/sensibilidade-semente-<N>.csv` (o nome ganha as opções fora do
-padrão, para nunca sobrescrever o canônico); leitura dos números em
-`docs/decisoes-pendentes.md` (#4 e T5).
-
-A figura (`docs/figuras/funil-<origem>.svg|png`) lê `calcular_estatisticas`. Ela tem um
-painel para alertas e outro para barreiras, e a legenda traz os parâmetros da última
-execução. Se a origem nunca foi processada, o script recusa desenhar.
-
-`--limpar` apaga só `origem='simulacao'` (alertas, barreiras, rejeitados e a linha de
-`execucoes_pipeline`); a análise de sensibilidade faz o mesmo, mas dentro da transação
-que desfaz no fim. Nenhum script toca `origem='real'`.
-
-**Regra de honestidade acadêmica:** dado sintético é para desenvolver e testar. Em
-qualquer saída, log, gráfico ou documento, deve estar rotulado como simulação. Nunca
-apresentar número sintético como resultado de coleta real. No código isso significa:
-`origem='simulacao'` em toda linha, descrição "SIMULAÇÃO: …" em todo relato gerado, e o
-rótulo "SIMULAÇÃO" no console, no JSON, em cada linha do CSV (coluna `rotulo`) e no título
-da figura.
-
----
-
-## 10. Convenções de código
+## 17. Convenções de código
 
 - Código, nomes de variáveis e comentários em **português**, seguindo o domínio
-  (`alerta`, `barreira`, `severidade`). Termos técnicos consagrados ficam em inglês
-  (`cluster`, `bbox`, `commit`).
+  (`rota`, `aresta`, `orientacao`, `ponto_interesse`). Termos técnicos consagrados ficam
+  em inglês (`bbox`, `commit`, `bearing` quando for jargão).
 - SQL de migration é **idempotente sempre que possível** (`IF NOT EXISTS`).
-- Migrations são **imutáveis** depois de aplicadas. Correção vira migration nova.
-- Nenhuma credencial, chave de API ou string de conexão no código ou no Git.
-  Tudo via `.env`, com `.env.example` versionado sem valores reais.
-- Toda função em `validacao/` tem teste.
+- Migrations são **imutáveis** depois de aplicadas. Correção vira migration nova. Isso
+  inclui as migrations do escopo antigo: não edite, não apague.
+- Nenhuma credencial ou string de conexão no código ou no Git. Tudo via `.env`, com
+  `.env.example` versionado sem valores reais.
+- Toda função em `orientacao/` e `rotas/` tem teste.
 - Commits pequenos, mensagem em português, escopo claro.
+- Dado de campus mapeado manualmente é **dado de pesquisa**: versionado em `db/seeds/`,
+  com registro de quem mapeou e quando.
 
 ---
 
-## 11. Decisões ainda pendentes com a orientadora
-
-Não implemente nada que dependa destes pontos sem confirmar antes:
-
-1. **Roteamento.** Pôster e artigo prometem "rotas mais acessíveis", mas a metodologia
-   não prevê grafo viário nem pgRouting. Está em aberto se o escopo inclui roteamento
-   ou apenas a base de dados que o viabiliza. **Não instale pgRouting por conta
-   própria.**
-2. **Taxonomia final** de tipos de barreira.
-3. **Polígono exato** da área de estudo.
-4. **Calibração** de `DBSCAN_EPS_METROS` e `MIN_CONFIRMACOES`.
-
-Já decidida (fora desta lista): a **divisão de responsabilidades** entre os
-integrantes, em 29/09/2026 — código = rlbuff7; infra = Victor (VSWH); dados reais =
-Maurício (registro em `docs/decisoes-pendentes.md`, #5).
-
-Enquanto pendente: implemente com valor provisório, deixe configurável, e registre a
-pendência em `docs/decisoes-pendentes.md`.
-
----
-
-## 12. Pendências nos documentos acadêmicos
-
-Registradas aqui porque afetam a coerência entre código e texto:
-
-- **Divergência de dados do IBGE.** O pôster cita 14,4 milhões de pessoas com
-  deficiência no Brasil; o artigo cita 18,6 milhões. Ambos atribuem a "IBGE, 2022".
-  Precisa ser conferido na fonte e padronizado.
-- **Referencial teórico com material fora de escopo.** Há um bloco sobre segmentação
-  de lesões de pele com CNN, imagens de satélite na agricultura e câmera de
-  profundidade Intel RealSense. Nada disso aparece na metodologia nem no escopo.
-  Candidato a remoção ou substituição por literatura de qualidade de dados em VGI.
-- **Cronograma apertado** na fase de coleta em campo (TCC II).
-
----
-
-## 13. Como trabalhar comigo neste repositório
+## 18. Como trabalhar comigo neste repositório
 
 - Antes de criar arquivo novo, verifique se já existe algo equivalente.
-- Os identificadores G1–G12, D1–D8, R1–R39 e "Task N" citados no código e nos
-  commits estão definidos em [`docs/decisoes-de-implementacao.md`](docs/decisoes-de-implementacao.md).
-  Uma decisão nova desse tipo ganha uma linha lá.
 - Mudanças em schema do banco: **sempre** via migration, nunca `ALTER` manual.
-- Se uma tarefa exigir decisão de escopo listada na seção 11, **pare e pergunte**.
+- Se uma tarefa exigir decisão listada na §13, **pare e pergunte**.
+- Qualquer coisa que gere orientação para o usuário passa pelo princípio de segurança da
+  §1: na dúvida, o sistema cala a boca.
+- Dado de simulação (teste com vendas, GPS sintético) sai sempre rotulado como simulação.
 - Ao concluir um marco, rode os testes e resuma em uma frase o que passou a funcionar.
-- Prefira a solução mais simples que resolve. Este é um TCC de graduação com prazo,
-  não um sistema de produção.
+- Prefira a solução mais simples que resolve. Este é um TCC de graduação com prazo, não
+  um sistema de produção.
