@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "verificar": "tsc --noEmit",
-    "testar": "node --experimental-strip-types --test src/itens.test.ts"
+    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4"
