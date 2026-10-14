@@ -6,6 +6,7 @@
  */
 import "../estilos.css";
 import "./inicio.css";
+import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -51,4 +52,5 @@ function iniciarMapaCampus(): void {
   }
 }
 
+iniciarSeletorTema();
 iniciarMapaCampus();

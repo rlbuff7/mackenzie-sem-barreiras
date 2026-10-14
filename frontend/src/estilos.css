@@ -79,6 +79,30 @@ p {
   top: 0;
 }
 
+/* Escolha de tema (Automático, Claro, Escuro, Alto contraste): rótulo visível e alvo de 44 px. */
+.seletor-tema {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espaco-3);
+  margin-top: var(--espaco-5);
+}
+
+.seletor-tema label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.seletor-tema select {
+  min-height: var(--alvo-toque);
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  color: var(--texto);
+  background: var(--superficie);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+}
+
 .oculto-visualmente {
   position: absolute;
   width: 1px;
