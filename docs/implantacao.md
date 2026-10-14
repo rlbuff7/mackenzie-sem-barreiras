@@ -1,5 +1,7 @@
 # Implantação e operação da coleta
 
+> **Aviso (14/10/2026): os passos de coleta (`zerar-real`, `--reabrir`, `preparar-coleta.sh`, a §11 do dia de coleta) são do escopo antigo. Continuam valendo a pilha de produção, o backup e restauração e o túnel (plano B do protótipo, que será servido pela AWS: R41 em [`decisoes-de-implementacao.md`](decisoes-de-implementacao.md)).**
+
 Dois roteiros curtos: **§1–§10 para o Victor (infra)**, que sobe a pilha de produção,
 o HTTPS e os backups; **§11 para o Maurício (dados)**, que conduz o dia de coleta.
 Contexto: [`coleta-em-campo.md`](coleta-em-campo.md) (protocolo, LGPD, HTTPS),
