@@ -1,13 +1,15 @@
-# Mackenzie sem Barreiras
+# Navegação Acessível no Campus Mackenzie
 
 [![CI/CD](https://github.com/rlbuff7/mackenzie-sem-barreiras/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/rlbuff7/mackenzie-sem-barreiras/actions/workflows/ci-cd.yml)
+
+Repositório `mackenzie-sem-barreiras` (nome do escopo antigo; renomear é decisão pendente da equipe).
 
 Navegação e orientação espacial acessível no campus da Universidade Presbiteriana
 Mackenzie. TCC, FCI/Mackenzie. Prioridade: pessoas com deficiência visual.
 
 ## O que é
 
-Um sistema web, público, que ajuda a pessoa a chegar de um ponto a outro do campus
+Um sistema web que ajuda a pessoa a chegar de um ponto a outro do campus
 com rota acessível e orientação falada e por vibração. Cobre **só as áreas externas**
 (decisão de 14/10/2026): sem beacons, Wi-Fi fingerprinting nem QR code.
 
