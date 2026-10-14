@@ -48,6 +48,25 @@ from app.validacao.mensagens import traduzir_erro_pydantic, traduzir_erros_da_re
             {"type": "string_too_short", "ctx": {"min_length": 1}},
             "Deve ter no mínimo 1 caracteres.",
         ),
+        # Lista (lote de medições): conta itens, não caracteres.
+        ({"type": "too_short", "ctx": {"min_length": 1}}, "Deve ter no mínimo 1 item."),
+        ({"type": "too_short", "ctx": {"min_length": 2}}, "Deve ter no mínimo 2 itens."),
+        ({"type": "too_long", "ctx": {"max_length": 50}}, "Deve ter no máximo 50 itens."),
+        ({"type": "too_long", "ctx": {"max_length": 1}}, "Deve ter no máximo 1 item."),
+        (
+            {"type": "timezone_aware", "ctx": None},
+            "Informe o fuso horário (ex.: 2026-10-14T10:30:00-03:00 ou ...Z).",
+        ),
+        (
+            {"type": "datetime_parsing", "ctx": {"error": "..."}},
+            "Não é uma data e hora ISO 8601 válida.",
+        ),
+        (
+            {"type": "datetime_from_date_parsing", "ctx": {"error": "..."}},
+            "Não é uma data e hora ISO 8601 válida.",
+        ),
+        ({"type": "datetime_type", "ctx": None}, "Deve ser um texto com data e hora ISO 8601."),
+        ({"type": "finite_number", "ctx": None}, "Deve ser um número finito."),
         (
             {"type": "string_pattern_mismatch", "ctx": {"pattern": "^[a-z_]+$"}},
             "Não corresponde ao formato esperado (^[a-z_]+$).",
