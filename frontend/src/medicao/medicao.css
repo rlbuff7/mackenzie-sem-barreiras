@@ -55,8 +55,10 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   padding: var(--espaco-4) var(--espaco-5) var(--espaco-3);
 }
 
+/* Topo: "← Início", "Ajustes" e "Recomeçar" numa linha só (alvos de 44 px; cabe em 390 px). */
 .medicao__linha {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--espaco-3);
@@ -69,11 +71,6 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   font-weight: 600;
   color: var(--primaria-escura);
 }
-
-/* Em tela estreita o seletor encolhe em vez de vazar para fora da página. */
-.medicao__linha .preferencias { min-width: 0; }
-.medicao__linha .seletor-tema { min-width: 0; max-width: 100%; }
-.medicao__linha .seletor-tema select { min-width: 0; max-width: 13rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
 
 .medicao__titulo {
   display: flex;
@@ -119,14 +116,6 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   height: 12px;
   background: var(--primaria-escura);
   border-color: var(--primaria-escura);
-}
-
-/* Ações do canto esquerdo do topo: voltar ao início e recomeçar (sempre à vista, em todas as etapas). */
-.medicao__acoes-topo {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--espaco-2);
 }
 
 /* Etapas (uma por tela): "Etapa X de Y" em cima, nome da etapa embaixo. O título recebe o foco quando

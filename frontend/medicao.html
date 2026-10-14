@@ -38,10 +38,12 @@
 
       <header class="medicao__topo">
         <div class="medicao__linha">
-          <div class="medicao__acoes-topo">
-            <a class="medicao__voltar" href="/">← Início</a>
-            <button type="button" id="botao-recomecar" class="botao botao--secundaria" aria-expanded="false" aria-controls="confirmar-recomecar">Recomeçar</button>
-          </div>
+          <a class="medicao__voltar" href="/">← Início</a>
+          <button type="button" id="botao-ajustes" class="botao botao--secundaria" aria-expanded="false" aria-controls="painel-ajustes">Ajustes</button>
+          <button type="button" id="botao-recomecar" class="botao botao--secundaria" aria-expanded="false" aria-controls="confirmar-recomecar">Recomeçar</button>
+        </div>
+
+        <div id="painel-ajustes" class="ajustes" role="group" aria-labelledby="botao-ajustes" hidden>
           <div class="preferencias">
             <div class="seletor-tema">
               <label for="seletor-tema">Tema</label>

@@ -11,6 +11,7 @@ import "./medicao.css";
 import "../mapa/marcadores.css";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
 import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
@@ -1106,6 +1107,7 @@ window.addEventListener("online", () => {
 });
 window.addEventListener("offline", desenhar);
 
+iniciarAjustes();
 iniciarSeletorTema();
 iniciarInterruptorMovimento();
 iniciarMapa();

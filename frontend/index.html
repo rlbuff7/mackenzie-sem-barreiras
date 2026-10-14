@@ -48,21 +48,24 @@
         </p>
         <div class="inicio__topo-mapa">
           <span class="inicio__chip">Campus Higienópolis</span>
-          <div class="preferencias">
-            <div class="seletor-tema">
-              <label for="seletor-tema">Tema</label>
-              <select id="seletor-tema">
-                <option value="automatico">Automático (segue o aparelho)</option>
-                <option value="claro">Claro</option>
-                <option value="escuro">Escuro</option>
-                <option value="alto-contraste">Alto contraste</option>
-              </select>
+          <button type="button" id="botao-ajustes" class="botao botao--secundaria" aria-expanded="false" aria-controls="painel-ajustes">Ajustes</button>
+          <div id="painel-ajustes" class="ajustes inicio__ajustes" role="group" aria-labelledby="botao-ajustes" hidden>
+            <div class="preferencias">
+              <div class="seletor-tema">
+                <label for="seletor-tema">Tema</label>
+                <select id="seletor-tema">
+                  <option value="automatico">Automático (segue o aparelho)</option>
+                  <option value="claro">Claro</option>
+                  <option value="escuro">Escuro</option>
+                  <option value="alto-contraste">Alto contraste</option>
+                </select>
+              </div>
+              <div class="interruptor">
+                <input id="interruptor-movimento" type="checkbox" role="switch" aria-describedby="nota-movimento" />
+                <label for="interruptor-movimento">Reduzir animações</label>
+              </div>
+              <p id="nota-movimento" class="ajuda" hidden>Ligado pelo seu aparelho.</p>
             </div>
-            <div class="interruptor">
-              <input id="interruptor-movimento" type="checkbox" role="switch" aria-describedby="nota-movimento" />
-              <label for="interruptor-movimento">Reduzir animações</label>
-            </div>
-            <p id="nota-movimento" class="ajuda" hidden>Ligado pelo seu aparelho.</p>
           </div>
         </div>
       </div>

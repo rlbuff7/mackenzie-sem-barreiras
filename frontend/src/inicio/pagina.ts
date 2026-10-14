@@ -8,6 +8,7 @@ import "../estilos.css";
 import "./inicio.css";
 import "../mapa/marcadores.css";
 import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
+import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
 import L from "leaflet";
@@ -70,6 +71,7 @@ function iniciarMapaCampus(): void {
   }
 }
 
+iniciarAjustes();
 iniciarSeletorTema();
 iniciarInterruptorMovimento();
 iniciarMapaCampus();

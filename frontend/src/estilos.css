@@ -113,17 +113,35 @@ p {
   border-radius: var(--raio-controle);
 }
 
-/* Preferências de exibição: tema e "Reduzir animações" juntos, um embaixo do outro. */
+/* Painel "Ajustes" (abre logo abaixo do topo, sem animação): tema e "Reduzir animações" empilhados,
+   o select em largura total para o texto não ser cortado nem em 390 px. */
+.ajustes {
+  padding: var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-secao);
+}
+
+.ajustes[hidden] {
+  display: none;
+}
+
 .preferencias {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--espaco-1);
+  align-items: stretch;
+  gap: var(--espaco-3);
 }
 
 .preferencias .seletor-tema {
   margin: 0;
-  flex-wrap: nowrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--espaco-2);
+}
+
+.preferencias .seletor-tema select {
+  width: 100%;
 }
 
 /* Interruptor nativo (checkbox com role="switch"): o rótulo inteiro é o alvo de toque de 44 px. */

@@ -46,6 +46,7 @@
   right: var(--espaco-5);
   z-index: 1100;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--espaco-3);
@@ -64,15 +65,8 @@
   color: var(--primaria-escura);
 }
 
-/* As preferências formam um só quadro sobre o mapa (tema em cima, interruptor embaixo). */
-.inicio__topo-mapa .preferencias {
-  padding: var(--espaco-2) var(--espaco-3);
-  background: var(--superficie);
-  border: var(--linha-fina) solid var(--borda);
-  border-radius: var(--raio-controle);
-}
-
-.inicio__topo-mapa .seletor-tema select { max-width: 11rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
+/* O painel Ajustes abre logo abaixo da etiqueta e do botão, por cima do mapa. */
+.inicio__ajustes { flex: 1 0 100%; }
 
 .inicio__cartao {
   display: flex;
