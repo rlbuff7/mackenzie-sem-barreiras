@@ -20,6 +20,17 @@
 
 .medicao__avisos { position: sticky; top: 0; z-index: 1200; }
 
+/* As barras fixas (aviso no alto, botões embaixo) não podem esconder o campo que recebeu o foco
+   (WCAG 2.4.11): a rolagem automática deixa essa folga. */
+html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
+
+/* Com zoom alto, texto grande ou celular deitado, as duas barras fixas ocupariam a tela toda:
+   nessa altura elas deixam de ser fixas e rolam com a página (WCAG 1.4.10). */
+@media (max-height: 32rem) {
+  .medicao__avisos,
+  .medicao__barra { position: static; }
+}
+
 /* Aviso (componente Aviso). */
 .medicao__aviso {
   margin: 0;

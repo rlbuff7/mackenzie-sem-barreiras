@@ -55,6 +55,12 @@ h2 {
   font-family: var(--font-exibicao);
   line-height: 1.15;
   margin: 0;
+  text-wrap: balance;
+}
+
+/* Toque sem espera de duplo toque nem zoom por engano nos controles. */
+:where(button, a, summary, select, input, label) {
+  touch-action: manipulation;
 }
 
 p {

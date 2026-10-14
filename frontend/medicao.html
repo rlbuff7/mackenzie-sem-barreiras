@@ -76,7 +76,7 @@
           <div class="medicao__config-corpo">
             <div class="campo">
               <label for="campo-aparelho">Aparelho (ex.: Galaxy A54, iPhone 13)</label>
-              <input id="campo-aparelho" type="text" autocomplete="off" maxlength="60" />
+              <input id="campo-aparelho" name="aparelho" type="text" autocomplete="off" spellcheck="false" maxlength="60" />
             </div>
             <div class="campo">
               <p id="codigo-salvo" class="medicao__codigo-salvo" hidden>
@@ -85,18 +85,18 @@
               </p>
               <div id="codigo-edicao">
                 <label for="campo-codigo">Código da equipe</label>
-                <input id="campo-codigo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ajuda-codigo" />
+                <input id="campo-codigo" name="codigo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ajuda-codigo" />
                 <p id="ajuda-codigo" class="ajuda">Sem o código, os registros ficam só neste aparelho.</p>
                 <button type="button" id="botao-salvar-codigo" class="botao botao--secundaria">Salvar código</button>
               </div>
             </div>
             <div class="campo">
               <label for="campo-ponto">Ir para o ponto (1 a 12)</label>
-              <input id="campo-ponto" type="number" inputmode="numeric" min="1" max="12" step="1" value="1" />
+              <input id="campo-ponto" name="ponto" type="number" inputmode="numeric" min="1" max="12" step="1" value="1" />
             </div>
             <div class="campo">
               <label for="campo-condicao">Condição do ponto</label>
-              <select id="campo-condicao">
+              <select id="campo-condicao" name="condicao">
                 <option value="ceu_aberto">Céu aberto</option>
                 <option value="entre_predios">Entre prédios</option>
                 <option value="coberto">Coberto</option>
@@ -104,7 +104,7 @@
             </div>
             <div class="campo">
               <label for="campo-observacao">Observação (opcional)</label>
-              <input id="campo-observacao" type="text" autocomplete="off" maxlength="200" />
+              <input id="campo-observacao" name="observacao" type="text" autocomplete="off" maxlength="200" />
             </div>
             <div class="campo">
               <button type="button" id="botao-apagar" class="botao botao--secundaria">Apagar todos os registros</button>
