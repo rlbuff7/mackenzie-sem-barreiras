@@ -348,7 +348,7 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             "GET /medicao.html do frontend devolve a página de medição de GPS, não a inicial (200)",
             resposta.status_code == 200
             and "<title>Medição de GPS — Mackenzie</title>" in resposta.text
-            and "Registrar ponto" in resposta.text
+            and "Registrar agora" in resposta.text
             and "<title>Navegação Acessível no Campus Mackenzie</title>" not in resposta.text,
             f"HTTP {resposta.status_code}",
         )
