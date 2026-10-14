@@ -383,5 +383,143 @@ SELECT pg_temp.afirmar('pgr_dijkstra respeita custo_inverso = -1 (escada sem cam
             (SELECT id FROM no_ids WHERE n = 3), (SELECT id FROM no_ids WHERE n = 1),
             directed => true)));
 
+-- ---------------------------------------------------------------------------
+-- Medições de GPS em tempo real (medicoes_gps) — migration 005
+-- ---------------------------------------------------------------------------
+
+SELECT pg_temp.afirmar('tabela medicoes_gps existe', to_regclass('medicoes_gps') IS NOT NULL);
+
+SELECT pg_temp.afirmar('medicoes_gps.geom é Point em SRID 4326',
+    (SELECT type = 'POINT' AND srid = 4326 FROM geometry_columns
+     WHERE f_table_name = 'medicoes_gps' AND f_geometry_column = 'geom'));
+
+SELECT pg_temp.afirmar('índice ' || i || ' existe em medicoes_gps',
+    EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'medicoes_gps' AND indexname = i))
+FROM unnest(ARRAY['idx_medicoes_gps_geom', 'idx_medicoes_gps_medido_em',
+                  'idx_medicoes_gps_aparelho_ponto']) AS i;
+
+SELECT pg_temp.afirmar('índice idx_medicoes_gps_geom é GiST',
+    EXISTS (SELECT 1 FROM pg_indexes
+            WHERE indexname = 'idx_medicoes_gps_geom' AND indexdef ILIKE '%USING gist%'));
+
+SELECT pg_temp.afirmar('índice (aparelho, ponto) cobre as duas colunas, nessa ordem',
+    EXISTS (SELECT 1 FROM pg_indexes
+            WHERE indexname = 'idx_medicoes_gps_aparelho_ponto'
+              AND indexdef ILIKE '%(aparelho, ponto)%'));
+
+SELECT pg_temp.afirmar('id_cliente tem UNIQUE (reenvio idempotente)',
+    EXISTS (SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'medicoes_gps'::regclass AND contype = 'u'
+              AND conname = 'medicoes_gps_id_cliente_unico'));
+
+-- Medição de ponto válida (base para as variações abaixo)
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, condicao, geom, precisao_m)
+VALUES ('11111111-1111-4111-8111-111111111111', 'ponto', now(), 'Galaxy A54', 3, 'ceu_aberto',
+        ST_SetSRID(ST_MakePoint(-46.6524631, -23.5471938), 4326), 4.5);
+
+SELECT pg_temp.afirmar('medição de ponto válida entra, com recebido_em preenchido pelo servidor',
+    (SELECT count(*) = 1 AND bool_and(recebido_em IS NOT NULL) FROM medicoes_gps
+      WHERE id_cliente = '11111111-1111-4111-8111-111111111111'));
+
+SELECT pg_temp.deve_rejeitar('id_cliente repetido',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, geom, precisao_m)
+       VALUES ('11111111-1111-4111-8111-111111111111', 'ponto', now(), 'Galaxy A54', 3,
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5)$q$, '23505');
+
+-- Outros tipos válidos, sem geom: bússola e vibração
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, bussola_graus, bussola_fonte,
+                          bussola_oscilacao_graus)
+VALUES ('22222222-2222-4222-8222-222222222222', 'bussola', now(), 'iPhone 13', 359.9,
+        'webkitCompassHeading', 2.5);
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, vibracao_suportada)
+VALUES ('33333333-3333-4333-8333-333333333333', 'vibracao', now(), 'iPhone 13', false);
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, geom, precisao_m)
+VALUES ('44444444-4444-4444-8444-444444444444', 'trajeto', now(), 'Galaxy A54',
+        ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 8);
+SELECT pg_temp.afirmar('bússola, vibração e trajeto válidos entram (ponto fica NULL)',
+    (SELECT count(*) = 3 FROM medicoes_gps WHERE ponto IS NULL));
+
+SELECT pg_temp.deve_rejeitar('tipo ''gravidade'' inválido',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho)
+       VALUES (gen_random_uuid(), 'gravidade', now(), 'X')$q$, '23514');
+SELECT pg_temp.deve_rejeitar('sem id_cliente',
+    $q$INSERT INTO medicoes_gps (tipo, medido_em, aparelho)
+       VALUES ('vibracao', now(), 'X')$q$, '23502');
+SELECT pg_temp.deve_rejeitar('sem medido_em',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, aparelho)
+       VALUES (gen_random_uuid(), 'vibracao', 'X')$q$, '23502');
+SELECT pg_temp.deve_rejeitar('sem aparelho',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em)
+       VALUES (gen_random_uuid(), 'vibracao', now())$q$, '23502');
+SELECT pg_temp.deve_rejeitar('aparelho vazio',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho)
+       VALUES (gen_random_uuid(), 'vibracao', now(), '')$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aparelho só com espaços',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho)
+       VALUES (gen_random_uuid(), 'vibracao', now(), '   ')$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aparelho com mais de 80 caracteres',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho)
+       VALUES (gen_random_uuid(), 'vibracao', now(), repeat('a', 81))$q$, '22001');
+
+SELECT pg_temp.deve_rejeitar('ponto 0 (faixa é 1..12)',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, geom, precisao_m)
+       VALUES (gen_random_uuid(), 'ponto', now(), 'X', 0,
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('ponto 13 (faixa é 1..12)',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, geom, precisao_m)
+       VALUES (gen_random_uuid(), 'ponto', now(), 'X', 13,
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('tipo ponto sem o número do ponto',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, geom, precisao_m)
+       VALUES (gen_random_uuid(), 'ponto', now(), 'X',
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('condição ''chuva'' inválida',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, condicao)
+       VALUES (gen_random_uuid(), 'vibracao', now(), 'X', 'chuva')$q$, '23514');
+
+SELECT pg_temp.deve_rejeitar('tipo ponto sem geom',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, precisao_m)
+       VALUES (gen_random_uuid(), 'ponto', now(), 'X', 1, 5)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('tipo ponto sem precisao_m',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, geom)
+       VALUES (gen_random_uuid(), 'ponto', now(), 'X', 1,
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('tipo trajeto sem geom',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, precisao_m)
+       VALUES (gen_random_uuid(), 'trajeto', now(), 'X', 5)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('tipo trajeto sem precisao_m',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, geom)
+       VALUES (gen_random_uuid(), 'trajeto', now(), 'X',
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('geom em tipo bússola sem precisao_m (geom exige precisão)',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, geom)
+       VALUES (gen_random_uuid(), 'bussola', now(), 'X',
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('precisao_m negativa',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, geom, precisao_m)
+       VALUES (gen_random_uuid(), 'trajeto', now(), 'X',
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), -1)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('geom com SRID 31983 em vez de 4326',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, geom, precisao_m)
+       VALUES (gen_random_uuid(), 'trajeto', now(), 'X',
+               ST_SetSRID(ST_MakePoint(333000, 7394000), 31983), 5)$q$, '22023');
+
+SELECT pg_temp.deve_rejeitar('bússola 360 (faixa é 0 <= x < 360)',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, bussola_graus)
+       VALUES (gen_random_uuid(), 'bussola', now(), 'X', 360)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('bússola negativa',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, bussola_graus)
+       VALUES (gen_random_uuid(), 'bussola', now(), 'X', -0.1)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('bussola_fonte ''giroscopio'' inválida',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, bussola_graus, bussola_fonte)
+       VALUES (gen_random_uuid(), 'bussola', now(), 'X', 10, 'giroscopio')$q$, '23514');
+SELECT pg_temp.deve_rejeitar('oscilação da bússola negativa',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, bussola_graus,
+                                 bussola_oscilacao_graus)
+       VALUES (gen_random_uuid(), 'bussola', now(), 'X', 10, -1)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('observação com mais de 500 caracteres',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, observacao)
+       VALUES (gen_random_uuid(), 'vibracao', now(), 'X', repeat('a', 501))$q$, '22001');
+
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
