@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  ANUNCIO_RECOMECOU,
+  anuncioDaEtapa,
   classificarPrecisao,
   descreverEnvio,
+  ETAPAS,
+  etapaInicial,
+  numeroDaEtapa,
+  textoConfirmarRecomecar,
+  textoEtapa,
+  TOTAL_ETAPAS,
+  tituloEtapa,
   formatarMetros,
   fracaoContagem,
   numeroDaProximaMedicao,
@@ -127,4 +136,69 @@ test("descreverEnvio: na fila sem sinal, offline, servidor desligado e falta de 
     descreverEnvio({ ...base, estado: "na_fila", temCodigo: false }).titulo,
     "Não enviado: falta o código da equipe",
   );
+});
+
+// ---------- etapas: uma por tela ----------
+
+test("são 3 etapas, nesta ordem: preparar, medir o ponto, resultado do ponto", () => {
+  assert.equal(TOTAL_ETAPAS, 3);
+  assert.deepEqual(
+    ETAPAS.map((e) => e.id),
+    ["preparar", "medir", "resultado"],
+  );
+  assert.equal(tituloEtapa("preparar"), "Preparar");
+  assert.equal(tituloEtapa("medir"), "Medir o ponto");
+  assert.equal(tituloEtapa("resultado"), "Resultado do ponto");
+});
+
+test("textoEtapa diz 'Etapa X de Y' e numeroDaEtapa conta de 1", () => {
+  assert.equal(numeroDaEtapa("preparar"), 1);
+  assert.equal(numeroDaEtapa("resultado"), 3);
+  assert.equal(textoEtapa("preparar"), "Etapa 1 de 3");
+  assert.equal(textoEtapa("medir"), "Etapa 2 de 3");
+  assert.equal(textoEtapa("resultado"), "Etapa 3 de 3");
+});
+
+test("etapaInicial: sem aparelho ou sem código começa em Preparar; com os dois, volta direto a Medir", () => {
+  assert.equal(etapaInicial({ temAparelho: false, temCodigo: false }), "preparar");
+  assert.equal(etapaInicial({ temAparelho: true, temCodigo: false }), "preparar");
+  assert.equal(etapaInicial({ temAparelho: false, temCodigo: true }), "preparar");
+  assert.equal(etapaInicial({ temAparelho: true, temCodigo: true }), "medir");
+});
+
+test("anuncioDaEtapa: uma frase por etapa, sem repetir o título (o foco já lê o título)", () => {
+  assert.equal(anuncioDaEtapa("medir", 3, 2), "Ponto 3 de 12, medição 2 de 3.");
+  assert.equal(anuncioDaEtapa("medir", 5, 4), "Ponto 5 de 12, medição extra (4).");
+  assert.equal(anuncioDaEtapa("resultado", 3, 2), "Ponto 3 registrado, medição 2 de 3.");
+  assert.match(anuncioDaEtapa("preparar", 1, 1), /aparelho/);
+  for (const e of ETAPAS) {
+    assert.ok(!anuncioDaEtapa(e.id, 1, 1).includes(e.titulo), `o anúncio de ${e.id} repete o título`);
+  }
+});
+
+test("textoConfirmarRecomecar: diz o que se apaga, o que fica e que o servidor não é tocado", () => {
+  const t = textoConfirmarRecomecar(7, 2);
+  assert.match(t, /7 registros/);
+  assert.match(t, /2 ainda não foram enviados e serão perdidos/);
+  assert.match(t, /volta ao ponto 1/);
+  assert.match(t, /continua lá/);
+  assert.match(t, /nada é apagado no servidor/);
+  assert.match(t, /aparelho, o código da equipe e a condição/);
+});
+
+test("textoConfirmarRecomecar: singular, tudo enviado e nada guardado", () => {
+  const um = textoConfirmarRecomecar(1, 1);
+  assert.match(um, /o 1 registro guardado/);
+  assert.match(um, /1 ainda não foi enviado e será perdido/);
+  const enviados = textoConfirmarRecomecar(4, 0);
+  assert.doesNotMatch(enviados, /perdido/);
+  assert.match(enviados, /Todos já foram enviados/);
+  const vazio = textoConfirmarRecomecar(0, 0);
+  assert.match(vazio, /Não há registros guardados/);
+  assert.match(vazio, /nada é apagado no servidor/);
+});
+
+test("ANUNCIO_RECOMECOU confirma a volta ao ponto 1 e que o servidor não foi tocado", () => {
+  assert.match(ANUNCIO_RECOMECOU, /ponto 1/);
+  assert.match(ANUNCIO_RECOMECOU, /continua lá/);
 });

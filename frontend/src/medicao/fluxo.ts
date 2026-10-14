@@ -103,6 +103,73 @@ export function fracaoContagem(restantes_s: number, total_s: number = DURACAO_CO
   return Math.min(1, Math.max(0, (total_s - restantes_s) / total_s));
 }
 
+// ---------- etapas: uma por tela ----------
+
+export type Etapa = "preparar" | "medir" | "resultado";
+
+export const ETAPAS: readonly { id: Etapa; titulo: string }[] = [
+  { id: "preparar", titulo: "Preparar" },
+  { id: "medir", titulo: "Medir o ponto" },
+  { id: "resultado", titulo: "Resultado do ponto" },
+];
+
+export const TOTAL_ETAPAS = ETAPAS.length;
+
+export function numeroDaEtapa(etapa: Etapa): number {
+  return ETAPAS.findIndex((e) => e.id === etapa) + 1;
+}
+
+export function textoEtapa(etapa: Etapa): string {
+  return `Etapa ${numeroDaEtapa(etapa)} de ${TOTAL_ETAPAS}`;
+}
+
+export function tituloEtapa(etapa: Etapa): string {
+  return ETAPAS.find((e) => e.id === etapa)?.titulo ?? "";
+}
+
+/** Sem aparelho ou sem código da equipe, a medição começa por Preparar; com os dois, volta direto a Medir. */
+export function etapaInicial(estado: { temAparelho: boolean; temCodigo: boolean }): Etapa {
+  return estado.temAparelho && estado.temCodigo ? "medir" : "preparar";
+}
+
+/**
+ * Frase falada UMA vez (aria-live) quando a etapa troca. O foco vai para o título da etapa e o leitor
+ * de tela já lê "Etapa X de Y, <título>": por isso a frase traz só o que o título não diz.
+ */
+export function anuncioDaEtapa(etapa: Etapa, ponto: number, medicao: number): string {
+  if (etapa === "preparar") return "Preencha o aparelho e o código da equipe. Depois, continue para a medição.";
+  if (etapa === "medir") return `Ponto ${ponto} de ${TOTAL_PONTOS}, ${textoMedicao(medicao)}.`;
+  return `Ponto ${ponto} registrado, ${textoMedicao(medicao)}.`;
+}
+
+/** Falado uma vez depois de confirmar "Recomeçar", junto com a volta à etapa Preparar. */
+export const ANUNCIO_RECOMECOU =
+  "Recomeçado. Os registros deste aparelho foram apagados e você voltou ao ponto 1. O que já foi enviado ao banco continua lá.";
+
+/**
+ * Texto da confirmação do botão "Recomeçar". Recomeçar apaga só o que está NESTE aparelho (a fila de
+ * registros) e volta ao ponto 1; o que já foi enviado ao banco continua lá.
+ */
+export function textoConfirmarRecomecar(total: number, naoEnviados: number): string {
+  const servidor = "O que já foi enviado ao banco continua lá: nada é apagado no servidor.";
+  if (total === 0) {
+    return `Recomeçar volta ao ponto 1. Não há registros guardados neste aparelho. ${servidor}`;
+  }
+  const guardados =
+    total === 1 ? "o 1 registro guardado neste aparelho" : `os ${total} registros guardados neste aparelho`;
+  const perdidos =
+    naoEnviados === 0
+      ? "Todos já foram enviados."
+      : naoEnviados === 1
+        ? "1 ainda não foi enviado e será perdido."
+        : `${naoEnviados} ainda não foram enviados e serão perdidos.`;
+  const exportar = naoEnviados > 0 ? " Exporte o CSV antes se quiser guardar os que não foram enviados." : "";
+  return (
+    `Recomeçar apaga ${guardados} e volta ao ponto 1. ${perdidos} ${servidor}` +
+    ` Ficam salvos o aparelho, o código da equipe e a condição.${exportar}`
+  );
+}
+
 // ---------- como o estado de envio aparece na tela ----------
 
 export type EstadoCartao = "enviado" | "fila" | "recusado";
