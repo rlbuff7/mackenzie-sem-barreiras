@@ -37,6 +37,11 @@ _MENSAGENS_FIXAS: dict[str, str] = {
     "model_type": "Deve ser um objeto JSON (chave-valor).",
     "dict_type": "Deve ser um objeto JSON (chave-valor).",
     "json_invalid": "JSON malformado.",
+    "timezone_aware": "Informe o fuso horário (ex.: 2026-10-14T10:30:00-03:00 ou ...Z).",
+    "datetime_parsing": "Não é uma data e hora ISO 8601 válida.",
+    "datetime_from_date_parsing": "Não é uma data e hora ISO 8601 válida.",
+    "datetime_type": "Deve ser um texto com data e hora ISO 8601.",
+    "finite_number": "Deve ser um número finito.",
 }
 
 
@@ -52,6 +57,10 @@ def _numero_brasileiro(valor: object) -> str:
     return str(valor).replace(".", ",")
 
 
+def _itens(quantidade: int) -> str:
+    return f"{quantidade} item" if quantidade == 1 else f"{quantidade} itens"
+
+
 # Erros que citam um limite do `ctx`: mensagem montada em cima do valor real
 # do `Field` (nunca hardcoded aqui — vem do próprio erro do Pydantic).
 _MENSAGENS_COM_LIMITE: dict[str, Callable[[dict[str, Any]], str]] = {
@@ -61,6 +70,9 @@ _MENSAGENS_COM_LIMITE: dict[str, Callable[[dict[str, Any]], str]] = {
     "greater_than": lambda ctx: f"Deve ser maior que {_numero_brasileiro(ctx['gt'])}.",
     "string_too_long": lambda ctx: f"Deve ter no máximo {ctx['max_length']} caracteres.",
     "string_too_short": lambda ctx: f"Deve ter no mínimo {ctx['min_length']} caracteres.",
+    # Lista (o lote de `POST /medicoes`): conta itens.
+    "too_short": lambda ctx: f"Deve ter no mínimo {_itens(ctx['min_length'])}.",
+    "too_long": lambda ctx: f"Deve ter no máximo {_itens(ctx['max_length'])}.",
     "string_pattern_mismatch": lambda ctx: (
         f"Não corresponde ao formato esperado ({ctx['pattern']})."
     ),
