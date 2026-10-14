@@ -84,14 +84,15 @@
     }
   }
 
-  /* Troca de etapa da medição: a etapa nova aparece com fade curto (a anterior some na hora:
-     resposta do sistema não espera). Só opacidade, nada se desloca. */
-  :root:not([data-movimento="reduzido"]) .medicao__etapa {
+  /* Troca de etapa da medição: só a etapa Preparar (formulário, sem mapa nem leitura ao vivo) entra
+     com fade curto de opacidade, sem deslocamento. As etapas Medir (mapa, precisão, contagem) e
+     Resultado (estado do envio, avisos de fila e de erro) trocam NA HORA: nada disso pode animar. */
+  :root:not([data-movimento="reduzido"]) .medicao__etapa--suave {
     transition: opacity var(--mov-painel) var(--mov-curva);
   }
 
   @starting-style {
-    :root:not([data-movimento="reduzido"]) .medicao__etapa {
+    :root:not([data-movimento="reduzido"]) .medicao__etapa--suave {
       opacity: 0;
     }
   }

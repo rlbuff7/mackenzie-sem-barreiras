@@ -70,7 +70,10 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   color: var(--primaria-escura);
 }
 
-.medicao__linha .seletor-tema select { max-width: 13rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
+/* Em tela estreita o seletor encolhe em vez de vazar para fora da página. */
+.medicao__linha .preferencias { min-width: 0; }
+.medicao__linha .seletor-tema { min-width: 0; max-width: 100%; }
+.medicao__linha .seletor-tema select { min-width: 0; max-width: 13rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
 
 .medicao__titulo {
   display: flex;
@@ -118,25 +121,43 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   border-color: var(--primaria-escura);
 }
 
-/* Configuração recolhível. */
-.medicao__config {
-  background: var(--superficie);
-  border: var(--linha-fina) solid var(--borda);
-  border-left: var(--linha-secao) solid var(--primaria);
-  border-radius: var(--raio-secao);
-}
-
-.medicao__config > summary {
+/* Ações do canto esquerdo do topo: voltar ao início e recomeçar (sempre à vista, em todas as etapas). */
+.medicao__acoes-topo {
   display: flex;
-  align-items: center;
-  min-height: var(--alvo-toque);
-  padding: 0 var(--espaco-4);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--espaco-2);
 }
 
-.medicao__config-corpo { padding: 0 var(--espaco-4) var(--espaco-4); }
+/* Etapas (uma por tela): "Etapa X de Y" em cima, nome da etapa embaixo. O título recebe o foco quando
+   a etapa troca (tabindex=-1); o anel de foco do teclado vem de estilos.css. */
+.medicao__etapa-titulo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-1);
+  margin: var(--espaco-5) 0 var(--espaco-4);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--primaria-escura);
+}
+
+.medicao__etapa-contador {
+  font-family: var(--font-texto);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+
+.medicao__resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-3);
+  margin-bottom: var(--espaco-4);
+}
+
+.medicao__resumo p { margin: 0; font-size: 0.9rem; font-weight: 600; }
 
 .medicao .campo { margin-bottom: 0.9rem; }
 
@@ -278,7 +299,7 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   border-radius: var(--raio-secao);
 }
 
-.medicao__bussola h2 { font-size: 1.1rem; margin-bottom: var(--espaco-3); }
+.medicao__bussola h3 { font-size: 1.1rem; margin-bottom: var(--espaco-3); }
 
 /* Cartões de estado do envio: ícone + palavra + borda (sólida, tracejada) em vez de só cor. */
 .medicao__cartao {
@@ -351,7 +372,7 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   border-radius: var(--raio-secao);
 }
 
-.medicao__ultimos h2 { font-size: 1rem; margin-bottom: var(--espaco-2); }
+.medicao__ultimos h3 { font-size: 1rem; margin-bottom: var(--espaco-2); }
 
 .medicao__lista { list-style: none; margin: 0; padding: 0; }
 
@@ -415,12 +436,6 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
 
 /* O atributo hidden vale sobre qualquer display definido acima. */
 .medicao [hidden] { display: none !important; }
-
-/* Setinha do resumo recolhível (o marcador padrão some com display:flex). */
-.medicao__config > summary { list-style: none; }
-.medicao__config > summary::-webkit-details-marker { display: none; }
-.medicao__config > summary::before { content: "▸"; margin-right: var(--espaco-3); }
-.medicao__config[open] > summary::before { content: "▾"; }
 
 /* Passar o mouse só em aparelho com mouse de verdade (no toque o :hover gruda). O estado pressionado
    (:active) fica junto de cada botão acima e vale em qualquer aparelho. */

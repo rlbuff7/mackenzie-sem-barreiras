@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "verificar": "tsc --noEmit",
-    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts src/medicao/fluxo.test.ts src/medicao/fila.test.ts src/mapa/rumo.test.ts src/mapa/marcadores.test.ts scripts/gerar-tokens.test.mjs src/design/tema.test.ts src/design/movimento.test.ts src/design/movimento-css.test.ts src/design/mapa-sem-animacao.test.ts src/design/contraste.test.ts",
+    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts src/medicao/fluxo.test.ts src/medicao/fila.test.ts src/medicao/etapas-html.test.ts src/mapa/rumo.test.ts src/mapa/marcadores.test.ts scripts/gerar-tokens.test.mjs src/design/tema.test.ts src/design/movimento.test.ts src/design/movimento-css.test.ts src/design/mapa-sem-animacao.test.ts src/design/contraste.test.ts",
     "tokens": "node scripts/gerar-tokens.mjs"
   },
   "dependencies": {

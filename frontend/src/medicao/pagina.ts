@@ -17,11 +17,14 @@ import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadore
 import { rumoParaSeta } from "../mapa/rumo.ts";
 import { FilaEnvio, type FetchSimulavel, type ItemFila, type ResultadoRodada } from "./fila.ts";
 import {
+  ANUNCIO_RECOMECOU,
   DURACAO_CONTAGEM_S,
   MEDICOES_POR_PONTO,
   TOTAL_PONTOS,
+  anuncioDaEtapa,
   classificarPrecisao,
   descreverEnvio,
+  etapaInicial,
   formatarMetros,
   fracaoContagem,
   medicoesFeitas,
@@ -30,9 +33,11 @@ import {
   proximoPonto,
   segmentosProgresso,
   segundosRestantes,
+  textoConfirmarRecomecar,
   textoMedicao,
   textoPrecisao,
   textoProgresso,
+  type Etapa,
 } from "./fluxo.ts";
 import {
   ROTULO_CONDICAO,
@@ -76,8 +81,21 @@ const campoCodigo = el<HTMLInputElement>("campo-codigo");
 const campoPonto = el<HTMLInputElement>("campo-ponto");
 const campoCondicao = el<HTMLSelectElement>("campo-condicao");
 const campoObservacao = el<HTMLInputElement>("campo-observacao");
-const detalhesConfig = el<HTMLDetailsElement>("config");
 const resumoConfig = el<HTMLElement>("resumo-config");
+const botaoAlterar = el<HTMLButtonElement>("botao-alterar");
+const botaoContinuar = el<HTMLButtonElement>("botao-continuar");
+const botaoCorrigirCodigo = el<HTMLButtonElement>("botao-corrigir-codigo");
+const anuncioEtapa = el<HTMLParagraphElement>("anuncio-etapa");
+const secoesEtapa: Record<Etapa, HTMLElement> = {
+  preparar: el("etapa-preparar"),
+  medir: el("etapa-medir"),
+  resultado: el("etapa-resultado"),
+};
+const titulosEtapa: Record<Etapa, HTMLElement> = {
+  preparar: el("titulo-etapa-preparar"),
+  medir: el("titulo-etapa-medir"),
+  resultado: el("titulo-etapa-resultado"),
+};
 const codigoSalvo = el<HTMLParagraphElement>("codigo-salvo");
 const codigoEdicao = el<HTMLDivElement>("codigo-edicao");
 const botaoSalvarCodigo = el<HTMLButtonElement>("botao-salvar-codigo");
@@ -88,8 +106,6 @@ const progresso = el<HTMLDivElement>("progresso");
 const faixaTrajeto = el<HTMLDivElement>("faixa-trajeto");
 const statusTrajeto = el<HTMLParagraphElement>("status-trajeto");
 const botaoPararTrajeto = el<HTMLButtonElement>("botao-parar-trajeto");
-const vistaMedir = el<HTMLDivElement>("vista-medir");
-const vistaConfirmar = el<HTMLDivElement>("vista-confirmar");
 const painelPrecisao = el<HTMLDivElement>("painel-precisao");
 const precisaoValor = el<HTMLElement>("precisao-valor");
 const precisaoNivel = el<HTMLElement>("precisao-nivel");
@@ -125,11 +141,13 @@ const botaoPular = el<HTMLButtonElement>("botao-pular");
 const statusPonto = el<HTMLParagraphElement>("status-ponto");
 const botaoTrajeto = el<HTMLButtonElement>("botao-trajeto");
 const botaoExportar = el<HTMLButtonElement>("botao-exportar");
-const botaoApagar = el<HTMLButtonElement>("botao-apagar");
-const botaoApagarSim = el<HTMLButtonElement>("botao-apagar-sim");
-const botaoApagarNao = el<HTMLButtonElement>("botao-apagar-nao");
-const caixaConfirmar = el<HTMLDivElement>("confirmar-apagar");
+const botaoRecomecar = el<HTMLButtonElement>("botao-recomecar");
+const botaoRecomecarSim = el<HTMLButtonElement>("botao-recomecar-sim");
+const botaoRecomecarNao = el<HTMLButtonElement>("botao-recomecar-nao");
+const botaoRecomecarExportar = el<HTMLButtonElement>("botao-recomecar-exportar");
+const caixaConfirmar = el<HTMLDivElement>("confirmar-recomecar");
 const textoConfirmar = el<HTMLParagraphElement>("texto-confirmar");
+const statusRecomecar = el<HTMLParagraphElement>("status-recomecar");
 const statusRegistros = el<HTMLParagraphElement>("status-registros");
 
 // ---------- armazenamento local ----------
@@ -190,8 +208,8 @@ function migrarRegistrosAntigos(): void {
 // ---------- estado do fluxo ----------
 
 let pontoAtual = 1;
-let vista: "medir" | "confirmar" = "medir";
-/** Último ponto registrado nesta tela (para a vista de confirmação). */
+let etapa: Etapa = "preparar";
+/** Último ponto registrado nesta tela (para a etapa Resultado). */
 let ultimo: { ponto: number; medicao: number; id_cliente: string } | null = null;
 let ultimaPosicao: PosicaoMedida | null = null;
 let registrando = false;
@@ -222,7 +240,7 @@ function desenharCabecalho(): void {
   const ap = aparelho();
   let ponto = pontoAtual;
   let medicao = numeroDaProximaMedicao(registros, pontoAtual, ap);
-  if (vista === "confirmar" && ultimo) {
+  if (etapa === "resultado" && ultimo) {
     ponto = ultimo.ponto;
     medicao = ultimo.medicao;
   }
@@ -241,11 +259,7 @@ function desenharCabecalho(): void {
   progresso.setAttribute("aria-valuenow", String(pontosCompletos(segmentos)));
   progresso.setAttribute("aria-valuetext", textoProgresso(segmentos));
 
-  const rotuloCondicao = ROTULO_CONDICAO[condicaoInformada()];
-  texto(
-    resumoConfig,
-    `${ap || "Aparelho sem nome"} · ${codigoDaEquipe() ? "código salvo" : "sem código"} · ${rotuloCondicao}`,
-  );
+  texto(resumoConfig, `${ap || "Aparelho sem nome"} · ${codigoDaEquipe() ? "código salvo" : "sem código"}`);
 }
 
 function textoEstadoEnvio(): string {
@@ -292,8 +306,11 @@ function desenharConfirmacao(): void {
     const detalhe =
       `Ponto ${ultimo.ponto} ${completo ? "completo" : "em andamento"} · ${Math.min(feitas, MEDICOES_POR_PONTO)} de ${MEDICOES_POR_PONTO} medições · ${formatarMetros(doUltimo.registro.precisao_m)}` +
       (t.cartao === "fila" ? ". Envio automático quando der." : "") +
-      (doUltimo.recusado_por_codigo ? ". Corrija o código da equipe nas configurações acima." : "");
+      (doUltimo.recusado_por_codigo ? ". Corrija o código da equipe." : "");
     texto(cartaoDetalhe, detalhe);
+    // Falta ou erro de código: atalho direto para a etapa Preparar (sem passar por Medir).
+    botaoCorrigirCodigo.hidden = !(!temCodigo || doUltimo.recusado_por_codigo);
+    texto(botaoCorrigirCodigo, temCodigo ? "Corrigir o código da equipe" : "Informar o código da equipe");
 
     const outrosNaFila = c.na_fila - (doUltimo.estado === "na_fila" ? 1 : 0);
     const outrosRecusados = c.recusado - (doUltimo.estado === "recusado" ? 1 : 0);
@@ -377,14 +394,41 @@ function desenhar(): void {
   desenharCodigo();
 }
 
-function mostrarVista(nova: "medir" | "confirmar"): void {
-  vista = nova;
-  vistaMedir.hidden = nova !== "medir";
-  vistaConfirmar.hidden = nova !== "confirmar";
-  barraMedir.hidden = nova !== "medir";
-  barraConfirmar.hidden = nova !== "confirmar";
+// ---------- etapas: uma por tela ----------
+
+let anuncioPendente: number | null = null;
+
+/** Fala uma frase só, uma vez: limpa a região e escreve no quadro seguinte (repetir a mesma frase também é lido). */
+function anunciar(frase: string): void {
+  if (anuncioPendente !== null) window.clearTimeout(anuncioPendente);
+  anuncioEtapa.textContent = "";
+  anuncioPendente = window.setTimeout(() => {
+    anuncioEtapa.textContent = frase;
+    anuncioPendente = null;
+  }, 60);
+}
+
+function frasePadraoDaEtapa(nova: Etapa): string {
+  if (nova === "resultado" && ultimo) return anuncioDaEtapa(nova, ultimo.ponto, ultimo.medicao);
+  const medicao = numeroDaProximaMedicao(fila.registros(), pontoAtual, aparelho());
+  return anuncioDaEtapa(nova, pontoAtual, medicao);
+}
+
+/**
+ * Troca a etapa. Os textos são desenhados ANTES de a etapa aparecer (região aria-live que já nasce
+ * escrita não fala sozinha); depois o foco vai para o título da etapa (tabindex=-1) e UMA frase é
+ * anunciada. `anuncio`: omitido = frase padrão da etapa; texto = essa frase; null = nenhuma
+ * (quando outro aviso já vai falar). `foco: "nenhum"` deixa o foco onde o chamador pôr.
+ */
+function irParaEtapa(nova: Etapa, opcoes: { foco?: "titulo" | "nenhum"; anuncio?: string | null } = {}): void {
+  etapa = nova;
   desenhar();
+  for (const id of Object.keys(secoesEtapa) as Etapa[]) secoesEtapa[id].hidden = id !== nova;
+  barraMedir.hidden = nova !== "medir";
+  barraConfirmar.hidden = nova !== "resultado";
   if (nova === "medir") mapa?.invalidateSize({ animate: false });
+  if (opcoes.foco !== "nenhum") titulosEtapa[nova].focus();
+  if (opcoes.anuncio !== null) anunciar(opcoes.anuncio ?? frasePadraoDaEtapa(nova));
 }
 
 // ---------- mapa pequeno ----------
@@ -539,15 +583,16 @@ function pararContagem(): void {
   texto(botaoContagem, "Iniciar contagem de 30 s");
 }
 
-function iniciarContagem(): void {
+/** `prefixo`: contexto falado junto, quando a contagem começa sozinha ao entrar na etapa (um só anúncio). */
+function iniciarContagem(prefixo = ""): void {
   if (relogioContagem !== null) return;
   if (!aparelho()) {
-    exigirAparelho(dicaMedicao);
+    exigirAparelho();
     return;
   }
   contagemInicio_ms = Date.now();
   texto(botaoContagem, "Cancelar contagem");
-  texto(dicaMedicao, `Fique parado: ${DURACAO_CONTAGEM_S} s. Registra sozinho quando chegar a zero.`);
+  texto(dicaMedicao, `${prefixo}Fique parado: ${DURACAO_CONTAGEM_S} s. Registra sozinho quando chegar a zero.`);
   desenharContagem(DURACAO_CONTAGEM_S);
   relogioContagem = window.setInterval(() => {
     if (contagemInicio_ms === null) return;
@@ -597,16 +642,16 @@ function enviarAgora(): void {
 
 // ---------- registrar ponto ----------
 
-function exigirAparelho(destino: HTMLElement): void {
-  texto(destino, "Preencha o campo Aparelho antes de registrar.");
-  detalhesConfig.open = true;
+function exigirAparelho(): void {
+  irParaEtapa("preparar", { foco: "nenhum", anuncio: null });
+  texto(statusRegistros, "Preencha o campo Aparelho antes de registrar.");
   campoAparelho.focus();
 }
 
 function registrarPonto(): void {
   if (registrando) return;
   if (!aparelho()) {
-    exigirAparelho(statusPonto);
+    exigirAparelho();
     return;
   }
   if (!("geolocation" in navigator)) {
@@ -636,9 +681,7 @@ function registrarPonto(): void {
       botaoRegistrar.disabled = false;
       texto(statusPonto, "");
       ultimo = { ponto, medicao: medicoesFeitas(fila.registros(), ponto, aparelho()), id_cliente: item.id_cliente };
-      mostrarVista("confirmar");
-      cartaoEstado.tabIndex = -1;
-      cartaoEstado.focus();
+      irParaEtapa("resultado");
       enviarAgora();
     },
     (e) => {
@@ -655,15 +698,16 @@ function irParaProximo(): void {
   const feitas = medicoesFeitas(fila.registros(), ultimo.ponto, aparelho());
   if (feitas < MEDICOES_POR_PONTO) {
     definirPonto(ultimo.ponto);
-    mostrarVista("medir");
-    iniciarContagem(); // já está parado no ponto: a contagem começa sozinha
+    // Já está parado no ponto: a contagem começa sozinha e a própria dica fala o contexto (um só anúncio).
+    irParaEtapa("medir", { anuncio: null });
+    iniciarContagem(`${frasePadraoDaEtapa("medir")} `);
     return;
   }
   const seguinte = proximoPonto(ultimo.ponto);
   if (seguinte === null) return;
   definirPonto(seguinte);
   texto(dicaMedicao, `Ponto ${seguinte}. Vá até o ponto e toque em iniciar a contagem quando chegar.`);
-  mostrarVista("medir");
+  irParaEtapa("medir", { foco: "nenhum", anuncio: null });
   botaoContagem.focus();
 }
 
@@ -719,7 +763,7 @@ function alternarTrajeto(): void {
     return;
   }
   if (!aparelho()) {
-    exigirAparelho(statusRegistros);
+    exigirAparelho();
     return;
   }
   gravadosNoTrajeto = 0;
@@ -819,7 +863,7 @@ async function ativarBussola(): Promise<void> {
 
 function registrarBussola(): void {
   if (!aparelho()) {
-    exigirAparelho(statusBussola);
+    exigirAparelho();
     return;
   }
   if (!ultimaLeitura) {
@@ -851,7 +895,7 @@ function registrarBussola(): void {
 
 function testarVibracao(): void {
   if (!aparelho()) {
-    exigirAparelho(statusVibracao);
+    exigirAparelho();
     return;
   }
   const existe = typeof navigator.vibrate === "function";
@@ -876,14 +920,12 @@ function testarVibracao(): void {
   enviarAgora();
 }
 
-// ---------- exportar e apagar ----------
+// ---------- exportar e recomeçar ----------
 
-function exportarCsv(): void {
+/** Baixa o CSV de tudo o que está neste aparelho e devolve a frase para mostrar (ou null se não há nada). */
+function baixarCsv(): string {
   const registros = fila.registros();
-  if (registros.length === 0) {
-    texto(contagemRegistros, "Não há registros para exportar.");
-    return;
-  }
+  if (registros.length === 0) return "Não há registros para exportar.";
   const agora = new Date();
   const nome = nomeArquivoCsv(aparelho() || (registros[registros.length - 1]?.aparelho ?? ""), agora);
   const blob = new Blob([gerarCsv(registros)], { type: "text/csv;charset=utf-8" });
@@ -895,52 +937,88 @@ function exportarCsv(): void {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
-  texto(contagemRegistros, `CSV gerado com ${registros.length} registros (enviados ou não): ${nome}.`);
+  return `CSV gerado com ${registros.length} registros (enviados ou não): ${nome}.`;
 }
 
-function pedirConfirmacaoApagar(): void {
-  if (fila.itens.length === 0) {
-    texto(statusRegistros, "Não há registros para apagar.");
-    return;
-  }
-  const naoEnviados = fila.itens.length - fila.contagem().enviado;
-  textoConfirmar.textContent =
-    `Apagar os ${fila.itens.length} registros deste aparelho? ` +
-    (naoEnviados > 0 ? `${naoEnviados} ainda não foram enviados e serão perdidos. ` : "") +
-    "Isso não pode ser desfeito. Exporte o CSV antes.";
+function exportarCsv(): void {
+  texto(contagemRegistros, baixarCsv());
+}
+
+/**
+ * "Recomeçar" é destrutivo só para o estado LOCAL: apaga a fila de registros deste aparelho (inclusive
+ * o que ainda não foi enviado), volta ao ponto 1, para trajeto e contagem e leva à etapa Preparar.
+ * Continuam salvos o aparelho, o código da equipe, a condição, o tema e a preferência de movimento.
+ * Nada é apagado no servidor: o que já foi enviado continua no banco.
+ */
+function pedirConfirmacaoRecomecar(): void {
+  const total = fila.itens.length;
+  const naoEnviados = total - fila.contagem().enviado;
+  textoConfirmar.textContent = textoConfirmarRecomecar(total, naoEnviados);
+  botaoRecomecarExportar.hidden = naoEnviados === 0;
+  texto(statusRecomecar, "");
   caixaConfirmar.hidden = false;
-  botaoApagarNao.focus();
+  botaoRecomecar.setAttribute("aria-expanded", "true");
+  botaoRecomecarNao.focus(); // o padrão seguro é "Não": Enter por engano não apaga nada
 }
 
-function fecharConfirmacao(): void {
+function fecharConfirmacao(devolverFoco: boolean): void {
   caixaConfirmar.hidden = true;
-  botaoApagar.focus();
+  botaoRecomecar.setAttribute("aria-expanded", "false");
+  if (devolverFoco) botaoRecomecar.focus();
 }
 
-function apagarTudo(): void {
+function recomecar(): void {
+  pararContagem();
+  if (trajetoLigado) {
+    trajetoLigado = false;
+    texto(botaoTrajeto, "Iniciar trajeto");
+    botaoTrajeto.setAttribute("aria-pressed", "false");
+    faixaTrajeto.hidden = true;
+  }
   fila.apagarTudo();
   ultimo = null;
-  fecharConfirmacao();
-  mostrarVista("medir");
-  texto(statusRegistros, "Todos os registros foram apagados.");
+  definirPonto(1);
+  texto(statusRegistros, "");
+  texto(statusPonto, "");
+  texto(estadoEnvio, "");
+  fecharConfirmacao(false);
+  irParaEtapa("preparar", { anuncio: ANUNCIO_RECOMECOU });
 }
 
 // ---------- código da equipe ----------
 
-function salvarCodigo(): void {
+/** Grava o código digitado (se houver) e reabre o que foi recusado por código errado. */
+function gravarCodigoDigitado(): boolean {
   const c = campoCodigo.value.trim();
-  if (!c) {
+  if (!c) return false;
+  gravarLocal(CHAVE_CODIGO, c);
+  campoCodigo.value = "";
+  fila.reabrirRecusadosPorCodigo();
+  return true;
+}
+
+function salvarCodigo(): void {
+  if (!gravarCodigoDigitado()) {
     texto(statusRegistros, "Digite o código da equipe antes de salvar.");
     campoCodigo.focus();
     return;
   }
-  gravarLocal(CHAVE_CODIGO, c);
-  campoCodigo.value = "";
-  fila.reabrirRecusadosPorCodigo();
   desenhar();
   texto(statusRegistros, "Código da equipe salvo. Enviando a fila.");
   botaoTrocarCodigo.focus();
   enviarAgora();
+}
+
+/** Etapa 1 -> 2: o aparelho é obrigatório; um código digitado e ainda não salvo é salvo aqui. */
+function continuarParaMedicao(): void {
+  if (!aparelho()) {
+    texto(statusRegistros, "Preencha o campo Aparelho antes de continuar.");
+    campoAparelho.focus();
+    return;
+  }
+  if (gravarCodigoDigitado()) enviarAgora();
+  texto(statusRegistros, "");
+  irParaEtapa("medir");
 }
 
 function trocarCodigo(): void {
@@ -964,7 +1042,6 @@ campoAparelho.value = lerLocal(CHAVE_APARELHO);
 const condicaoSalva = lerLocal(CHAVE_CONDICAO);
 if (condicaoSalva in ROTULO_CONDICAO) campoCondicao.value = condicaoSalva;
 definirPonto(pontoValido(lerLocal(CHAVE_PONTO)) ?? 1);
-detalhesConfig.open = !aparelho() || !codigoDaEquipe();
 
 campoAparelho.addEventListener("change", () => {
   gravarLocal(CHAVE_APARELHO, aparelho());
@@ -1000,9 +1077,22 @@ botaoBussola.addEventListener("click", () => void ativarBussola());
 botaoRegistrarBussola.addEventListener("click", registrarBussola);
 botaoVibrar.addEventListener("click", testarVibracao);
 botaoExportar.addEventListener("click", exportarCsv);
-botaoApagar.addEventListener("click", pedirConfirmacaoApagar);
-botaoApagarSim.addEventListener("click", apagarTudo);
-botaoApagarNao.addEventListener("click", fecharConfirmacao);
+botaoRecomecar.addEventListener("click", () => {
+  if (caixaConfirmar.hidden) pedirConfirmacaoRecomecar();
+  else fecharConfirmacao(true);
+});
+caixaConfirmar.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") fecharConfirmacao(true);
+});
+botaoRecomecarSim.addEventListener("click", recomecar);
+botaoRecomecarNao.addEventListener("click", () => fecharConfirmacao(true));
+botaoRecomecarExportar.addEventListener("click", () => texto(statusRecomecar, baixarCsv()));
+botaoContinuar.addEventListener("click", continuarParaMedicao);
+botaoAlterar.addEventListener("click", () => irParaEtapa("preparar"));
+botaoCorrigirCodigo.addEventListener("click", () => {
+  irParaEtapa("preparar", { foco: "nenhum", anuncio: null });
+  trocarCodigo();
+});
 botaoSalvarCodigo.addEventListener("click", salvarCodigo);
 botaoTrocarCodigo.addEventListener("click", trocarCodigo);
 
@@ -1018,6 +1108,9 @@ iniciarInterruptorMovimento();
 iniciarMapa();
 desenharPrecisao(null);
 pararContagem();
-mostrarVista("medir");
+irParaEtapa(etapaInicial({ temAparelho: aparelho() !== "", temCodigo: codigoDaEquipe() !== "" }), {
+  foco: "nenhum",
+  anuncio: null,
+});
 iniciarVigia();
 enviarAgora();
