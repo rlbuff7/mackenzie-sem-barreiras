@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   classificarPrecisao,
+  descreverEnvio,
   formatarMetros,
   fracaoContagem,
   numeroDaProximaMedicao,
@@ -93,4 +94,30 @@ test("fracaoContagem vai de 0 a 1", () => {
   assert.equal(fracaoContagem(30), 0);
   assert.equal(fracaoContagem(15), 0.5);
   assert.equal(fracaoContagem(0), 1);
+});
+
+const base = { motivo: null, temCodigo: true, online: true };
+
+test("descreverEnvio: enviado, recusado com motivo e na fila, cada um com ícone e palavra", () => {
+  assert.deepEqual(descreverEnvio({ ...base, estado: "enviado" }), {
+    cartao: "enviado", icone: "✓", titulo: "Enviado para a equipe", curto: "✓ enviado",
+  });
+  const r = descreverEnvio({ ...base, estado: "recusado", motivo: "código da equipe errado" });
+  assert.equal(r.titulo, "Recusado: código da equipe errado");
+  assert.equal(r.curto, "✕ recusado: código da equipe errado");
+  assert.equal(r.icone, "✕");
+});
+
+test("descreverEnvio: na fila sem sinal, offline, servidor desligado e falta de código", () => {
+  assert.equal(descreverEnvio({ ...base, estado: "na_fila", motivo: "sem sinal" }).titulo, "Na fila, sem sinal");
+  assert.equal(descreverEnvio({ ...base, estado: "na_fila", online: false }).titulo, "Na fila, sem sinal");
+  assert.equal(
+    descreverEnvio({ ...base, estado: "na_fila", motivo: "medição desligada no servidor" }).titulo,
+    "Na fila: medição desligada no servidor",
+  );
+  assert.equal(descreverEnvio({ ...base, estado: "na_fila" }).titulo, "Na fila, enviando");
+  assert.equal(
+    descreverEnvio({ ...base, estado: "na_fila", temCodigo: false }).titulo,
+    "Não enviado: falta o código da equipe",
+  );
 });

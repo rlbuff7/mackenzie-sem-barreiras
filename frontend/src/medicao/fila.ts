@@ -53,7 +53,8 @@ export interface MedicaoApi {
 
 export const URL_MEDICOES = "/api/medicoes";
 export const CABECALHO_CODIGO = "X-Codigo-Equipe";
-export const MAX_ITENS_LOTE = 50;
+/** A API aceita até 20 por lote: 50 itens completos (com user_agent) passam de 16 KiB e dão 413. */
+export const MAX_ITENS_LOTE = 20;
 /** O nginx e a API cortam o corpo em 16 KiB (16384 bytes); o lote para antes disso. */
 export const MAX_BYTES_LOTE = 14000;
 export const INTERVALO_REENVIO_MS = 10_000;
@@ -64,6 +65,7 @@ export const MAX_OBSERVACAO = 500;
 export const MAX_USER_AGENT = 300;
 
 export const MOTIVO_CODIGO_ERRADO = "código da equipe errado";
+export const MOTIVO_SEM_SINAL = "sem sinal";
 export const MOTIVO_DESLIGADA = "medição desligada no servidor";
 
 // ---------- conversão do registro para o corpo da API ----------
@@ -179,27 +181,44 @@ export interface Erros422 {
   geral: string;
 }
 
-/** Lê o corpo de um 422 no formato do FastAPI ({"detail":[{loc, msg}]}); tolera outros formatos. */
+/**
+ * Lê o corpo de um 422. Formato da API do projeto:
+ *   {"mensagem": "Medição inválida.", "erros": [{"campo": "medicoes.0.precisao_m", "erro": "..."}]}
+ * Aceita também o formato padrão do FastAPI ({"detail":[{loc, msg}]}) e texto simples.
+ */
 export function interpretar422(corpo: unknown): Erros422 {
   const porIndice = new Map<number, string>();
   let geral = "dados recusados pelo servidor (422)";
-  const detalhe = corpo && typeof corpo === "object" ? (corpo as { detail?: unknown }).detail : undefined;
-  if (typeof detalhe === "string" && detalhe.trim()) geral = corta(detalhe.trim(), 200);
-  if (Array.isArray(detalhe)) {
-    for (const e of detalhe) {
+  const c = corpo && typeof corpo === "object" ? (corpo as Record<string, unknown>) : {};
+  if (typeof c.mensagem === "string" && c.mensagem.trim()) geral = corta(c.mensagem.trim(), 200);
+  if (typeof c.detail === "string" && c.detail.trim()) geral = corta(c.detail.trim(), 200);
+
+  const registrar = (caminho: readonly (string | number)[], texto: string): void => {
+    const idx = caminho.findIndex((p) => typeof p === "number");
+    const campo = caminho.slice(idx >= 0 ? idx + 1 : 0).filter((p) => p !== "body" && p !== "medicoes");
+    const motivo = corta(campo.length ? `campo ${campo.join(".")}: ${texto}` : texto, 200);
+    if (idx >= 0) {
+      const n = caminho[idx] as number;
+      if (!porIndice.has(n)) porIndice.set(n, motivo);
+    } else {
+      geral = motivo;
+    }
+  };
+
+  if (Array.isArray(c.erros)) {
+    for (const e of c.erros) {
+      if (!e || typeof e !== "object") continue;
+      const { campo, erro } = e as { campo?: unknown; erro?: unknown };
+      const caminho =
+        typeof campo === "string" ? campo.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p)) : [];
+      registrar(caminho, typeof erro === "string" ? erro : "valor inválido");
+    }
+  }
+  if (Array.isArray(c.detail)) {
+    for (const e of c.detail) {
       if (!e || typeof e !== "object") continue;
       const { loc, msg } = e as { loc?: unknown; msg?: unknown };
-      const texto = typeof msg === "string" ? msg : "valor inválido";
-      const caminho = Array.isArray(loc) ? loc : [];
-      const idx = caminho.findIndex((p) => typeof p === "number");
-      const campo = caminho.slice(idx >= 0 ? idx + 1 : 0).filter((p) => p !== "body" && p !== "medicoes");
-      const motivo = corta(campo.length ? `campo ${campo.join(".")}: ${texto}` : texto, 200);
-      if (idx >= 0) {
-        const n = caminho[idx] as number;
-        if (!porIndice.has(n)) porIndice.set(n, motivo);
-      } else {
-        geral = motivo;
-      }
+      registrar(Array.isArray(loc) ? (loc as (string | number)[]) : [], typeof msg === "string" ? msg : "valor inválido");
     }
   }
   return { porIndice, geral };
@@ -410,7 +429,7 @@ export class FilaEnvio {
         ...(controle ? { signal: controle.signal } : {}),
       });
     } catch {
-      return falha("sem_sinal", "sem sinal ou servidor inalcançável", null);
+      return falha("sem_sinal", "sem sinal ou servidor inalcançável", MOTIVO_SEM_SINAL);
     } finally {
       if (relogio !== null) clearTimeout(relogio);
     }

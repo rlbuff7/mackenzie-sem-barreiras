@@ -3,6 +3,7 @@
  * nível da precisão (palavra e forma, nunca só cor) e contagem de 30 s parado.
  * Sem DOM nem relógio: tudo recebe os dados por parâmetro, para o node:test.
  */
+import { MOTIVO_SEM_SINAL, type EstadoEnvio } from "./fila.ts";
 import { contarPontoRegistrado, type Registro } from "./medicao.ts";
 
 export const TOTAL_PONTOS = 12;
@@ -101,4 +102,48 @@ export function segundosRestantes(inicio_ms: number, agora_ms: number, total_s: 
 export function fracaoContagem(restantes_s: number, total_s: number = DURACAO_CONTAGEM_S): number {
   if (total_s <= 0) return 1;
   return Math.min(1, Math.max(0, (total_s - restantes_s) / total_s));
+}
+
+// ---------- como o estado de envio aparece na tela ----------
+
+export type EstadoCartao = "enviado" | "fila" | "recusado";
+
+export interface TextoEnvio {
+  cartao: EstadoCartao;
+  icone: string;
+  /** Título do cartão: "Enviado para a equipe", "Na fila, sem sinal", "Recusado: motivo". */
+  titulo: string;
+  /** Rótulo curto da lista de últimos registros: "✓ enviado", "◆ na fila", "✕ recusado: motivo". */
+  curto: string;
+}
+
+/** Palavra, ícone e forma de cada estado (nunca só cor). Contrato: "✓ enviado", "◆ na fila, sem sinal", "✕ recusado: <motivo>". */
+export function descreverEnvio(e: {
+  estado: EstadoEnvio;
+  motivo: string | null;
+  temCodigo: boolean;
+  online: boolean;
+}): TextoEnvio {
+  if (e.estado === "enviado") {
+    return { cartao: "enviado", icone: "✓", titulo: "Enviado para a equipe", curto: "✓ enviado" };
+  }
+  if (e.estado === "recusado") {
+    const motivo = e.motivo ?? "motivo não informado";
+    return { cartao: "recusado", icone: "✕", titulo: `Recusado: ${motivo}`, curto: `✕ recusado: ${motivo}` };
+  }
+  if (!e.temCodigo) {
+    return {
+      cartao: "fila",
+      icone: "◆",
+      titulo: "Não enviado: falta o código da equipe",
+      curto: "◆ não enviado: falta o código",
+    };
+  }
+  if (e.motivo === MOTIVO_SEM_SINAL || (!e.online && e.motivo === null)) {
+    return { cartao: "fila", icone: "◆", titulo: "Na fila, sem sinal", curto: "◆ na fila, sem sinal" };
+  }
+  if (e.motivo !== null) {
+    return { cartao: "fila", icone: "◆", titulo: `Na fila: ${e.motivo}`, curto: `◆ na fila: ${e.motivo}` };
+  }
+  return { cartao: "fila", icone: "◆", titulo: "Na fila, enviando", curto: "◆ na fila" };
 }

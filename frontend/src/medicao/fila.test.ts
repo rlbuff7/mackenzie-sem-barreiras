@@ -158,16 +158,16 @@ test("repetidas contam como enviado (reenvio idempotente)", async () => {
   assert.equal(fila.itens[0]!.estado, "enviado");
 });
 
-test("120 itens saem em lotes de no máximo 50", async () => {
+test("120 itens saem em lotes de no máximo 20 (limite da API)", async () => {
   const { fila, chamadas } = criar(okGravou);
   for (let i = 0; i < 120; i++) fila.adicionar(regPonto(1, { user_agent: "" }));
   await fila.descarregar();
-  assert.deepEqual(chamadas.map((c) => c.corpo.medicoes.length), [50, 50, 20]);
+  assert.deepEqual(chamadas.map((c) => c.corpo.medicoes.length), [20, 20, 20, 20, 20, 20]);
   assert.equal(fila.contagem().enviado, 120);
 });
 
 test("o lote também respeita o limite de bytes do corpo (16 KiB no servidor)", () => {
-  const itens: ItemFila[] = Array.from({ length: 50 }, (_, i) => ({
+  const itens: ItemFila[] = Array.from({ length: 20 }, (_, i) => ({
     id_cliente: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
     registro: regPonto(1, { user_agent: "u".repeat(300), observacao: "o".repeat(200) }),
     estado: "na_fila",
@@ -176,7 +176,7 @@ test("o lote também respeita o limite de bytes do corpo (16 KiB no servidor)", 
     isolar: false,
   }));
   const lote = montarLote(itens);
-  assert.ok(lote.length < 50 && lote.length > 0);
+  assert.ok(lote.length < 20 && lote.length > 0);
   const bytes = new TextEncoder().encode(JSON.stringify({ medicoes: lote.map((i) => paraMedicaoApi(i.id_cliente, i.registro)) })).length;
   assert.ok(bytes <= MAX_BYTES_LOTE, `corpo de ${bytes} bytes passou do limite`);
   assert.ok(MAX_BYTES_LOTE < 16 * 1024);
@@ -225,6 +225,20 @@ test("422 com o índice do item: só aquele é recusado, com o campo no motivo; 
   assert.equal(chamadas.length, 2);
   assert.deepEqual(fila.itens.map((i) => i.estado), ["enviado", "recusado", "enviado"]);
   assert.equal(fila.itens[1]!.motivo, "campo precisao_m: Input should be >= 0");
+});
+
+test("422 no formato da API ({mensagem, erros:[{campo, erro}]}): só o item apontado é recusado, sem laço", async () => {
+  const { fila, chamadas } = criar((c, n) =>
+    n === 1
+      ? resp(422, { mensagem: "Medição inválida.", erros: [{ campo: "medicoes.0.precisao_m", erro: "deve ser >= 0" }] })
+      : okGravou(c),
+  );
+  fila.adicionar(regPonto(1));
+  fila.adicionar(regPonto(2));
+  await fila.descarregar();
+  assert.deepEqual(fila.itens.map((i) => i.estado), ["recusado", "enviado"]);
+  assert.equal(fila.itens[0]!.motivo, "campo precisao_m: deve ser >= 0");
+  assert.equal(chamadas.length, 2);
 });
 
 test("422 sem dizer qual item: os itens vão um por vez e só o inválido é recusado", async () => {
@@ -387,4 +401,7 @@ test("interpretar422 monta 'campo x: mensagem' por índice e tolera formatos est
   assert.equal(e.geral, "geral ruim");
   assert.equal(interpretar422(null).geral, "dados recusados pelo servidor (422)");
   assert.equal(interpretar422({ detail: "texto" }).geral, "texto");
+  const api = interpretar422({ mensagem: "Medição inválida.", erros: [{ campo: "medicoes.3.latitude", erro: "fora da faixa" }] });
+  assert.equal(api.porIndice.get(3), "campo latitude: fora da faixa");
+  assert.equal(api.geral, "Medição inválida.");
 });
