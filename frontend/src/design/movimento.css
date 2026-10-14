@@ -57,11 +57,13 @@
       transform var(--mov-toque) var(--mov-curva);
   }
 
-  :root:not([data-movimento="reduzido"]) .botao:active:not(:disabled),
-  :root:not([data-movimento="reduzido"]) .inicio__link-grande:active,
-  :root:not([data-movimento="reduzido"]) .medicao__proximo:active,
-  :root:not([data-movimento="reduzido"]) .medicao__registrar:active:not(:disabled),
-  :root:not([data-movimento="reduzido"]) .medicao__botao-contagem:active {
+  /* O scale vale só para toque e mouse: `:not(:focus-visible)` deixa de fora o Enter/Espaço no teclado
+     (ação repetida, sem animação). A cor do :active continua para todos, sem transição. */
+  :root:not([data-movimento="reduzido"]) .botao:active:not(:disabled):not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .inicio__link-grande:active:not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .medicao__proximo:active:not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .medicao__registrar:active:not(:disabled):not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .medicao__botao-contagem:active:not(:focus-visible) {
     transform: scale(0.98);
   }
 

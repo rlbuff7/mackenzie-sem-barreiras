@@ -184,3 +184,15 @@ test("o anel de foco continua em alerta, sem transição", () => {
   const estilos = semComentarios(ler("estilos.css"));
   assert.match(estilos, /:focus-visible\s*\{[^}]*outline:\s*var\(--linha-foco\) solid var\(--alerta\)/);
 });
+
+test("o scale de pressionar não vale para teclado (:not(:focus-visible)) e nunca passa de 0.98", () => {
+  const escalas = [...optIn.matchAll(/([^{}]+)\{\s*transform:\s*scale\(([\d.]+)\);\s*\}/g)];
+  assert.ok(escalas.length > 0);
+  for (const [, seletores, fator] of escalas) {
+    assert.ok(Number(fator) >= 0.98, `scale(${fator}) é forte demais`);
+    for (const s of seletores!.split(",").map((x) => x.trim()).filter(Boolean)) {
+      assert.match(s, /:active/, `scale fora do :active: ${s}`);
+      assert.match(s, /:not\(:focus-visible\)/, `scale vale para teclado: ${s}`);
+    }
+  }
+});
