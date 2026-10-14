@@ -1,12 +1,41 @@
 # Decisões pendentes
 
-Registro dos pontos em aberto (ver CLAUDE.md §11). Enquanto uma decisão estiver
+Registro dos pontos em aberto (ver CLAUDE.md §13). Enquanto uma decisão estiver
 pendente, o código usa um **valor provisório configurável** e a pendência fica
 anotada aqui.
 
-Última revisão: 29/09/2026.
+Última revisão: 14/10/2026 (escopo novo de 08/10/2026).
 
-## Com a orientadora
+## Resolvido e decidido em 14/10/2026
+
+- **Resolvido 14/10/2026: só áreas externas.** Beacons, Wi-Fi fingerprinting e QR code
+  saem do escopo (CLAUDE.md §1 e §13).
+- **Decidido 14/10/2026 (Rodrigo): protótipo servido pela AWS**, com a conta e os
+  créditos do Rodrigo; o túnel Cloudflare fica como plano B (R41). A AWS recebe o IP de
+  quem usa o protótipo: citar no termo de consentimento.
+
+## Com a orientadora / Prof. Jamilson (escopo novo)
+
+| # | Decisão | Valor provisório | Status |
+|---|---|---|---|
+| 1 | **Precisão mínima aceitável** para emitir orientação direcional | `PRECISAO_MINIMA_METROS=15`; fechar com o resultado da medição de GPS (CLAUDE.md §11) | Aberto |
+| 2 | **Plataforma:** web mobile (PWA) ou app nativo. Amarra a vibração: o iOS não suporta `navigator.vibrate()` | Web, pelo custo e pelo reaproveitamento do que existe. Se vibração for requisito firme, a decisão muda | Aberto |
+| 3 | **Funciona offline?** Afeta a arquitetura inteira | Nenhum | Aberto |
+| 4 | **Extensão do mapeamento** no TCC I: recorte do campus, não o campus inteiro | Nenhum | Aberto |
+| 5 | **Calibração** das penalidades de custo e das faixas de setor angular | Nenhum | Aberto |
+| 6 | **Como identificar caminhos acessíveis** para cada perfil, e quem valida essa classificação | Nenhum | Aberto |
+| 7 | **Contribuição científica:** onde está a novidade (módulo de orientação, metodologia de avaliação ou ambos). Sem isso o TCC II vira "integramos bibliotecas existentes" | Nenhum | Aberto |
+| 8 | **Comitê de Ética (CEP).** Teste com pessoas com deficiência visual envolve população vulnerável: submissão pela Plataforma Brasil é provável e leva de 2 a 4 meses. **Item de maior risco de cronograma**: levantar o prazo já e submeter antes de qualquer recrutamento | Nenhum | Aberto |
+
+---
+
+## Escopo antigo (até 08/10/2026)
+
+Mantido sem alterações para o histórico. Estas pendências eram do projeto de
+crowdsourcing de barreiras e **não são mais desenvolvidas**; o que continuar valendo
+volta como item novo na tabela acima.
+
+### Com a orientadora (escopo antigo)
 
 | # | Decisão | Valor provisório | Onde está no código | Status |
 |---|---|---|---|---|
@@ -76,7 +105,7 @@ Observações:
   (altura do degrau, ângulo da rampa)"). Se entrar no escopo, cabe como coluna
   opcional sem quebrar o pipeline.
 
-## Técnicas (equipe)
+### Técnicas (equipe, escopo antigo)
 
 | # | Decisão | Afeta | Status |
 |---|---|---|---|
@@ -88,9 +117,9 @@ Observações:
 | T6 | **Hospedagem para a implantação contínua (HTTPS para geolocalização).** O CI/CD (M5.1, `.github/workflows/ci-cd.yml`) já publica as imagens da API e do frontend no GHCR a cada push no `main`; faltava escolher ONDE e COMO implantá-las com HTTPS — requisito da geolocalização do navegador (`docs/coleta-em-campo.md` §4), decisão **[EQUIPE]**. O job `implantar` do workflow existe, mas fica desativado (`if: false`); o passo a passo para ativá-lo está em `docs/ci-cd.md`. | M5.1/M6 | **Em parte, 29/09:** o HTTPS sem conta está preparado (R30): Quick Tunnel do `cloudflared` em container, profile `tunel` do `docker-compose.prod.yml`, com a pilha de produção (`docs/implantacao.md` §5, §8 e §10). **Continua aberta, a critério da equipe,** a hospedagem com conta (URL fixa: túnel nomeado ou PaaS, que ativaria o job `implantar`) — ver `docs/coleta-em-campo.md` §4 |
 | T7 | **Melhorias técnicas adiadas na revisão final da Fase 2** (R37, R39). Nenhuma põe dado real em risco no roteiro documentado; ficam para depois da coleta, se houver tempo. (a) `restaurar` interrompido por Ctrl-C no meio da troca de nomes: a reversão só roda quando o `docker compose exec` termina, e não há teste com sinal real. (b) `mktemp -d` que falha no `banco.sh` não tem mensagem própria. (c) `ponta-a-ponta.sh` preserva todas as variáveis do shell, não uma lista permitida como o `banco.sh` (R35). (d) O Node antigo mostra `ExperimentalWarning` no `npm run testar`. (e) `restaurar --prod` diz como apagar o `<banco>_antigo_*`, mas não como trazê-lo de volta. (f) Dois `preparar-coleta.sh` no mesmo segundo gravariam o mesmo registro. (g) O item 3 do `preparar-coleta.sh --reabrir` ainda sugere `migrar`, que reaplica os seeds (o §3 de `docs/implantacao.md` proíbe rodá-lo com os seeds alterados depois da abertura). | M6 | Adiado 30/09 |
 
-## Documentos acadêmicos
+### Documentos acadêmicos (achados de 28/09/2026)
 
-Achados da revisão de 28/09/2026 (complementa CLAUDE.md §12):
+Complementa o CLAUDE.md antigo §12 (sem cópia no repositório; ver histórico do Git):
 
 - **IBGE 14,4 × 18,6 milhões.** Os dois números parecem vir de pesquisas
   diferentes: 18,6 mi (8,9%) da **PNAD Contínua 2022** e 14,4 mi (7,3%) do

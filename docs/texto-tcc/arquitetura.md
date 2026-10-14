@@ -1,5 +1,7 @@
 # Arquitetura do sistema — rascunho de capítulo
 
+> **Escopo antigo (até 08/10/2026): este rascunho descreve a arquitetura do sistema de crowdsourcing de barreiras. A arquitetura do escopo novo virá em `docs/arquitetura.md` (ainda não existe). O escopo atual está no [`CLAUDE.md`](../../CLAUDE.md).**
+
 > **RASCUNHO para a equipe revisar e adaptar.** Texto-base para o capítulo de
 > arquitetura da monografia. Todo fato sobre o sistema vem do repositório
 > (`CLAUDE.md`, `docs/api.md`, `docs/decisoes-de-implementacao.md`, `db/migrations/`,

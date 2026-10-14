@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Medição de GPS — Mackenzie</title>
+  </head>
+  <body class="medicao">
+    <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo principal</a>
+
+    <div class="medicao__avisos">
+      <p class="medicao__aviso" role="note">
+        <strong>Atenção.</strong> Ferramenta de medição da equipe. Não é navegação: não siga nenhuma direção mostrada aqui.
+      </p>
+      <p id="aviso-https" class="medicao__aviso medicao__aviso--https" role="alert" hidden>
+        <strong>Sem HTTPS.</strong> A localização e a bússola só funcionam em HTTPS (ou em localhost). Abra esta página pelo endereço seguro.
+      </p>
+    </div>
+
+    <header class="medicao__cabecalho">
+      <h1>Medição de GPS no campus</h1>
+      <p>Campo de 22/10/2026. Os registros ficam neste aparelho até você exportar o CSV.</p>
+    </header>
+
+    <main id="conteudo-principal" class="medicao__principal">
+      <section aria-labelledby="t-aparelho" class="medicao__secao">
+        <h2 id="t-aparelho">Aparelho</h2>
+        <div class="campo">
+          <label for="campo-aparelho">Aparelho (ex.: Galaxy A54, iPhone 13)</label>
+          <input id="campo-aparelho" type="text" autocomplete="off" maxlength="60" />
+        </div>
+      </section>
+
+      <section aria-labelledby="t-ponto" class="medicao__secao">
+        <h2 id="t-ponto">Ponto de controle</h2>
+        <p class="ajuda">Pare em cima do ponto e espere 20 a 30 segundos parado antes de registrar. Faça 3 medições por ponto.</p>
+        <div class="campo">
+          <label for="campo-ponto">Número do ponto (1 a 12)</label>
+          <input id="campo-ponto" type="number" inputmode="numeric" min="1" max="12" step="1" value="1" />
+        </div>
+        <div class="campo">
+          <label for="campo-condicao">Condição do ponto</label>
+          <select id="campo-condicao">
+            <option value="ceu_aberto">Céu aberto</option>
+            <option value="entre_predios">Entre prédios</option>
+            <option value="coberto">Coberto</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="campo-observacao">Observação (opcional)</label>
+          <input id="campo-observacao" type="text" autocomplete="off" maxlength="200" />
+        </div>
+        <button type="button" id="botao-registrar" class="botao botao--primaria">Registrar ponto</button>
+        <p id="status-ponto" class="medicao__status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="t-trajeto" class="medicao__secao">
+        <h2 id="t-trajeto">Trajeto em movimento</h2>
+        <p class="ajuda">Caminhe uma rota típica. Grava no máximo uma posição por segundo.</p>
+        <button type="button" id="botao-trajeto" class="botao botao--primaria" aria-pressed="false">Iniciar trajeto</button>
+        <p id="status-trajeto" class="medicao__status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="t-bussola" class="medicao__secao">
+        <h2 id="t-bussola">Teste da bússola</h2>
+        <p class="ajuda">No iPhone, o botão pede permissão. Gire devagar e depois pare para ver se o valor fica estável.</p>
+        <div class="medicao__botoes">
+          <button type="button" id="botao-bussola" class="botao botao--secundaria">Ativar bússola</button>
+          <button type="button" id="botao-registrar-bussola" class="botao botao--secundaria" disabled>Registrar leitura da bússola</button>
+        </div>
+        <p id="leitura-bussola" class="medicao__leitura">Bússola desligada.</p>
+        <p id="status-bussola" class="medicao__status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="t-vibracao" class="medicao__secao">
+        <h2 id="t-vibracao">Teste da vibração</h2>
+        <button type="button" id="botao-vibrar" class="botao botao--secundaria">Testar vibração</button>
+        <p id="status-vibracao" class="medicao__status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="t-registros" class="medicao__secao">
+        <h2 id="t-registros">Registros</h2>
+        <p id="contagem-registros" class="medicao__status" role="status" aria-live="polite"></p>
+        <div class="medicao__botoes">
+          <button type="button" id="botao-exportar" class="botao botao--primaria">Exportar CSV</button>
+          <button type="button" id="botao-apagar" class="botao botao--secundaria">Apagar tudo</button>
+        </div>
+        <div id="confirmar-apagar" class="medicao__confirmacao" role="group" aria-labelledby="texto-confirmar" hidden>
+          <p id="texto-confirmar"></p>
+          <div class="medicao__botoes">
+            <button type="button" id="botao-apagar-sim" class="botao botao--perigo">Sim, apagar tudo</button>
+            <button type="button" id="botao-apagar-nao" class="botao botao--secundaria">Não, manter</button>
+          </div>
+        </div>
+        <p id="status-registros" class="medicao__status" role="status" aria-live="polite"></p>
+        <ol id="lista-registros" class="medicao__lista"></ol>
+      </section>
+    </main>
+
+    <script type="module" src="/src/medicao/pagina.ts"></script>
+  </body>
+</html>

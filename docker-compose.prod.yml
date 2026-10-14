@@ -19,7 +19,8 @@ name: mackenzie-sem-barreiras-prod
 
 services:
   db:
-    image: postgis/postgis:16-3.4
+    # PostgreSQL 16 + PostGIS 3.4 + pgRouting 3.6.1 (imagem oficial do projeto pgRouting)
+    image: pgrouting/pgrouting:16-3.4-3.6.1
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}

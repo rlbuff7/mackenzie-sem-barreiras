@@ -1,5 +1,7 @@
 # Protocolo de coleta em campo (M6)
 
+> **Escopo antigo (até 08/10/2026): este era o protocolo de coleta colaborativa de barreiras, aposentado com a mudança de escopo. Não use como roteiro. O protocolo de avaliação do escopo novo virá em `docs/protocolo-avaliacao.md` (ainda não existe); o contexto atual está no [`CLAUDE.md`](../CLAUDE.md) (§11 e §12).**
+
 Preparação para a coleta REAL de dados (`origem='real'`), no entorno do campus
 Higienópolis do Mackenzie. Este documento não é código: é o roteiro operacional do dia
 de coleta e o que precisa estar decidido antes dele. Contexto do projeto: [`CLAUDE.md`](../CLAUDE.md);

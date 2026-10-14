@@ -264,5 +264,124 @@ SELECT pg_temp.deve_rejeitar('execução sem srid_calculo',
     $q$INSERT INTO execucoes_pipeline (origem, eps_metros, min_pontos, min_confirmacoes, srid_calculo)
        VALUES ('simulacao', 8, 2, 3, NULL)$q$, '23502');
 
+-- ---------------------------------------------------------------------------
+-- Grafo do campus (M1 do escopo novo): pontos_interesse, nos, arestas — migration 004
+-- ---------------------------------------------------------------------------
+
+SELECT pg_temp.afirmar('extensão pgrouting instalada',
+    EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgrouting'));
+
+SELECT pg_temp.afirmar('tabela ' || t || ' existe', to_regclass(t) IS NOT NULL)
+FROM unnest(ARRAY['pontos_interesse', 'nos', 'arestas']) AS t;
+
+SELECT pg_temp.afirmar('índice ' || i || ' existe', to_regclass(i) IS NOT NULL)
+FROM unnest(ARRAY['idx_poi_geom', 'idx_nos_geom', 'idx_arestas_geom',
+                  'idx_arestas_origem', 'idx_arestas_destino']) AS i;
+
+SELECT pg_temp.afirmar('índice ' || i || ' é GiST',
+    (SELECT am.amname FROM pg_class c JOIN pg_am am ON am.oid = c.relam
+      WHERE c.oid = to_regclass(i)) = 'gist')
+FROM unnest(ARRAY['idx_poi_geom', 'idx_nos_geom', 'idx_arestas_geom']) AS i;
+
+-- Pontos de interesse
+INSERT INTO pontos_interesse (geom, tipo, nome)
+VALUES ((SELECT centro_campus FROM ref), 'predio', 'Prédio de teste A');
+SELECT pg_temp.afirmar('ponto de interesse válido é aceito, acessivel NULL = não verificado',
+    (SELECT acessivel IS NULL FROM pontos_interesse WHERE nome = 'Prédio de teste A'));
+
+SELECT pg_temp.deve_rejeitar('ponto de interesse com tipo ''banheiro'' inválido',
+    $q$INSERT INTO pontos_interesse (geom, tipo, nome)
+       VALUES (ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 'banheiro', 'x')$q$, '23514');
+
+SELECT pg_temp.deve_rejeitar('ponto de interesse sem nome',
+    $q$INSERT INTO pontos_interesse (geom, tipo, nome)
+       VALUES (ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 'predio', NULL)$q$, '23502');
+
+SELECT pg_temp.deve_rejeitar('ponto de interesse sem geometria',
+    $q$INSERT INTO pontos_interesse (geom, tipo, nome) VALUES (NULL, 'predio', 'x')$q$, '23502');
+
+SELECT pg_temp.deve_rejeitar('ponto de interesse com SRID 31983 em vez de 4326',
+    $q$INSERT INTO pontos_interesse (geom, tipo, nome)
+       VALUES (ST_SetSRID(ST_MakePoint(333000, 7394000), 31983), 'predio', 'x')$q$, '22023');
+
+-- Nós
+INSERT INTO nos (geom) VALUES
+    (ST_SetSRID(ST_MakePoint(-46.6530, -23.5470), 4326)),
+    (ST_SetSRID(ST_MakePoint(-46.6525, -23.5470), 4326)),
+    (ST_SetSRID(ST_MakePoint(-46.6520, -23.5470), 4326));
+SELECT pg_temp.afirmar('três nós de teste inseridos', (SELECT count(*) FROM nos) = 3);
+
+SELECT pg_temp.deve_rejeitar('nó apontando para ponto de interesse inexistente',
+    $q$INSERT INTO nos (geom, ponto_interesse_id)
+       VALUES (ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), -1)$q$, '23503');
+
+SELECT pg_temp.deve_rejeitar('nó sem geometria',
+    $q$INSERT INTO nos (geom) VALUES (NULL)$q$, '23502');
+
+-- Arestas: grafo mínimo n1 --(100 m)-- n2 --(100 m)-- n3, e um atalho por escada n1 -> n3
+CREATE TEMP TABLE no_ids AS
+SELECT row_number() OVER (ORDER BY id) AS n, id FROM nos;
+
+CREATE FUNCTION pg_temp.inserir_aresta(
+    de int, para int, tipo_aresta text, comp_m double precision,
+    custo_ida double precision, custo_volta double precision) RETURNS void
+LANGUAGE sql AS $$
+    INSERT INTO arestas (geom, origem_id, destino_id, comprimento_m, tipo, custo, custo_inverso)
+    SELECT ST_MakeLine(a.geom, b.geom), a.id, b.id, comp_m, tipo_aresta, custo_ida, custo_volta
+      FROM nos a, nos b
+     WHERE a.id = (SELECT id FROM no_ids WHERE n = de)
+       AND b.id = (SELECT id FROM no_ids WHERE n = para)
+$$;
+
+SELECT pg_temp.inserir_aresta(1, 2, 'calcada', 100, 100, 100);
+SELECT pg_temp.inserir_aresta(2, 3, 'calcada', 100, 100, 100);
+SELECT pg_temp.inserir_aresta(1, 3, 'escada',  150, 600, -1);   -- 150 m x 4,0; só de ida
+SELECT pg_temp.afirmar('três arestas de teste inseridas', (SELECT count(*) FROM arestas) = 3);
+
+SELECT pg_temp.deve_rejeitar('aresta com tipo ''elevador'' inválido',
+    $q$SELECT pg_temp.inserir_aresta(1, 2, 'elevador', 10, 10, 10)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aresta com comprimento 0',
+    $q$SELECT pg_temp.inserir_aresta(1, 2, 'calcada', 0, 10, 10)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aresta com comprimento negativo',
+    $q$SELECT pg_temp.inserir_aresta(1, 2, 'calcada', -5, 10, 10)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aresta com custo negativo',
+    $q$SELECT pg_temp.inserir_aresta(1, 2, 'calcada', 10, -1, 10)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aresta com custo_inverso -2 (só vale -1 ou >= 0)',
+    $q$SELECT pg_temp.inserir_aresta(1, 2, 'calcada', 10, 10, -2)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aresta com origem igual ao destino',
+    $q$SELECT pg_temp.inserir_aresta(1, 1, 'calcada', 10, 10, 10)$q$, '23514');
+SELECT pg_temp.deve_rejeitar('aresta com origem inexistente',
+    $q$INSERT INTO arestas (geom, origem_id, destino_id, comprimento_m, tipo, custo, custo_inverso)
+       VALUES (ST_SetSRID(ST_MakeLine(ST_MakePoint(-46.65, -23.54), ST_MakePoint(-46.64, -23.54)), 4326),
+               -1, (SELECT id FROM no_ids WHERE n = 2), 10, 'calcada', 10, 10)$q$, '23503');
+SELECT pg_temp.deve_rejeitar('aresta sem custo',
+    $q$INSERT INTO arestas (geom, origem_id, destino_id, comprimento_m, tipo, custo, custo_inverso)
+       VALUES (ST_SetSRID(ST_MakeLine(ST_MakePoint(-46.65, -23.54), ST_MakePoint(-46.64, -23.54)), 4326),
+               (SELECT id FROM no_ids WHERE n = 1), (SELECT id FROM no_ids WHERE n = 2),
+               10, 'calcada', NULL, 10)$q$, '23502');
+SELECT pg_temp.deve_rejeitar('aresta com SRID 31983 em vez de 4326',
+    $q$INSERT INTO arestas (geom, origem_id, destino_id, comprimento_m, tipo, custo, custo_inverso)
+       VALUES (ST_SetSRID(ST_MakeLine(ST_MakePoint(333000, 7394000), ST_MakePoint(333100, 7394000)), 31983),
+               (SELECT id FROM no_ids WHERE n = 1), (SELECT id FROM no_ids WHERE n = 2),
+               10, 'calcada', 10, 10)$q$, '22023');
+
+-- pgRouting funciona com as colunas custo / custo_inverso
+SELECT pg_temp.afirmar('pgr_dijkstra escolhe as duas calçadas (custo 200) e não a escada (600)',
+    (SELECT array_agg(node ORDER BY seq) = (SELECT array_agg(id ORDER BY n) FROM no_ids)
+        AND max(agg_cost) = 200
+       FROM pgr_dijkstra(
+            'SELECT id, origem_id AS source, destino_id AS target,
+                    custo AS cost, custo_inverso AS reverse_cost FROM arestas',
+            (SELECT id FROM no_ids WHERE n = 1), (SELECT id FROM no_ids WHERE n = 3),
+            directed => true)));
+
+SELECT pg_temp.afirmar('pgr_dijkstra respeita custo_inverso = -1 (escada sem caminho de volta)',
+    NOT EXISTS (SELECT 1 FROM pgr_dijkstra(
+            'SELECT id, origem_id AS source, destino_id AS target,
+                    custo AS cost, custo_inverso AS reverse_cost
+               FROM arestas WHERE tipo = ''escada''',
+            (SELECT id FROM no_ids WHERE n = 3), (SELECT id FROM no_ids WHERE n = 1),
+            directed => true)));
+
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'

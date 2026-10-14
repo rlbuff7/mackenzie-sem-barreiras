@@ -1,5 +1,7 @@
 # Camada de validação — rascunho de capítulo
 
+> **Escopo antigo (até 08/10/2026): este rascunho descreve a camada de validação de crowdsourcing (`backend/app/validacao/`), aposentada. Não é a contribuição do escopo novo: ver a pendência 7 (contribuição científica) em [`decisoes-pendentes.md`](../decisoes-pendentes.md). O escopo atual está no [`CLAUDE.md`](../../CLAUDE.md).**
+
 > **RASCUNHO para a equipe revisar e adaptar.** Texto-base para o capítulo que descreve
 > a contribuição central do trabalho: a validação dos relatos voluntários. Os fatos sobre
 > o sistema vêm das docstrings de `backend/app/validacao/`, das migrations e do
