@@ -1,5 +1,7 @@
 # Pauta da reunião com a orientadora
 
+> **Escopo antigo (até 08/10/2026): esta pauta foi usada na reunião de 08/10 e trata das pendências do escopo antigo. As pendências atuais com a orientadora são as 8 de [`decisoes-pendentes.md`](../decisoes-pendentes.md) (e do [`CLAUDE.md`](../../CLAUDE.md), §13).**
+
 > Rascunho da equipe (29/09/2026). Profa. Dra. Ana Graziela de Almeida Valiengo.
 > Objetivo: fechar as decisões que a defesa precisa justificar e que o código deixou
 > **provisórias e configuráveis**. Fonte de cada item: [`decisoes-pendentes.md`](../decisoes-pendentes.md).
