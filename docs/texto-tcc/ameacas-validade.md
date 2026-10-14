@@ -1,5 +1,7 @@
 # Ameaças à validade e limitações — rascunho de capítulo
 
+> **Escopo antigo (até 08/10/2026): este rascunho era a seção de limitações do crowdsourcing de barreiras. As ameaças do escopo novo (precisão de GPS, população pequena, ambiente) ainda serão escritas. O escopo atual está no [`CLAUDE.md`](../../CLAUDE.md).**
+
 > **RASCUNHO para a equipe revisar e adaptar.** Texto-base para a seção de limitações da
 > monografia. Cada ameaça traz o efeito, o que o sistema já faz para reduzi-la e o que
 > fica em aberto. Os fatos sobre o sistema vêm do repositório

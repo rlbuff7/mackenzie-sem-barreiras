@@ -1,5 +1,7 @@
 # Resultados da SIMULAÇÃO — rascunho de capítulo
 
+> **Escopo antigo (até 08/10/2026): este rascunho relata resultados de SIMULAÇÃO do pipeline de validação, que foi aposentado. Não são resultado de coleta nem do escopo novo. O escopo atual está no [`CLAUDE.md`](../../CLAUDE.md).**
+
 > **RASCUNHO para a equipe revisar e adaptar.**
 >
 > **Tudo neste capítulo é SIMULAÇÃO: dados sintéticos, gerados para desenvolver e avaliar

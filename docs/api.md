@@ -1,5 +1,7 @@
 # Contrato da API — Mackenzie sem Barreiras
 
+> **Escopo antigo (até 08/10/2026): este é o contrato da API de crowdsourcing de barreiras (`/alertas`, `/barreiras`, `/validacao/*`). As rotas do escopo novo (`/pontos-interesse`, `/rotas`, `/orientacoes`) ainda não existem; o plano está no [`CLAUDE.md`](../CLAUDE.md) (§7 e §16).**
+
 Fonte única para backend e frontend (resumo em [`CLAUDE.md` §7](../CLAUDE.md)).
 
 Base local: `http://localhost:8000`. JSON UTF-8. CORS liberado para as origens de

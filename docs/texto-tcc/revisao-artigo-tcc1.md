@@ -1,5 +1,7 @@
 # Revisão do artigo e do pôster do TCC I — o que corrigir
 
+> **Escopo antigo (até 08/10/2026): este rascunho lista correções do artigo e do pôster do TCC I sob o escopo antigo. Confira cada item contra o escopo novo antes de aplicar. O escopo atual está no [`CLAUDE.md`](../../CLAUDE.md).**
+
 > **RASCUNHO para a equipe revisar e adaptar.** Lista objetiva de correções para
 > `docs/academico/artigo-tcc1.doc` ("Acessibilidade Mackenzie") e
 > `docs/academico/poster-tcc1.pdf` ("Mackenzie sem Barreiras"), com uma sugestão de texto

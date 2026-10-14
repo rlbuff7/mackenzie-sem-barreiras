@@ -1,5 +1,7 @@
 # Referências (ABNT NBR 6023) — rascunho
 
+> **Escopo antigo (até 08/10/2026): este rascunho reúne as referências do escopo antigo (VGI e crowdsourcing). Elas saem do referencial; entra literatura de navegação assistiva e orientação espacial para pessoas cegas (CLAUDE.md §15). Reaproveite só o que ainda servir. O escopo atual está no [`CLAUDE.md`](../../CLAUDE.md).**
+
 > **RASCUNHO para a equipe revisar e adaptar.** Lista das referências usadas nos
 > rascunhos de `docs/texto-tcc/`, em ABNT com citação autor-data. Cada item foi
 > **conferido em 29/09/2026** na fonte indicada na tabela do fim (Crossref, página do
