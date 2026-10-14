@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>Medição de GPS — Mackenzie</title>
+    <script>
+      /* Aplica o tema salvo antes da primeira pintura, para a página não piscar no tema errado.
+         A mesma regra está em src/design/tema.ts (o teste confere a chave). */
+      try {
+        var t = localStorage.getItem("msb-tema");
+        if (t === "claro" || t === "escuro" || t === "alto-contraste") {
+          document.documentElement.setAttribute("data-tema", t);
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body class="medicao">
     <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo principal</a>
@@ -21,6 +31,15 @@
     <header class="medicao__cabecalho">
       <h1>Medição de GPS no campus</h1>
       <p>Campo de 22/10/2026. Os registros ficam neste aparelho até você exportar o CSV.</p>
+      <div class="seletor-tema">
+        <label for="seletor-tema">Tema</label>
+        <select id="seletor-tema">
+          <option value="automatico">Automático (segue o aparelho)</option>
+          <option value="claro">Claro</option>
+          <option value="escuro">Escuro</option>
+          <option value="alto-contraste">Alto contraste</option>
+        </select>
+      </div>
     </header>
 
     <main id="conteudo-principal" class="medicao__principal">

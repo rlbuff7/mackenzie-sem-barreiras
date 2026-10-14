@@ -1,48 +1,48 @@
-/* Estilos só da página inicial. Paleta, fonte e foco vêm de ../estilos.css. */
+/* Estilos só da página inicial. Cores, fonte e foco vêm de ../estilos.css e dos tokens do Design System. */
 .inicio { padding-bottom: 2rem; }
 
 .inicio__cabecalho,
 .inicio__principal,
 .inicio__rodape {
-  max-width: 56rem;
+  max-width: var(--largura-leitura);
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 var(--espaco-5);
 }
 
-.inicio__cabecalho { padding-top: 1.25rem; }
+.inicio__cabecalho { padding-top: var(--espaco-6); }
 
 .inicio__etiqueta {
   font-size: 0.9rem;
-  color: var(--cor-texto-suave);
-  margin-bottom: 0.25rem;
+  color: var(--texto-suave);
+  margin-bottom: var(--espaco-1);
 }
 
 .inicio__cabecalho h1 {
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   font-weight: 800;
-  color: var(--cor-primaria-escura);
+  color: var(--primaria-escura);
 }
 
 .inicio__frase {
-  margin-top: 0.6rem;
+  margin-top: var(--espaco-3);
   max-width: 60ch;
   font-size: 1.1rem;
 }
 
-/* Aviso de segurança: texto e título, nunca só cor; borda grossa e escura. */
+/* Aviso de segurança (componente Aviso): texto e título, nunca só cor; borda grossa. */
 .inicio__aviso {
-  max-width: 56rem;
-  margin: 1.25rem auto 0;
-  padding: 0.9rem 1rem;
-  background: var(--cor-primaria-escura);
-  color: #fff;
-  border-left: 8px solid #fff;
+  max-width: var(--largura-leitura);
+  margin: var(--espaco-6) auto 0;
+  padding: 0.9rem var(--espaco-5);
+  background: var(--primaria-escura);
+  color: var(--sobre-primaria);
+  border-left: var(--linha-aviso) solid var(--sobre-primaria);
   font-size: 1.05rem;
 }
 
 .inicio__aviso-titulo {
   font-size: 1rem;
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--espaco-1);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -50,42 +50,43 @@
 .inicio__aviso p { margin: 0; font-weight: 600; }
 
 @media (min-width: 60rem) {
-  .inicio__aviso { border-radius: 4px; }
+  .inicio__aviso { border-radius: var(--raio-controle); }
 }
 
+/* Seção (componente Secao). */
 .inicio__secao {
-  background: var(--cor-superficie);
-  border: 1px solid var(--cor-borda);
-  border-left: 4px solid var(--cor-primaria);
-  border-radius: 6px;
-  padding: 1rem 1.2rem 1.2rem;
-  margin-top: 1.25rem;
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-left: var(--linha-secao) solid var(--primaria);
+  border-radius: var(--raio-secao);
+  padding: var(--espaco-5) 1.2rem 1.2rem;
+  margin-top: var(--espaco-6);
 }
 
-.inicio__secao h2 { font-size: 1.3rem; margin-bottom: 0.6rem; }
+.inicio__secao h2 { font-size: 1.3rem; margin-bottom: var(--espaco-3); }
 
 .inicio__secao h3 {
   font-size: 1.05rem;
-  margin: 1rem 0 0.35rem;
-  color: var(--cor-primaria-escura);
+  margin: var(--espaco-5) 0 var(--espaco-2);
+  color: var(--primaria-escura);
 }
 
-.inicio__lista { margin: 0; padding-left: 1.25rem; }
+.inicio__lista { margin: 0; padding-left: var(--espaco-6); }
 .inicio__lista li { margin-bottom: 0.4rem; }
 
 .inicio__nota {
   font-size: 0.95rem;
-  color: var(--cor-texto-suave);
-  margin: 0.75rem 0 0;
+  color: var(--texto-suave);
+  margin: var(--espaco-4) 0 0;
 }
 
 .inicio__nota a,
-.inicio__rodape a { color: var(--cor-primaria-escura); font-weight: 600; }
+.inicio__rodape a { color: var(--primaria-escura); font-weight: 600; }
 
 .inicio__nota a {
   display: inline-block;
-  padding: 0.6rem 0;
-  min-height: 44px;
+  padding: var(--espaco-3) 0;
+  min-height: var(--alvo-toque);
 }
 
 .inicio__mapa {
@@ -94,35 +95,39 @@
   height: 50dvh;
   min-height: 300px;
   margin-top: 0.5rem;
-  border: 1px solid var(--cor-borda);
-  border-radius: 6px;
-  background: var(--cor-borda);
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-secao);
+  background: var(--borda);
 }
 
+/* Marcador "você está aqui" (MarcadorMapa): quadrado de borda dupla, só tokens mapa-*,
+   que não mudam com o tema porque os tiles são sempre claros. */
 .inicio__marcador {
   display: block;
+  box-sizing: border-box;
   width: 22px;
   height: 22px;
-  background: var(--cor-primaria);
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 2px var(--cor-primaria-escura), 0 1px 3px rgba(0, 0, 0, 0.4);
+  background: var(--mapa-posicao);
+  border: 3px solid var(--mapa-contorno);
+  box-shadow: 0 0 0 2px var(--mapa-posicao), var(--sombra-marcador);
 }
 
+/* Link grande (componente LinkGrande): a ação principal da página, com 64 px de altura. */
 .inicio__link-grande {
   display: block;
-  min-height: 64px;
-  padding: 1rem 1.2rem;
-  background: var(--cor-primaria);
-  color: #fff;
-  border: 2px solid var(--cor-primaria-escura);
-  border-radius: 6px;
+  min-height: var(--alvo-grande);
+  padding: var(--espaco-5) 1.2rem;
+  background: var(--primaria);
+  color: var(--sobre-primaria);
+  border: var(--linha-controle) solid var(--primaria-escura);
+  border-radius: var(--raio-secao);
   font-size: 1.25rem;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
 
-.inicio__link-grande:hover { background: var(--cor-primaria-escura); }
+.inicio__link-grande:hover { background: var(--primaria-escura); }
 
 .inicio__link-detalhe {
   display: block;
@@ -133,7 +138,7 @@
 }
 
 .inicio__rodape {
-  margin-top: 1.5rem;
+  margin-top: var(--espaco-7);
   font-size: 0.9rem;
-  color: var(--cor-texto-suave);
+  color: var(--texto-suave);
 }

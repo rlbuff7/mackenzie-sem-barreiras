@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "verificar": "tsc --noEmit",
-    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts"
+    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts scripts/gerar-tokens.test.mjs src/design/tema.test.ts src/design/contraste.test.ts",
+    "tokens": "node scripts/gerar-tokens.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4"

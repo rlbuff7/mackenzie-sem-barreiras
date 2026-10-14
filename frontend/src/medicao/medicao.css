@@ -1,73 +1,83 @@
-/* Estilos só da página de medição. A paleta, a fonte e os botões vêm de ../estilos.css. */
-.medicao { padding-bottom: 3rem; }
+/* Estilos só da página de medição. Cores, fonte e botões vêm de ../estilos.css e dos tokens do Design System. */
+
+/* Lacuna do Design System: o aviso forte pede texto branco em todos os temas, mas o token
+   sobre-primaria vira escuro no tema escuro (fundo aviso-forte também escuro). Até existir um
+   token próprio (proposta: sobre-aviso-forte), o branco fica só aqui. */
+.medicao { --sobre-aviso-forte: #ffffff; padding-bottom: 3rem; }
 
 .medicao__avisos { position: sticky; top: 0; z-index: 10; }
 
+/* Aviso (componente Aviso). */
 .medicao__aviso {
   margin: 0;
-  padding: 0.6rem 1rem;
-  background: #123449;
-  color: #fff;
+  padding: var(--espaco-3) var(--espaco-5);
+  background: var(--primaria-escura);
+  color: var(--sobre-primaria);
   font-size: 0.95rem;
-  border-bottom: 3px solid #fff;
+  border-bottom: 3px solid var(--sobre-primaria);
 }
 
 .medicao__aviso--https {
-  background: #7a2e0c;
+  background: var(--aviso-forte);
+  color: var(--sobre-aviso-forte);
+  border-bottom-color: var(--sobre-aviso-forte);
 }
 
 .medicao__cabecalho,
-.medicao__principal { max-width: 40rem; margin: 0 auto; padding: 0 1rem; }
+.medicao__principal { max-width: 40rem; margin: 0 auto; padding: 0 var(--espaco-5); }
 
-.medicao__cabecalho h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.medicao__cabecalho h1 { font-size: 1.5rem; margin-bottom: var(--espaco-1); }
 
+/* Seção (componente Secao). */
 .medicao__secao {
-  background: var(--cor-superficie);
-  border: 1px solid var(--cor-borda);
-  border-radius: 6px;
-  padding: 1rem;
-  margin-top: 1rem;
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-left: var(--linha-secao) solid var(--primaria);
+  border-radius: var(--raio-secao);
+  padding: var(--espaco-5);
+  margin-top: var(--espaco-5);
 }
 
 .medicao__secao h2 { margin-top: 0; font-size: 1.15rem; }
 
+/* Campo (componente Campo). */
 .medicao .campo input,
 .medicao .campo select {
   display: block;
   width: 100%;
-  min-height: 44px;
+  min-height: var(--alvo-toque);
   padding: 0.5rem 0.6rem;
   font: inherit;
-  color: var(--cor-texto);
-  background: #fff;
-  border: 2px solid var(--cor-texto-suave);
-  border-radius: 4px;
+  color: var(--texto);
+  background: var(--superficie);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
 }
 
-.medicao .ajuda { color: var(--cor-texto-suave); }
+.medicao .ajuda { color: var(--texto-suave); }
 
-.medicao__botoes { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.medicao__botoes { display: flex; flex-wrap: wrap; gap: var(--espaco-3); }
 
 .medicao .botao--perigo {
-  background: #8f2410;
-  border-color: #5e1709;
-  color: #fff;
+  background: var(--perigo);
+  border-color: var(--perigo-escuro);
+  color: var(--sobre-primaria);
 }
 
 .medicao__status,
-.medicao__leitura { margin: 0.75rem 0 0; min-height: 1.4em; }
+.medicao__leitura { margin: var(--espaco-4) 0 0; min-height: 1.4em; }
 
 .medicao__leitura { font-size: 1.25rem; font-weight: 600; }
 
 .medicao__confirmacao {
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  border: 3px solid #8f2410;
-  border-radius: 6px;
+  margin-top: var(--espaco-4);
+  padding: var(--espaco-4);
+  border: 3px solid var(--perigo);
+  border-radius: var(--raio-secao);
 }
 
-.medicao__lista { padding-left: 1.25rem; margin: 1rem 0 0; }
+.medicao__lista { padding-left: var(--espaco-6); margin: var(--espaco-5) 0 0; }
 
-.medicao__lista li { margin-bottom: 0.6rem; overflow-wrap: anywhere; }
+.medicao__lista li { margin-bottom: var(--espaco-3); overflow-wrap: anywhere; }
 
 .medicao .campo { margin-bottom: 0.9rem; }

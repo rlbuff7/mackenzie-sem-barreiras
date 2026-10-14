@@ -5,6 +5,7 @@
  */
 import "../estilos.css";
 import "./medicao.css";
+import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import {
   ROTULO_CONDICAO,
   contarPontoRegistrado,
@@ -495,3 +496,5 @@ botaoExportar.addEventListener("click", exportarCsv);
 botaoApagar.addEventListener("click", pedirConfirmacaoApagar);
 botaoApagarSim.addEventListener("click", apagarTudo);
 botaoApagarNao.addEventListener("click", fecharConfirmacao);
+
+iniciarSeletorTema();

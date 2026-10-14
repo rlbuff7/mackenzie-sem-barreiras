@@ -1,0 +1,189 @@
+/*
+ * GERADO por scripts/gerar-tokens.mjs a partir de tokens.json. Não edite este arquivo:
+ * mude o tokens.json e rode `npm run tokens`. O teste de tokens falha se os dois divergirem.
+ */
+
+:root {
+  color-scheme: light;
+  --fundo: #ede8dc;
+  --superficie: #ffffff;
+  --texto: #24262b;
+  --texto-suave: #52514c;
+  --primaria: #1b4b6b;
+  --primaria-escura: #123449;
+  --sobre-primaria: #ffffff;
+  --borda: #d8d2c2;
+  --borda-controle: #52514c;
+  --confirmada: #2f6e4f;
+  --pendente: #8c6b28;
+  --alerta: #b5501c;
+  --perigo: #8f2410;
+  --perigo-escuro: #5e1709;
+  --aviso-forte: #7a2e0c;
+  --mapa-rota: #1b4b6b;
+  --mapa-contorno: #ffffff;
+  --mapa-posicao: #123449;
+  --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
+  --mapa-acessivel: #2f6e4f;
+  --mapa-atencao: #8c6b28;
+  /* spacing */
+  --espaco-1: 0.25rem;
+  --espaco-2: 0.35rem;
+  --espaco-3: 0.6rem;
+  --espaco-4: 0.75rem;
+  --espaco-5: 1rem;
+  --espaco-6: 1.25rem;
+  --espaco-7: 1.5rem;
+  /* radius */
+  --raio-marcador: 3px;
+  --raio-controle: 4px;
+  --raio-secao: 6px;
+  --raio-circulo: 50%;
+  /* shadow */
+  --sombra-marcador: 0 1px 3px rgba(0, 0, 0, 0.35);
+  /* tamanho */
+  --alvo-toque: 44px;
+  --alvo-grande: 64px;
+  --largura-leitura: 56rem;
+  /* espessura */
+  --linha-fina: 1px;
+  --linha-controle: 2px;
+  --linha-foco: 3px;
+  --linha-secao: 4px;
+  --linha-rota: 6px;
+  --linha-aviso: 8px;
+  /* tipografia: famílias */
+  --font-texto: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-exibicao: "Arial Narrow", "Public Sans", sans-serif;
+}
+
+/* Sem escolha da pessoa, o tema segue o sistema. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) {
+    color-scheme: dark;
+    --fundo: #12171b;
+    --superficie: #1b2227;
+    --texto: #eef0ec;
+    --texto-suave: #b8bcb4;
+    --primaria: #7fb3d5;
+    --primaria-escura: #a9cde6;
+    --sobre-primaria: #0c1a24;
+    --borda: #33403f;
+    --borda-controle: #9aa29a;
+    --confirmada: #6fc29a;
+    --pendente: #d9b35f;
+    --alerta: #f08a4b;
+    --perigo: #f2836b;
+    --perigo-escuro: #ffb3a3;
+    --aviso-forte: #7a2e0c;
+    --mapa-rota: #1b4b6b;
+    --mapa-contorno: #ffffff;
+    --mapa-posicao: #123449;
+    --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
+    --mapa-acessivel: #2f6e4f;
+    --mapa-atencao: #8c6b28;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root:not([data-tema]) {
+    color-scheme: dark;
+    --fundo: #000000;
+    --superficie: #000000;
+    --texto: #ffffff;
+    --texto-suave: #e6e6e6;
+    --primaria: #ffd60a;
+    --primaria-escura: #ffe866;
+    --sobre-primaria: #000000;
+    --borda: #ffffff;
+    --borda-controle: #ffffff;
+    --confirmada: #5ee0a0;
+    --pendente: #ffb347;
+    --alerta: #00e5ff;
+    --perigo: #ff8f80;
+    --perigo-escuro: #ffffff;
+    --aviso-forte: #000000;
+    --mapa-rota: #1b4b6b;
+    --mapa-contorno: #ffffff;
+    --mapa-posicao: #123449;
+    --mapa-posicao-halo: rgba(27, 75, 107, 0.25);
+    --mapa-acessivel: #2f6e4f;
+    --mapa-atencao: #8c6b28;
+  }
+}
+
+/* Escolha explícita da pessoa (atributo data-tema no <html>). */
+:root[data-tema="claro"] {
+  color-scheme: light;
+  --fundo: #ede8dc;
+  --superficie: #ffffff;
+  --texto: #24262b;
+  --texto-suave: #52514c;
+  --primaria: #1b4b6b;
+  --primaria-escura: #123449;
+  --sobre-primaria: #ffffff;
+  --borda: #d8d2c2;
+  --borda-controle: #52514c;
+  --confirmada: #2f6e4f;
+  --pendente: #8c6b28;
+  --alerta: #b5501c;
+  --perigo: #8f2410;
+  --perigo-escuro: #5e1709;
+  --aviso-forte: #7a2e0c;
+  --mapa-rota: #1b4b6b;
+  --mapa-contorno: #ffffff;
+  --mapa-posicao: #123449;
+  --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
+  --mapa-acessivel: #2f6e4f;
+  --mapa-atencao: #8c6b28;
+}
+
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+  --fundo: #12171b;
+  --superficie: #1b2227;
+  --texto: #eef0ec;
+  --texto-suave: #b8bcb4;
+  --primaria: #7fb3d5;
+  --primaria-escura: #a9cde6;
+  --sobre-primaria: #0c1a24;
+  --borda: #33403f;
+  --borda-controle: #9aa29a;
+  --confirmada: #6fc29a;
+  --pendente: #d9b35f;
+  --alerta: #f08a4b;
+  --perigo: #f2836b;
+  --perigo-escuro: #ffb3a3;
+  --aviso-forte: #7a2e0c;
+  --mapa-rota: #1b4b6b;
+  --mapa-contorno: #ffffff;
+  --mapa-posicao: #123449;
+  --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
+  --mapa-acessivel: #2f6e4f;
+  --mapa-atencao: #8c6b28;
+}
+
+:root[data-tema="alto-contraste"] {
+  color-scheme: dark;
+  --fundo: #000000;
+  --superficie: #000000;
+  --texto: #ffffff;
+  --texto-suave: #e6e6e6;
+  --primaria: #ffd60a;
+  --primaria-escura: #ffe866;
+  --sobre-primaria: #000000;
+  --borda: #ffffff;
+  --borda-controle: #ffffff;
+  --confirmada: #5ee0a0;
+  --pendente: #ffb347;
+  --alerta: #00e5ff;
+  --perigo: #ff8f80;
+  --perigo-escuro: #ffffff;
+  --aviso-forte: #000000;
+  --mapa-rota: #1b4b6b;
+  --mapa-contorno: #ffffff;
+  --mapa-posicao: #123449;
+  --mapa-posicao-halo: rgba(27, 75, 107, 0.25);
+  --mapa-acessivel: #2f6e4f;
+  --mapa-atencao: #8c6b28;
+}
