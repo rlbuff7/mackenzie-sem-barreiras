@@ -68,7 +68,7 @@ test("a confirmação de Recomeçar começa escondida, é um grupo nomeado e tem
   assert.match(caixa, /\shidden[\s>]/);
   assert.match(html, /id="botao-recomecar-sim"[^>]*>\s*Sim, recomeçar\s*<\/button>/);
   assert.match(html, /id="botao-recomecar-nao"[^>]*>\s*Não, continuar\s*<\/button>/);
-  assert.match(html, /id="botao-recomecar-exportar"/);
+  assert.doesNotMatch(html, /botao-recomecar-exportar/, "Recomeçar não apaga mais o que não foi enviado: sem 'Exportar antes'");
 });
 
 test("campos no lugar certo: aparelho, código e ponto em Preparar; condição e observação em Medir", () => {

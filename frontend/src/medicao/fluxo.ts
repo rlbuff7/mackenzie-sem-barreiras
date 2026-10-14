@@ -142,31 +142,43 @@ export function anuncioDaEtapa(etapa: Etapa, ponto: number, medicao: number): st
   return `Ponto ${ponto} registrado, ${textoMedicao(medicao)}.`;
 }
 
+function registrosEsperando(n: number): string {
+  return n === 1 ? "1 registro ainda espera internet" : `${n} registros ainda esperam internet`;
+}
+
 /** Falado uma vez depois de confirmar "Recomeçar", junto com a volta à etapa Preparar. */
-export const ANUNCIO_RECOMECOU =
-  "Recomeçado. Os registros deste aparelho foram apagados e você voltou ao ponto 1. O que já foi enviado ao banco continua lá.";
+export function anuncioRecomecou(esperando: number): string {
+  const fila =
+    esperando > 0
+      ? ` ${registrosEsperando(esperando)} e ${esperando === 1 ? "será enviado" : "serão enviados"} sozinho${esperando === 1 ? "" : "s"}.`
+      : "";
+  return `Recomeçado. Você voltou ao ponto 1.${fila} O que já foi enviado ao banco continua lá.`;
+}
 
 /**
- * Texto da confirmação do botão "Recomeçar". Recomeçar apaga só o que está NESTE aparelho (a fila de
- * registros) e volta ao ponto 1; o que já foi enviado ao banco continua lá.
+ * Registros da rodada atual: os feitos desde o último "Recomeçar" (`desde_iso`, null = todos). Os que
+ * ficaram esperando envio de antes do recomeço continuam na fila, mas não contam no ponto N de 12.
  */
-export function textoConfirmarRecomecar(total: number, naoEnviados: number): string {
-  const servidor = "O que já foi enviado ao banco continua lá: nada é apagado no servidor.";
-  if (total === 0) {
-    return `Recomeçar volta ao ponto 1. Não há registros guardados neste aparelho. ${servidor}`;
-  }
-  const guardados =
-    total === 1 ? "o 1 registro guardado neste aparelho" : `os ${total} registros guardados neste aparelho`;
-  const perdidos =
-    naoEnviados === 0
-      ? "Todos já foram enviados."
-      : naoEnviados === 1
-        ? "1 ainda não foi enviado e será perdido."
-        : `${naoEnviados} ainda não foram enviados e serão perdidos.`;
-  const exportar = naoEnviados > 0 ? " Exporte o CSV antes se quiser guardar os que não foram enviados." : "";
+export function registrosDaRodada(registros: readonly Registro[], desde_iso: string | null): Registro[] {
+  if (!desde_iso) return [...registros];
+  return registros.filter((r) => r.horario_iso >= desde_iso);
+}
+
+/**
+ * Texto da confirmação do botão "Recomeçar". Recomeçar volta ao ponto 1 e zera a contagem de pontos;
+ * NÃO apaga o que ainda não foi enviado: esses registros continuam na fila e saem sozinhos quando
+ * houver internet. O que já foi enviado continua no banco (nada é apagado no servidor).
+ * `esperando` = registros ainda na fila de envio.
+ */
+export function textoConfirmarRecomecar(esperando: number): string {
+  const inicio = "Recomeçar volta ao ponto 1 e zera a contagem de pontos.";
+  const fila =
+    esperando > 0
+      ? ` ${registrosEsperando(esperando)} e ${esperando === 1 ? "CONTINUA" : "CONTINUAM"} neste aparelho: ${esperando === 1 ? "será enviado" : "serão enviados"} sozinho${esperando === 1 ? "" : "s"} quando houver sinal.`
+      : "";
   return (
-    `Recomeçar apaga ${guardados} e volta ao ponto 1. ${perdidos} ${servidor}` +
-    ` Ficam salvos o aparelho, o código da equipe e a condição.${exportar}`
+    `${inicio}${fila} O que já foi enviado ao banco continua lá: nada é apagado no servidor.` +
+    " Ficam salvos o aparelho, o código da equipe e a condição."
   );
 }
 

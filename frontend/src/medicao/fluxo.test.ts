@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  ANUNCIO_RECOMECOU,
   anuncioDaEtapa,
+  anuncioRecomecou,
   classificarPrecisao,
   descreverEnvio,
   ETAPAS,
@@ -16,7 +16,9 @@ import {
   fracaoContagem,
   numeroDaProximaMedicao,
   pontosCompletos,
+  medicoesFeitas,
   proximoPonto,
+  registrosDaRodada,
   segmentosProgresso,
   segundosRestantes,
   textoMedicao,
@@ -176,29 +178,47 @@ test("anuncioDaEtapa: uma frase por etapa, sem repetir o título (o foco já lê
   }
 });
 
-test("textoConfirmarRecomecar: diz o que se apaga, o que fica e que o servidor não é tocado", () => {
-  const t = textoConfirmarRecomecar(7, 2);
-  assert.match(t, /7 registros/);
-  assert.match(t, /2 ainda não foram enviados e serão perdidos/);
+test("textoConfirmarRecomecar com pendentes: diz quantos esperam internet, que CONTINUAM e saem sozinhos", () => {
+  const t = textoConfirmarRecomecar(3);
   assert.match(t, /volta ao ponto 1/);
+  assert.match(t, /3 registros ainda esperam internet e CONTINUAM neste aparelho/);
+  assert.match(t, /serão enviados sozinhos quando houver sinal/);
   assert.match(t, /continua lá/);
   assert.match(t, /nada é apagado no servidor/);
   assert.match(t, /aparelho, o código da equipe e a condição/);
+  assert.doesNotMatch(t, /apaga os|serão perdidos|perdido/);
 });
 
-test("textoConfirmarRecomecar: singular, tudo enviado e nada guardado", () => {
-  const um = textoConfirmarRecomecar(1, 1);
-  assert.match(um, /o 1 registro guardado/);
-  assert.match(um, /1 ainda não foi enviado e será perdido/);
-  const enviados = textoConfirmarRecomecar(4, 0);
-  assert.doesNotMatch(enviados, /perdido/);
-  assert.match(enviados, /Todos já foram enviados/);
-  const vazio = textoConfirmarRecomecar(0, 0);
-  assert.match(vazio, /Não há registros guardados/);
-  assert.match(vazio, /nada é apagado no servidor/);
+test("textoConfirmarRecomecar no singular", () => {
+  const t = textoConfirmarRecomecar(1);
+  assert.match(t, /1 registro ainda espera internet e CONTINUA neste aparelho/);
+  assert.match(t, /será enviado sozinho quando houver sinal/);
 });
 
-test("ANUNCIO_RECOMECOU confirma a volta ao ponto 1 e que o servidor não foi tocado", () => {
-  assert.match(ANUNCIO_RECOMECOU, /ponto 1/);
-  assert.match(ANUNCIO_RECOMECOU, /continua lá/);
+test("textoConfirmarRecomecar sem pendentes: não menciona fila nem internet", () => {
+  const t = textoConfirmarRecomecar(0);
+  assert.doesNotMatch(t, /fila|internet|sinal|CONTINUA/);
+  assert.match(t, /volta ao ponto 1/);
+  assert.match(t, /nada é apagado no servidor/);
+});
+
+test("anuncioRecomecou: com pendentes diz que seguem e saem sozinhos; sem pendentes não fala de fila", () => {
+  assert.match(anuncioRecomecou(2), /2 registros ainda esperam internet e serão enviados sozinhos/);
+  assert.match(anuncioRecomecou(1), /1 registro ainda espera internet e será enviado sozinho/);
+  for (const n of [0, 1, 2]) {
+    assert.match(anuncioRecomecou(n), /ponto 1/);
+    assert.match(anuncioRecomecou(n), /continua lá/);
+  }
+  assert.doesNotMatch(anuncioRecomecou(0), /fila|internet/);
+});
+
+test("registrosDaRodada: sem marca valem todos; com marca valem só os feitos depois do recomeço", () => {
+  const antigo = ponto(1);
+  const novo = ponto(1);
+  antigo.horario_iso = "2026-10-22T10:00:00.000Z";
+  novo.horario_iso = "2026-10-22T11:00:00.000Z";
+  assert.equal(registrosDaRodada([antigo, novo], null).length, 2);
+  assert.deepEqual(registrosDaRodada([antigo, novo], "2026-10-22T10:30:00.000Z"), [novo]);
+  // o que esperava envio de antes do recomeço não conta no ponto 1 da rodada nova
+  assert.equal(medicoesFeitas(registrosDaRodada([antigo], "2026-10-22T10:30:00.000Z"), 1, "Galaxy A54"), 0);
 });

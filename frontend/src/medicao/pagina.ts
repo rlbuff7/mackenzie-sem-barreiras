@@ -17,11 +17,11 @@ import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadore
 import { rumoParaSeta } from "../mapa/rumo.ts";
 import { FilaEnvio, type FetchSimulavel, type ItemFila, type ResultadoRodada } from "./fila.ts";
 import {
-  ANUNCIO_RECOMECOU,
   DURACAO_CONTAGEM_S,
   MEDICOES_POR_PONTO,
   TOTAL_PONTOS,
   anuncioDaEtapa,
+  anuncioRecomecou,
   classificarPrecisao,
   descreverEnvio,
   etapaInicial,
@@ -31,6 +31,7 @@ import {
   numeroDaProximaMedicao,
   pontosCompletos,
   proximoPonto,
+  registrosDaRodada,
   segmentosProgresso,
   segundosRestantes,
   textoConfirmarRecomecar,
@@ -59,6 +60,7 @@ const CHAVE_APARELHO = "msb-medicao-aparelho";
 const CHAVE_CODIGO = "msb-medicao-codigo";
 const CHAVE_PONTO = "msb-medicao-ponto-atual";
 const CHAVE_CONDICAO = "msb-medicao-condicao";
+const CHAVE_RECOMECO = "msb-medicao-recomeco";
 const TIMEOUT_POSICAO_MS = 30000;
 const MAX_ULTIMOS = 6;
 
@@ -144,10 +146,8 @@ const botaoExportar = el<HTMLButtonElement>("botao-exportar");
 const botaoRecomecar = el<HTMLButtonElement>("botao-recomecar");
 const botaoRecomecarSim = el<HTMLButtonElement>("botao-recomecar-sim");
 const botaoRecomecarNao = el<HTMLButtonElement>("botao-recomecar-nao");
-const botaoRecomecarExportar = el<HTMLButtonElement>("botao-recomecar-exportar");
 const caixaConfirmar = el<HTMLDivElement>("confirmar-recomecar");
 const textoConfirmar = el<HTMLParagraphElement>("texto-confirmar");
-const statusRecomecar = el<HTMLParagraphElement>("status-recomecar");
 const statusRegistros = el<HTMLParagraphElement>("status-registros");
 
 // ---------- armazenamento local ----------
@@ -209,6 +209,10 @@ function migrarRegistrosAntigos(): void {
 
 let pontoAtual = 1;
 let etapa: Etapa = "preparar";
+/** Instante do último "Recomeçar" (ISO): só os registros feitos depois contam no "ponto N de 12". */
+let recomecoIso: string | null = null;
+/** Registros da rodada atual: os que esperavam envio de antes do recomeço seguem na fila, mas não contam. */
+const registrosDaRodadaAtual = (): Registro[] => registrosDaRodada(fila.registros(), recomecoIso);
 /** Último ponto registrado nesta tela (para a etapa Resultado). */
 let ultimo: { ponto: number; medicao: number; id_cliente: string } | null = null;
 let ultimaPosicao: PosicaoMedida | null = null;
@@ -236,7 +240,7 @@ function itemDaFila(id_cliente: string): ItemFila | undefined {
 }
 
 function desenharCabecalho(): void {
-  const registros = fila.registros();
+  const registros = registrosDaRodadaAtual();
   const ap = aparelho();
   let ponto = pontoAtual;
   let medicao = numeroDaProximaMedicao(registros, pontoAtual, ap);
@@ -301,7 +305,7 @@ function desenharConfirmacao(): void {
     cartaoEstado.setAttribute("data-estado", t.cartao);
     texto(cartaoIcone, t.icone);
     texto(cartaoTitulo, t.titulo);
-    const feitas = medicoesFeitas(registros, ultimo.ponto, aparelho());
+    const feitas = medicoesFeitas(registrosDaRodadaAtual(), ultimo.ponto, aparelho());
     const completo = feitas >= MEDICOES_POR_PONTO;
     const detalhe =
       `Ponto ${ultimo.ponto} ${completo ? "completo" : "em andamento"} · ${Math.min(feitas, MEDICOES_POR_PONTO)} de ${MEDICOES_POR_PONTO} medições · ${formatarMetros(doUltimo.registro.precisao_m)}` +
@@ -410,7 +414,7 @@ function anunciar(frase: string): void {
 
 function frasePadraoDaEtapa(nova: Etapa): string {
   if (nova === "resultado" && ultimo) return anuncioDaEtapa(nova, ultimo.ponto, ultimo.medicao);
-  const medicao = numeroDaProximaMedicao(fila.registros(), pontoAtual, aparelho());
+  const medicao = numeroDaProximaMedicao(registrosDaRodadaAtual(), pontoAtual, aparelho());
   return anuncioDaEtapa(nova, pontoAtual, medicao);
 }
 
@@ -680,7 +684,7 @@ function registrarPonto(): void {
       registrando = false;
       botaoRegistrar.disabled = false;
       texto(statusPonto, "");
-      ultimo = { ponto, medicao: medicoesFeitas(fila.registros(), ponto, aparelho()), id_cliente: item.id_cliente };
+      ultimo = { ponto, medicao: medicoesFeitas(registrosDaRodadaAtual(), ponto, aparelho()), id_cliente: item.id_cliente };
       irParaEtapa("resultado");
       enviarAgora();
     },
@@ -695,7 +699,7 @@ function registrarPonto(): void {
 
 function irParaProximo(): void {
   if (!ultimo) return;
-  const feitas = medicoesFeitas(fila.registros(), ultimo.ponto, aparelho());
+  const feitas = medicoesFeitas(registrosDaRodadaAtual(), ultimo.ponto, aparelho());
   if (feitas < MEDICOES_POR_PONTO) {
     definirPonto(ultimo.ponto);
     // Já está parado no ponto: a contagem começa sozinha e a própria dica fala o contexto (um só anúncio).
@@ -945,20 +949,17 @@ function exportarCsv(): void {
 }
 
 /**
- * "Recomeçar" é destrutivo só para o estado LOCAL: apaga a fila de registros deste aparelho (inclusive
- * o que ainda não foi enviado), volta ao ponto 1, para trajeto e contagem e leva à etapa Preparar.
- * Continuam salvos o aparelho, o código da equipe, a condição, o tema e a preferência de movimento.
- * Nada é apagado no servidor: o que já foi enviado continua no banco.
+ * "Recomeçar" volta ao ponto 1, zera a contagem de pontos (marca `recomecoIso`), para contagem e
+ * trajeto e leva à etapa Preparar. NÃO apaga o que ainda não foi enviado: esses registros seguem na
+ * fila e saem sozinhos, com o mesmo recuo de 5-10-30-60 s. Sai da lista local só o que já foi
+ * enviado (o banco já tem). Continuam salvos o aparelho, o código da equipe, a condição, o tema e a
+ * preferência de movimento. Nada é apagado no servidor.
  */
 function pedirConfirmacaoRecomecar(): void {
-  const total = fila.itens.length;
-  const naoEnviados = total - fila.contagem().enviado;
-  textoConfirmar.textContent = textoConfirmarRecomecar(total, naoEnviados);
-  botaoRecomecarExportar.hidden = naoEnviados === 0;
-  texto(statusRecomecar, "");
+  textoConfirmar.textContent = textoConfirmarRecomecar(fila.contagem().na_fila);
   caixaConfirmar.hidden = false;
   botaoRecomecar.setAttribute("aria-expanded", "true");
-  botaoRecomecarNao.focus(); // o padrão seguro é "Não": Enter por engano não apaga nada
+  botaoRecomecarNao.focus(); // o padrão seguro é "Não": Enter por engano não muda nada
 }
 
 function fecharConfirmacao(devolverFoco: boolean): void {
@@ -975,14 +976,16 @@ function recomecar(): void {
     botaoTrajeto.setAttribute("aria-pressed", "false");
     faixaTrajeto.hidden = true;
   }
-  fila.apagarTudo();
+  const esperando = fila.contagem().na_fila;
+  fila.limparEnviados();
+  recomecoIso = new Date().toISOString();
+  gravarLocal(CHAVE_RECOMECO, recomecoIso);
   ultimo = null;
   definirPonto(1);
   texto(statusRegistros, "");
   texto(statusPonto, "");
-  texto(estadoEnvio, "");
   fecharConfirmacao(false);
-  irParaEtapa("preparar", { anuncio: ANUNCIO_RECOMECOU });
+  irParaEtapa("preparar", { anuncio: anuncioRecomecou(esperando) });
 }
 
 // ---------- código da equipe ----------
@@ -1041,6 +1044,7 @@ migrarRegistrosAntigos();
 campoAparelho.value = lerLocal(CHAVE_APARELHO);
 const condicaoSalva = lerLocal(CHAVE_CONDICAO);
 if (condicaoSalva in ROTULO_CONDICAO) campoCondicao.value = condicaoSalva;
+recomecoIso = lerLocal(CHAVE_RECOMECO) || null;
 definirPonto(pontoValido(lerLocal(CHAVE_PONTO)) ?? 1);
 
 campoAparelho.addEventListener("change", () => {
@@ -1086,7 +1090,6 @@ caixaConfirmar.addEventListener("keydown", (ev) => {
 });
 botaoRecomecarSim.addEventListener("click", recomecar);
 botaoRecomecarNao.addEventListener("click", () => fecharConfirmacao(true));
-botaoRecomecarExportar.addEventListener("click", () => texto(statusRecomecar, baixarCsv()));
 botaoContinuar.addEventListener("click", continuarParaMedicao);
 botaoAlterar.addEventListener("click", () => irParaEtapa("preparar"));
 botaoCorrigirCodigo.addEventListener("click", () => {
