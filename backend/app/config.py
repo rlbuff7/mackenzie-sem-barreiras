@@ -61,6 +61,9 @@ class Configuracoes(BaseSettings):
     # Header X-Token-Admin exigido por POST /validacao/executar (D7). Vazio =
     # sem proteção, só em desenvolvimento.
     token_admin: str = ""
+    # Header X-Codigo-Equipe exigido por POST /medicoes (medição de GPS em tempo
+    # real, dado da equipe). Vazio = medição DESLIGADA neste servidor (503).
+    medicao_codigo_equipe: str = ""
     limite_barreiras_por_consulta: int = 1000
     # Tamanho máximo do corpo de POST /alertas, em bytes. Acima disso é abuso, não
     # relato: 413 sem gravar nada (o nginx aplica o mesmo limite antes, em

@@ -1,6 +1,6 @@
 # Contrato da API — Mackenzie sem Barreiras
 
-> **Escopo antigo (até 08/10/2026): este é o contrato da API de crowdsourcing de barreiras (`/alertas`, `/barreiras`, `/validacao/*`). As rotas do escopo novo (`/pontos-interesse`, `/rotas`, `/orientacoes`) ainda não existem; o plano está no [`CLAUDE.md`](../CLAUDE.md) (§7 e §16).**
+> **Escopo antigo (até 08/10/2026): este é o contrato da API de crowdsourcing de barreiras (`/alertas`, `/barreiras`, `/validacao/*`). As rotas do escopo novo (`/pontos-interesse`, `/rotas`, `/orientacoes`) ainda não existem; o plano está no [`CLAUDE.md`](../CLAUDE.md) (§7 e §16). A exceção já implementada é a medição de GPS da equipe (`/medicoes`).**
 
 Fonte única para backend e frontend (resumo em [`CLAUDE.md` §7](../CLAUDE.md)).
 
@@ -95,6 +95,67 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `barreiras` conta barreiras.
 - Nas duas rotas de validação, `parametros.eps_metros` sai como número de ponto
   flutuante (ex.: `8.0`), como na configuração.
+- `POST /medicoes` (medição de GPS em tempo real; é dado DA EQUIPE, os celulares dela
+  nos pontos de controle, nunca de quem navega; sem nome de pessoa, só o modelo do
+  aparelho). Header `X-Codigo-Equipe` obrigatório, igual a `MEDICAO_CODIGO_EQUIPE`
+  (comparação em tempo constante; use só caracteres ASCII). Corpo:
+  ```json
+  {"medicoes": [{"id_cliente": "<uuid>", "tipo": "ponto",
+                 "medido_em": "2026-10-14T10:30:00-03:00", "aparelho": "Galaxy A54",
+                 "ponto": 3, "condicao": "ceu_aberto",
+                 "latitude": -23.5472, "longitude": -46.6525, "precisao_m": 4.5}]}
+  ```
+  De 1 a 50 medições por lote (o trajeto vai em lotes a cada 10 s). Campos, todos
+  estritos (`extra` é recusado; número só como número JSON, `"5"` e `true` não;
+  `NaN`/`Infinity` não):
+  - `id_cliente` UUID (gerado no celular), `tipo` (`ponto`|`trajeto`|`bussola`|
+    `vibracao`), `medido_em` texto ISO 8601 COM fuso (`...-03:00` ou `...Z`),
+    `aparelho` 1 a 80 caracteres (espaços nas pontas removidos), todos obrigatórios.
+  - `ponto` inteiro 1 a 12, obrigatório quando `tipo = "ponto"`; `condicao`
+    `ceu_aberto`|`entre_predios`|`coberto`.
+  - `latitude` [-90, 90] e `longitude` [-180, 180]: obrigatórias em `ponto` e
+    `trajeto`; nos outros tipos, ou as duas ou nenhuma. `precisao_m` >= 0
+    (metros): obrigatória nos tipos com posição E sempre que há latitude e
+    longitude, em qualquer tipo.
+  - `altitude_m`, `altitude_precisao_m`, `velocidade_ms`, `rumo_gps_graus`: números
+    livres, como o navegador informa. `bussola_graus` 0 <= x < 360;
+    `bussola_fonte` `webkitCompassHeading`|`alpha_absoluto`|`alpha_relativo`;
+    `bussola_oscilacao_graus` >= 0; `vibracao_suportada` booleano;
+    `observacao` <= 500 caracteres e `user_agent` <= 300 (vazios viram null).
+  - 200 `{"gravadas": 3, "repetidas": 1}`: o lote inteiro vai numa transação. Um
+    `id_cliente` que já existe conta como repetido e não dá erro
+    (`ON CONFLICT (id_cliente) DO NOTHING`); reenviar o mesmo lote inteiro dá
+    `{"gravadas": 0, "repetidas": N}`. A posição entra em SRID 4326 (grau).
+  - 422 `{"mensagem": "Medição inválida.", "erros": [{"campo":
+    "medicoes.0.precisao_m", "erro": "..."}]}`: `campo` leva o índice do item no lote;
+    erros do corpo inteiro saem com `campo: "corpo"` (`"JSON malformado."`) ou
+    `"medicoes"` (lote vazio ou com mais de 50). Se um item é inválido, NENHUM do
+    lote é gravado.
+  - 401 `{"detail": "Código da equipe ausente ou inválido (header X-Codigo-Equipe)."}`.
+  - 503 `{"detail": "Medição desligada neste servidor."}`: `MEDICAO_CODIGO_EQUIPE`
+    vazio no servidor (padrão). Diferente do `TOKEN_ADMIN`, vazio NÃO abre a rota.
+    A checagem do código vem antes da leitura do corpo (503 e 401 não leem nada).
+  - 413 `{"mensagem": "Corpo grande demais: o limite é 16 KiB."}`: o mesmo
+    `LIMITE_CORPO_BYTES` do `POST /alertas`. Um lote de 50 medições completas
+    (com `user_agent`) pode passar de 16 KiB: mande lotes menores.
+  - 429 (só pelo nginx do frontend): `POST /api/medicoes` tem limite próprio, 60
+    requisições por minuto de média, rajada de 30 (`frontend/nginx.conf`).
+- `GET /medicoes/resumo` (header `X-Token-Admin`, como `POST /validacao/executar`;
+  `TOKEN_ADMIN` vazio deixa aberta, só em desenvolvimento; 401 com o mesmo texto) →
+  200
+  ```json
+  {"total": 7,
+   "por_aparelho": [{"aparelho": "Galaxy A54", "pontos": 2, "medicoes": 4,
+                     "precisao_mediana_m": 6.0}],
+   "por_ponto": [{"ponto": 1, "medicoes": 4, "precisao_mediana_m": 6.0,
+                  "precisao_p90_m": 16.1}]}
+  ```
+  Serve para a equipe conferir a ida a campo sem psql. `total` conta todas as
+  linhas. `por_aparelho` (ordem alfabética): `pontos` = quantos pontos de controle
+  DISTINTOS o aparelho mediu, `medicoes` = linhas dele, de todos os tipos.
+  `por_ponto` (ordem do ponto): só linhas com número de ponto, `medicoes` conta todas
+  elas. Mediana e p90 (`percentile_cont`, interpolados, em metros, 2 casas) usam só as
+  linhas com `precisao_m`; sem nenhuma, `null`.
 - **422 de parâmetro inválido** (query: `bbox` ausente ou malformado, `status`/`origem`
   fora das opções), em todas as rotas: `{"mensagem": "Requisição inválida.", "erros":
   [{"campo": "origem", "erro": "Deve ser um destes valores: 'real' ou 'simulacao'."}]}`.
@@ -113,3 +174,6 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
 - **M3 (implementado):** `POST /validacao/executar`, `GET /validacao/estatisticas`
   (`app/routers/validacao.py`; lógica em `app/validacao/pipeline.py` e
   `app/validacao/estatisticas.py`).
+- **Medição de GPS (14/10/2026, implementado):** `POST /medicoes`, `GET /medicoes/resumo`
+  (`app/routers/medicoes.py`, `app/schemas/medicao.py`; tabela `medicoes_gps`,
+  migration 005). Variável nova: `MEDICAO_CODIGO_EQUIPE` (vazio = desligada).

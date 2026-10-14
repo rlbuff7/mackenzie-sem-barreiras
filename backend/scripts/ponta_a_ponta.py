@@ -22,6 +22,10 @@ esperado de barreiras confirmadas (padrão 1) — existe só para provar, sem
 editar código, que uma falha deliberada faz o script sair com código != 0 e
 mesmo assim `scripts/ponta-a-ponta.sh` derruba a pilha isolada.
 
+Medição de GPS (`POST /api/medicoes`, `GET /api/medicoes/resumo`): pelo proxy do
+frontend. Desligada por padrão (503); com `MEDICAO_CODIGO_EQUIPE` definido confere
+o contrato inteiro (`_verificar_medicoes`).
+
 R19: além de bater direto na API, o teste também passa PELO FRONTEND
 (`GET {url_frontend}/api/saude` e um `POST {url_frontend}/api/alertas`), a
 mesma origem que `frontend/nginx.conf` encaminha para o serviço `api` — se o
@@ -344,12 +348,116 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             "GET /medicao.html do frontend devolve a página de medição de GPS, não a inicial (200)",
             resposta.status_code == 200
             and "<title>Medição de GPS — Mackenzie</title>" in resposta.text
-            and "Registrar ponto" in resposta.text
+            and "Registrar agora" in resposta.text
             and "<title>Navegação Acessível no Campus Mackenzie</title>" not in resposta.text,
             f"HTTP {resposta.status_code}",
         )
 
+        _verificar_medicoes(v, frontend, token_admin)
         _verificar_endurecimento(v, api, frontend)
+
+
+def _medicao_de_teste(*, tipo: str = "ponto") -> dict[str, Any]:
+    """Uma medição de GPS válida para `POST /medicoes` (celular da equipe, 1 ponto)."""
+    return {
+        "id_cliente": str(uuid.uuid4()),
+        "tipo": tipo,
+        "medido_em": "2026-10-14T10:30:00-03:00",
+        "aparelho": "Aparelho de teste e2e",
+        "ponto": 1,
+        "condicao": "ceu_aberto",
+        "latitude": CENTRO_LATITUDE,
+        "longitude": CENTRO_LONGITUDE,
+        "precisao_m": 5.0,
+    }
+
+
+def _verificar_medicoes(v: Verificador, frontend: httpx.Client, token_admin: str) -> None:
+    """`POST /api/medicoes` e `GET /api/medicoes/resumo` pelo proxy do frontend.
+
+    Sem `MEDICAO_CODIGO_EQUIPE` no ambiente (padrão do `.env.example`) a medição está
+    DESLIGADA: 503. Com a variável definida (`MEDICAO_CODIGO_EQUIPE=x
+    ./scripts/ponta-a-ponta.sh`; o docker-compose.yml a repassa à API) confere o
+    contrato inteiro: 401, 200, idempotência, 422 e o resumo. Fica antes do
+    endurecimento porque este deixa o nginx recusando POST por um tempo.
+    """
+    codigo = os.environ.get("MEDICAO_CODIGO_EQUIPE", "")
+    lote = {"medicoes": [_medicao_de_teste()]}
+
+    if not codigo:
+        resposta = pedir(
+            frontend, "POST", "/api/medicoes", json=lote, headers={"X-Codigo-Equipe": "x"}
+        )
+        v.checar(
+            "POST /api/medicoes com a medição desligada (sem MEDICAO_CODIGO_EQUIPE) responde 503",
+            resposta.status_code == 503
+            and json_seguro(resposta).get("detail") == "Medição desligada neste servidor.",
+            f"HTTP {resposta.status_code}: {resposta.text}",
+        )
+        return
+
+    resposta = pedir(frontend, "POST", "/api/medicoes", json=lote)
+    v.checar(
+        "POST /api/medicoes sem X-Codigo-Equipe é recusado (401)",
+        resposta.status_code == 401,
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    resposta = pedir(
+        frontend, "POST", "/api/medicoes", json=lote, headers={"X-Codigo-Equipe": "errado"}
+    )
+    v.checar(
+        "POST /api/medicoes com o código errado é recusado (401)",
+        resposta.status_code == 401,
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+
+    cabecalhos = {"X-Codigo-Equipe": codigo}
+    trajeto = [_medicao_de_teste(tipo="trajeto") for _ in range(3)]
+    for item in trajeto:
+        item.pop("ponto")
+    lote_completo = {"medicoes": [*lote["medicoes"], *trajeto]}
+    resposta = pedir(frontend, "POST", "/api/medicoes", json=lote_completo, headers=cabecalhos)
+    v.checar(
+        "POST /api/medicoes grava um ponto e 3 pontos de trajeto (200, gravadas=4)",
+        resposta.status_code == 200 and json_seguro(resposta) == {"gravadas": 4, "repetidas": 0},
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    resposta = pedir(frontend, "POST", "/api/medicoes", json=lote_completo, headers=cabecalhos)
+    v.checar(
+        "POST /api/medicoes é idempotente: o mesmo lote de novo dá gravadas=0, repetidas=4",
+        resposta.status_code == 200 and json_seguro(resposta) == {"gravadas": 0, "repetidas": 4},
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+
+    sem_precisao = _medicao_de_teste()
+    del sem_precisao["precisao_m"]
+    resposta = pedir(
+        frontend, "POST", "/api/medicoes", json={"medicoes": [sem_precisao]}, headers=cabecalhos
+    )
+    campos = [erro.get("campo") for erro in json_seguro(resposta).get("erros", [])]
+    v.checar(
+        "POST /api/medicoes com posição sem precisao_m é recusado (422, medicoes.0.precisao_m)",
+        resposta.status_code == 422 and "medicoes.0.precisao_m" in campos,
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+
+    cabecalhos_admin = {"X-Token-Admin": token_admin} if token_admin else {}
+    resposta = pedir(frontend, "GET", "/api/medicoes/resumo", headers=cabecalhos_admin)
+    resumo = json_seguro(resposta)
+    v.checar(
+        "GET /api/medicoes/resumo conta as 4 medições gravadas (e a repetição não duplicou)",
+        resposta.status_code == 200
+        and resumo.get("total") == 4
+        and [a.get("medicoes") for a in resumo.get("por_aparelho", [])] == [4],
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    if token_admin:
+        resposta = pedir(frontend, "GET", "/api/medicoes/resumo")
+        v.checar(
+            "GET /api/medicoes/resumo sem X-Token-Admin é recusado (401, TOKEN_ADMIN definido)",
+            resposta.status_code == 401,
+            f"HTTP {resposta.status_code}: {resposta.text}",
+        )
 
 
 def _rejeitados_schema(api: httpx.Client) -> int | None:

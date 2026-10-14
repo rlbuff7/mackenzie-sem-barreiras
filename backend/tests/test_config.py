@@ -32,3 +32,14 @@ def test_parametros_do_env_do_projeto_sao_aceitos() -> None:
     assert configuracoes.dbscan_eps_metros > 0
     assert configuracoes.dbscan_min_points >= 1
     assert configuracoes.min_confirmacoes >= 1
+
+
+def test_codigo_da_equipe_da_medicao_vem_vazio_por_padrao() -> None:
+    """Vazio = medição desligada no servidor (`POST /medicoes` responde 503)."""
+    assert Configuracoes.model_fields["medicao_codigo_equipe"].default == ""
+
+
+def test_codigo_da_equipe_da_medicao_e_lido_do_ambiente(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MEDICAO_CODIGO_EQUIPE", "codigo-de-teste")
+
+    assert Configuracoes().medicao_codigo_equipe == "codigo-de-teste"

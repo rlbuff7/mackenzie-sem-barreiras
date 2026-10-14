@@ -1,11 +1,24 @@
-/* Estilos só da página de medição. Cores, fonte e botões vêm de ../estilos.css e dos tokens do Design System. */
+/*
+ * Estilos só da página de medição (fluxo guiado aprovado no canvas de 14/10/2026).
+ * Cores, fonte e botões vêm de ../estilos.css e dos tokens do Design System: só var(--token).
+ * Nunca só cor: cada estado tem palavra e forma (● ▲ ■, ✓ ◆ ✕, sólido ou tracejado).
+ */
 
 /* Lacuna do Design System: o aviso forte pede texto branco em todos os temas, mas o token
    sobre-primaria vira escuro no tema escuro (fundo aviso-forte também escuro). Até existir um
    token próprio (proposta: sobre-aviso-forte), o branco fica só aqui. */
-.medicao { --sobre-aviso-forte: #ffffff; padding-bottom: 3rem; }
+.medicao { --sobre-aviso-forte: #ffffff; }
 
-.medicao__avisos { position: sticky; top: 0; z-index: 10; }
+.medicao__tela {
+  display: flex;
+  flex-direction: column;
+  max-width: 40rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+}
+
+.medicao__avisos { position: sticky; top: 0; z-index: 1200; }
 
 /* Aviso (componente Aviso). */
 .medicao__aviso {
@@ -13,7 +26,8 @@
   padding: var(--espaco-3) var(--espaco-5);
   background: var(--primaria-escura);
   color: var(--sobre-primaria);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   border-bottom: 3px solid var(--sobre-primaria);
 }
 
@@ -23,24 +37,99 @@
   border-bottom-color: var(--sobre-aviso-forte);
 }
 
-.medicao__cabecalho,
-.medicao__principal { max-width: 40rem; margin: 0 auto; padding: 0 var(--espaco-5); }
+.medicao__topo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+  padding: var(--espaco-4) var(--espaco-5) var(--espaco-3);
+}
 
-.medicao__cabecalho h1 { font-size: 1.5rem; margin-bottom: var(--espaco-1); }
+.medicao__linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--espaco-3);
+}
 
-/* Seção (componente Secao). */
-.medicao__secao {
+.medicao__voltar {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo-toque);
+  font-weight: 600;
+  color: var(--primaria-escura);
+}
+
+.medicao__linha .seletor-tema { margin: 0; flex-wrap: nowrap; }
+.medicao__linha .seletor-tema select { max-width: 13rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
+
+.medicao__titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--espaco-3);
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primaria-escura);
+}
+
+.medicao__titulo-medicao {
+  font-family: var(--font-texto);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+/* Barra de 12 segmentos, só no azul da marca (laranja é só do foco do teclado):
+   feito = primaria cheio; atual = primaria-escura cheio e mais alto; pendente = vazado;
+   pulado = vazado e tracejado. */
+.medicao__progresso {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: center;
+  gap: var(--espaco-1);
+}
+
+.medicao__segmento {
+  height: 8px;
+  box-sizing: border-box;
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-marcador);
+  background: transparent;
+}
+
+.medicao__segmento[data-pulado="true"] { border-style: dashed; }
+
+.medicao__segmento[data-completo="true"] { background: var(--primaria); border-color: var(--primaria); }
+
+.medicao__segmento[data-atual="true"] {
+  height: 12px;
+  background: var(--primaria-escura);
+  border-color: var(--primaria-escura);
+}
+
+/* Configuração recolhível. */
+.medicao__config {
   background: var(--superficie);
   border: var(--linha-fina) solid var(--borda);
   border-left: var(--linha-secao) solid var(--primaria);
   border-radius: var(--raio-secao);
-  padding: var(--espaco-5);
-  margin-top: var(--espaco-5);
 }
 
-.medicao__secao h2 { margin-top: 0; font-size: 1.15rem; }
+.medicao__config > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--alvo-toque);
+  padding: 0 var(--espaco-4);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
 
-/* Campo (componente Campo). */
+.medicao__config-corpo { padding: 0 var(--espaco-4) var(--espaco-4); }
+
+.medicao .campo { margin-bottom: 0.9rem; }
+
 .medicao .campo input,
 .medicao .campo select {
   display: block;
@@ -54,7 +143,9 @@
   border-radius: var(--raio-controle);
 }
 
-.medicao .ajuda { color: var(--texto-suave); }
+.medicao .ajuda { color: var(--texto-suave); font-size: 0.9rem; margin: var(--espaco-2) 0 var(--espaco-3); }
+
+.medicao__codigo-salvo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--espaco-3); margin: 0; }
 
 .medicao__botoes { display: flex; flex-wrap: wrap; gap: var(--espaco-3); }
 
@@ -64,11 +155,6 @@
   color: var(--sobre-primaria);
 }
 
-.medicao__status,
-.medicao__leitura { margin: var(--espaco-4) 0 0; min-height: 1.4em; }
-
-.medicao__leitura { font-size: 1.25rem; font-weight: 600; }
-
 .medicao__confirmacao {
   margin-top: var(--espaco-4);
   padding: var(--espaco-4);
@@ -76,8 +162,250 @@
   border-radius: var(--raio-secao);
 }
 
-.medicao__lista { padding-left: var(--espaco-6); margin: var(--espaco-5) 0 0; }
+.medicao__faixa {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--espaco-3);
+  padding: var(--espaco-2) var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-controle) solid var(--primaria);
+  border-radius: var(--raio-secao);
+}
 
-.medicao__lista li { margin-bottom: var(--espaco-3); overflow-wrap: anywhere; }
+.medicao__faixa p { margin: 0; font-weight: 600; font-size: 0.9rem; }
 
-.medicao .campo { margin-bottom: 0.9rem; }
+/* Corpo */
+.medicao__principal { flex: 1 1 auto; padding: 0 var(--espaco-5) var(--espaco-5); }
+
+.medicao__mapa {
+  width: 100%;
+  height: 220px;
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-secao);
+  background: var(--borda);
+  position: relative;
+  z-index: 0;
+}
+
+.medicao__nota { margin: var(--espaco-3) 0 0; font-size: 0.9rem; color: var(--texto-suave); }
+
+.medicao__paineis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--espaco-3);
+  margin-top: var(--espaco-4);
+}
+
+.medicao__painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-1);
+  padding: var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-secao);
+}
+
+/* Selo da precisão: palavra e forma sempre; cor de estado só quando algo não está bom. */
+.medicao__painel[data-nivel="boa"] .medicao__painel-nivel { color: var(--primaria); }
+.medicao__painel[data-nivel="media"] .medicao__painel-nivel { color: var(--pendente); }
+.medicao__painel[data-nivel="ruim"] .medicao__painel-nivel { color: var(--perigo); }
+
+.medicao__painel-rotulo { font-size: 0.85rem; color: var(--texto-suave); }
+
+.medicao__painel-valor {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.medicao__painel-nivel { font-size: 0.9rem; font-weight: 700; }
+
+.medicao__barra-contagem {
+  height: 8px;
+  margin-top: var(--espaco-2);
+  overflow: hidden;
+  border: var(--linha-fina) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+}
+
+.medicao__barra-contagem > div { height: 100%; width: 0; background: var(--primaria); }
+
+.medicao__botao-contagem {
+  min-height: var(--alvo-toque);
+  margin-top: var(--espaco-1);
+  padding: 0 var(--espaco-3);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primaria-escura);
+  background: var(--superficie);
+  border: var(--linha-controle) solid var(--primaria);
+  border-radius: var(--raio-controle);
+  cursor: pointer;
+}
+
+.medicao__botao-contagem:hover { background: var(--realce); }
+
+.medicao__dica { margin: var(--espaco-4) 0 0; font-size: 0.9rem; color: var(--texto-suave); }
+
+.medicao__envio { margin: var(--espaco-2) 0 0; min-height: 1.4em; font-size: 0.9rem; font-weight: 600; }
+
+.medicao__status { margin: var(--espaco-3) 0 0; min-height: 1.4em; font-size: 0.9rem; }
+
+.medicao__leitura { margin: var(--espaco-4) 0 0; font-size: 1.2rem; font-weight: 600; }
+
+.medicao__bussola {
+  margin-top: var(--espaco-4);
+  padding: var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-left: var(--linha-secao) solid var(--primaria);
+  border-radius: var(--raio-secao);
+}
+
+.medicao__bussola h2 { font-size: 1.1rem; margin-bottom: var(--espaco-3); }
+
+/* Cartões de estado do envio: ícone + palavra + borda (sólida, tracejada) em vez de só cor. */
+.medicao__cartao {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-4);
+  margin-top: var(--espaco-4);
+  padding: var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-controle) solid var(--primaria);
+  border-radius: var(--raio-secao);
+}
+
+.medicao__cartao[data-estado="fila"] { border-color: var(--pendente); border-style: dashed; }
+.medicao__cartao[data-estado="recusado"] { border-color: var(--perigo); }
+
+.medicao__cartao-titulo { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.medicao__cartao-detalhe { margin: 0; font-size: 0.9rem; color: var(--texto-suave); }
+
+.medicao__icone {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  border-radius: var(--raio-circulo);
+  background: var(--primaria);
+  color: var(--sobre-primaria);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.medicao__cartao[data-estado="fila"] .medicao__icone {
+  background: transparent;
+  color: var(--pendente);
+  border: 3px dashed var(--pendente);
+  border-radius: var(--raio-controle);
+  font-size: 1.1rem;
+}
+
+.medicao__cartao[data-estado="recusado"] .medicao__icone { background: var(--perigo); }
+
+.medicao__proximo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 56px;
+  margin-top: var(--espaco-4);
+  padding: 0 var(--espaco-5);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sobre-primaria);
+  background: var(--primaria);
+  border: var(--linha-controle) solid var(--primaria-escura);
+  border-radius: var(--raio-secao);
+  cursor: pointer;
+}
+
+.medicao__proximo:hover { background: var(--primaria-escura); }
+
+.medicao__ultimos {
+  margin-top: var(--espaco-5);
+  padding: var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-secao);
+}
+
+.medicao__ultimos h2 { font-size: 1rem; margin-bottom: var(--espaco-2); }
+
+.medicao__lista { list-style: none; margin: 0; padding: 0; }
+
+.medicao__lista li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--espaco-1) var(--espaco-4);
+  padding: var(--espaco-3) 0;
+  border-bottom: var(--linha-fina) solid var(--borda);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.medicao__lista li:last-child { border-bottom: 0; }
+.medicao__item-estado { font-weight: 700; text-align: right; }
+.medicao__item-estado[data-estado="enviado"] { color: var(--primaria); }
+.medicao__item-estado[data-estado="na_fila"] { color: var(--pendente); }
+.medicao__item-estado[data-estado="recusado"] { color: var(--perigo); }
+.medicao__item-valor { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* Barra fixa embaixo (botão principal sempre ao alcance do polegar). */
+.medicao__barra {
+  position: sticky;
+  bottom: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+  padding: var(--espaco-4) var(--espaco-5);
+  background: var(--superficie);
+  border-top: var(--linha-fina) solid var(--borda);
+}
+
+.medicao__barra[hidden] { display: none; }
+
+.medicao__barra--linha { flex-direction: row; }
+.medicao__barra--linha .botao { flex: 1 1 0; min-height: 48px; }
+
+.medicao__barra-linha { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--espaco-3); }
+.medicao__barra-linha .botao { min-height: 48px; }
+
+.medicao__barra .medicao__status { margin: 0; min-height: 0; }
+.medicao__barra .medicao__status:empty { display: none; }
+
+.medicao__registrar {
+  min-height: 56px;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sobre-primaria);
+  background: var(--primaria);
+  border: var(--linha-controle) solid var(--primaria-escura);
+  border-radius: var(--raio-secao);
+  cursor: pointer;
+}
+
+.medicao__registrar:hover { background: var(--primaria-escura); }
+.medicao__registrar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Halo da precisão e marcador sobre o mapa pequeno: ver ../mapa/marcadores.css. */
+
+/* O atributo hidden vale sobre qualquer display definido acima. */
+.medicao [hidden] { display: none !important; }
+
+/* Setinha do resumo recolhível (o marcador padrão some com display:flex). */
+.medicao__config > summary { list-style: none; }
+.medicao__config > summary::-webkit-details-marker { display: none; }
+.medicao__config > summary::before { content: "▸"; margin-right: var(--espaco-3); }
+.medicao__config[open] > summary::before { content: "▾"; }

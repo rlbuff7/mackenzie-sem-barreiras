@@ -52,6 +52,10 @@ services:
       # `TOKEN_ADMIN=... ./scripts/ponta-a-ponta.sh` testa com um token
       # temporário sem editar o .env. Sem nada no shell, vale o do .env.
       TOKEN_ADMIN: ${TOKEN_ADMIN:-}
+      # Código da equipe da medição de GPS (POST /medicoes). Mesma razão do
+      # TOKEN_ADMIN: o shell tem prioridade sobre o .env, e o E2E liga a medição
+      # com `MEDICAO_CODIGO_EQUIPE=x ./scripts/ponta-a-ponta.sh`. Vazio = desligada (503).
+      MEDICAO_CODIGO_EQUIPE: ${MEDICAO_CODIGO_EQUIPE:-}
       # Mesma razão do TOKEN_ADMIN: o shell (ou o .env, pela interpolação do
       # compose) decide se /docs, /redoc e /openapi.json existem.
       EXPOR_DOCS: ${EXPOR_DOCS:-true}

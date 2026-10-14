@@ -62,6 +62,9 @@ const TEXTO: [string, string, string][] = [
   ["sobre-primaria", "primaria-escura", "aviso de segurança, hover, pular conteúdo"],
   ["sobre-primaria", "perigo", "botão de perigo"],
   [BRANCO, "aviso-forte", "aviso de HTTPS (medicao.css)"],
+  ["primaria", "superficie", "✓ enviado e ● boa (azul da marca, sem verde)"],
+  ["pendente", "superficie", "estado na fila, precisão média"],
+  ["perigo", "superficie", "estado recusado, precisão ruim"],
 ];
 
 // [frente, fundo, onde]
@@ -75,6 +78,12 @@ const NAO_TEXTO: [string, string, string][] = [
   ["mapa-acessivel", TILE_OSM, "marcador acessível sobre o tile"],
   ["mapa-atencao", TILE_OSM, "marcador de atenção sobre o tile"],
   ["mapa-rota", TILE_OSM, "rota sobre o tile"],
+  ["mapa-rota", "mapa-posicao", "rota nunca se confunde com a bola de posição"],
+  ["mapa-contorno", "mapa-posicao", "borda branca da bola de posição"],
+  ["primaria", "fundo", "segmento feito da barra de progresso"],
+  ["primaria-escura", "fundo", "segmento atual da barra de progresso"],
+  ["pendente", "superficie", "borda do cartão na fila"],
+  ["borda-controle", "fundo", "contorno do segmento pendente (vazado) da barra de progresso"],
 ];
 
 for (const { id: tema } of tokens.color.themes) {

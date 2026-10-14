@@ -1,127 +1,161 @@
-/* Estilos só da página inicial. Cores, fonte e foco vêm de ../estilos.css e dos tokens do Design System. */
-.inicio { padding-bottom: 2rem; }
-
-.inicio__cabecalho,
-.inicio__principal,
-.inicio__rodape {
-  max-width: var(--largura-leitura);
-  margin: 0 auto;
-  padding: 0 var(--espaco-5);
+/*
+ * Estilos só da página inicial (layout aprovado no canvas de 14/10/2026): no celular, o mapa
+ * ocupa a tela e um cartão fica embaixo; no desktop, o cartão fica ao lado do mapa.
+ * Cores, fonte e foco vêm de ../estilos.css e dos tokens do Design System.
+ */
+.inicio__tela {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-.inicio__cabecalho { padding-top: var(--espaco-6); }
+/* z-index 0 cria o contexto de empilhamento: os painéis do Leaflet (z-index até 1000) ficam aqui dentro. */
+.inicio__area-mapa {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 auto;
+  min-height: 45dvh;
+  min-height: 45vh;
+  background: var(--borda);
+}
+
+.inicio__mapa {
+  position: absolute;
+  inset: 0;
+}
+
+.inicio__mapa-aviso {
+  position: absolute;
+  left: var(--espaco-5);
+  right: var(--espaco-5);
+  top: 4.5rem;
+  z-index: 500;
+  margin: 0;
+  padding: var(--espaco-4);
+  background: var(--superficie);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+}
+
+/* Etiqueta do campus e seletor de tema, por cima do mapa (acima dos painéis do Leaflet). */
+.inicio__topo-mapa {
+  position: absolute;
+  top: var(--espaco-5);
+  left: var(--espaco-5);
+  right: var(--espaco-5);
+  z-index: 1100;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--espaco-3);
+  pointer-events: none;
+}
+
+.inicio__topo-mapa > * { pointer-events: auto; }
+
+.inicio__chip {
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-controle);
+  padding: var(--espaco-3) var(--espaco-4);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primaria-escura);
+}
+
+.inicio__topo-mapa .seletor-tema {
+  margin: 0;
+  padding: var(--espaco-2) var(--espaco-3);
+  flex-wrap: nowrap;
+  background: var(--superficie);
+  border: var(--linha-fina) solid var(--borda);
+  border-radius: var(--raio-controle);
+}
+
+.inicio__topo-mapa .seletor-tema select { max-width: 11rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
+
+.inicio__cartao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4);
+  padding: var(--espaco-5) var(--espaco-5) var(--espaco-6);
+  background: var(--superficie);
+  border-top: var(--linha-secao) solid var(--primaria);
+  border-radius: var(--raio-secao) var(--raio-secao) 0 0;
+}
+
+.inicio__titulos { display: flex; flex-direction: column; gap: var(--espaco-1); }
 
 .inicio__etiqueta {
-  font-size: 0.9rem;
+  margin: 0;
+  font-size: 0.85rem;
   color: var(--texto-suave);
-  margin-bottom: var(--espaco-1);
 }
 
-.inicio__cabecalho h1 {
-  font-size: clamp(1.6rem, 5vw, 2.4rem);
+.inicio__cartao h1 {
+  font-size: clamp(1.5rem, 6vw, 1.9rem);
   font-weight: 800;
   color: var(--primaria-escura);
 }
 
-.inicio__frase {
-  margin-top: var(--espaco-3);
-  max-width: 60ch;
-  font-size: 1.1rem;
-}
-
-/* Aviso de segurança (componente Aviso): texto e título, nunca só cor; borda grossa. */
+/* Aviso de segurança (componente Aviso): selo e texto, nunca só cor; o título "Aviso de segurança"
+   fica no HTML para o leitor de tela, escondido só da vista. */
 .inicio__aviso {
-  max-width: var(--largura-leitura);
-  margin: var(--espaco-6) auto 0;
-  padding: 0.9rem var(--espaco-5);
+  display: flex;
+  gap: var(--espaco-4);
+  align-items: flex-start;
+  padding: var(--espaco-4);
   background: var(--primaria-escura);
   color: var(--sobre-primaria);
-  border-left: var(--linha-aviso) solid var(--sobre-primaria);
-  font-size: 1.05rem;
+  border-radius: var(--raio-secao);
 }
 
-.inicio__aviso-titulo {
-  font-size: 1rem;
-  margin: 0 0 var(--espaco-1);
-  text-transform: uppercase;
+.inicio__selo {
+  flex: none;
+  padding: 0 var(--espaco-2);
+  border: var(--linha-controle) solid var(--sobre-primaria);
+  border-radius: var(--raio-controle);
+  font-size: 0.75rem;
+  font-weight: 700;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
-.inicio__aviso p { margin: 0; font-weight: 600; }
-
-@media (min-width: 60rem) {
-  .inicio__aviso { border-radius: var(--raio-controle); }
+.inicio__aviso p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-/* Seção (componente Secao). */
-.inicio__secao {
-  background: var(--superficie);
-  border: var(--linha-fina) solid var(--borda);
-  border-left: var(--linha-secao) solid var(--primaria);
-  border-radius: var(--raio-secao);
-  padding: var(--espaco-5) 1.2rem 1.2rem;
-  margin-top: var(--espaco-6);
-}
-
-.inicio__secao h2 { font-size: 1.3rem; margin-bottom: var(--espaco-3); }
-
-.inicio__secao h3 {
-  font-size: 1.05rem;
-  margin: var(--espaco-5) 0 var(--espaco-2);
-  color: var(--primaria-escura);
-}
-
-.inicio__lista { margin: 0; padding-left: var(--espaco-6); }
-.inicio__lista li { margin-bottom: 0.4rem; }
-
-.inicio__nota {
-  font-size: 0.95rem;
+/* Ação ainda indisponível: tracejado e texto dizem que não vale hoje (não é só cor). */
+.inicio__destino {
+  min-height: 56px;
+  padding: 0 var(--espaco-5);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  background: var(--fundo);
   color: var(--texto-suave);
-  margin: var(--espaco-4) 0 0;
-}
-
-.inicio__nota a,
-.inicio__rodape a { color: var(--primaria-escura); font-weight: 600; }
-
-.inicio__nota a {
-  display: inline-block;
-  padding: var(--espaco-3) 0;
-  min-height: var(--alvo-toque);
-}
-
-.inicio__mapa {
-  width: 100%;
-  height: 50vh;
-  height: 50dvh;
-  min-height: 300px;
-  margin-top: 0.5rem;
-  border: var(--linha-fina) solid var(--borda);
+  border: var(--linha-controle) dashed var(--borda-controle);
   border-radius: var(--raio-secao);
-  background: var(--borda);
+  cursor: not-allowed;
 }
 
-/* Marcador "você está aqui" (MarcadorMapa): quadrado de borda dupla, só tokens mapa-*,
-   que não mudam com o tema porque os tiles são sempre claros. */
-.inicio__marcador {
-  display: block;
-  box-sizing: border-box;
-  width: 22px;
-  height: 22px;
-  background: var(--mapa-posicao);
-  border: 3px solid var(--mapa-contorno);
-  box-shadow: 0 0 0 2px var(--mapa-posicao), var(--sombra-marcador);
-}
-
-/* Link grande (componente LinkGrande): a ação principal da página, com 64 px de altura. */
+/* Link grande (componente LinkGrande): a ação principal da página. */
 .inicio__link-grande {
-  display: block;
-  min-height: var(--alvo-grande);
-  padding: var(--espaco-5) 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-4);
+  min-height: 56px;
+  padding: 0 var(--espaco-5);
   background: var(--primaria);
   color: var(--sobre-primaria);
   border: var(--linha-controle) solid var(--primaria-escura);
   border-radius: var(--raio-secao);
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -129,16 +163,23 @@
 
 .inicio__link-grande:hover { background: var(--primaria-escura); }
 
-.inicio__link-detalhe {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 0.95rem;
-  font-weight: 400;
-  text-decoration: none;
-}
-
-.inicio__rodape {
-  margin-top: var(--espaco-7);
-  font-size: 0.9rem;
-  color: var(--texto-suave);
+@media (min-width: 60rem) {
+  .inicio__tela {
+    display: grid;
+    grid-template-columns: minmax(22rem, 28rem) 1fr;
+    grid-template-areas: "cartao mapa";
+    height: 100dvh;
+    min-height: 0;
+  }
+  .inicio__area-mapa { grid-area: mapa; min-height: 0; }
+  .inicio__cartao {
+    grid-area: cartao;
+    justify-content: center;
+    gap: var(--espaco-6);
+    padding: var(--espaco-7);
+    border-top: 0;
+    border-right: var(--linha-secao) solid var(--primaria);
+    border-radius: 0;
+    overflow-y: auto;
+  }
 }
