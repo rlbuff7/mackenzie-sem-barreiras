@@ -22,73 +22,8 @@
   <body class="inicio">
     <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo principal</a>
 
-    <header class="inicio__cabecalho">
-      <p class="inicio__etiqueta">Protótipo em construção — TCC, FCI/Mackenzie</p>
-      <h1>Navegação Acessível no Campus Mackenzie</h1>
-      <p class="inicio__frase">
-        O sistema vai indicar uma rota acessível e dar orientação falada nas áreas externas do
-        campus, até a entrada dos prédios. A prioridade são as pessoas com deficiência visual.
-      </p>
-      <div class="seletor-tema">
-        <label for="seletor-tema">Tema</label>
-        <select id="seletor-tema">
-          <option value="automatico">Automático (segue o aparelho)</option>
-          <option value="claro">Claro</option>
-          <option value="escuro">Escuro</option>
-          <option value="alto-contraste">Alto contraste</option>
-        </select>
-      </div>
-    </header>
-
-    <div class="inicio__aviso" role="note" aria-labelledby="titulo-aviso">
-      <h2 id="titulo-aviso" class="inicio__aviso-titulo">Aviso de segurança</h2>
-      <p>
-        Este sistema é apoio à orientação. Nunca substitui a bengala, o cão-guia ou as técnicas de
-        mobilidade.
-      </p>
-    </div>
-
-    <main id="conteudo-principal" class="inicio__principal">
-      <section aria-labelledby="titulo-estado" class="inicio__secao">
-        <h2 id="titulo-estado">Estado do protótipo</h2>
-
-        <h3>Já existe</h3>
-        <ul class="inicio__lista">
-          <li><strong>Pronto:</strong> o mapa do campus, mostrado mais abaixo nesta página.</li>
-          <li>
-            <strong>Pronto:</strong> o banco de dados de rotas, preparado para receber o
-            mapeamento das ruas e caminhos do campus.
-          </li>
-          <li>
-            <strong>Pronto:</strong> a ferramenta da equipe para medir a precisão do GPS e da
-            bússola do celular.
-          </li>
-        </ul>
-
-        <h3>Vem a seguir</h3>
-        <ul class="inicio__lista">
-          <li>
-            <strong>Em construção:</strong> mapeamento dos caminhos do campus, para formar a rede
-            de rotas.
-          </li>
-          <li>
-            <strong>Previsto para novembro de 2026:</strong> rota e orientação falada, no
-            protótipo que será apresentado.
-          </li>
-        </ul>
-        <p class="inicio__nota">
-          Nada nesta página calcula rota ou dá instrução de caminho ainda. Ela mostra só o que
-          existe hoje.
-        </p>
-      </section>
-
-      <section aria-labelledby="titulo-mapa" class="inicio__secao">
-        <h2 id="titulo-mapa">Mapa do campus</h2>
-        <p id="descricao-mapa">
-          Campus Mackenzie Higienópolis, em São Paulo, na região central da cidade (latitude
-          -23,5475, longitude -46,6522). O mapa abaixo é só uma referência visual; tudo o que a
-          página informa está no texto.
-        </p>
+    <div class="inicio__tela">
+      <div class="inicio__area-mapa">
         <div
           id="mapa-campus"
           class="inicio__mapa"
@@ -96,32 +31,48 @@
           aria-label="Mapa do campus Mackenzie Higienópolis (referência visual)"
           aria-describedby="descricao-mapa"
         ></div>
-        <p class="inicio__nota">
-          <a
-            href="https://www.openstreetmap.org/?mlat=-23.5475&amp;mlon=-46.6522#map=17/-23.5475/-46.6522"
-            rel="noopener"
-            >Abrir esta região no site do OpenStreetMap</a
-          >
+        <p id="descricao-mapa" class="oculto-visualmente">
+          Campus Mackenzie Higienópolis, em São Paulo, na região central da cidade (latitude
+          -23,5475, longitude -46,6522). O mapa é só uma referência visual; tudo o que a página
+          informa está no texto.
         </p>
-        <p id="mapa-indisponivel" class="inicio__nota" role="status" hidden>
+        <p id="mapa-indisponivel" class="inicio__mapa-aviso" role="status" hidden>
           O mapa não pôde ser carregado agora. O restante da página continua valendo.
         </p>
-      </section>
+        <div class="inicio__topo-mapa">
+          <span class="inicio__chip">Campus Higienópolis</span>
+          <div class="seletor-tema">
+            <label for="seletor-tema">Tema</label>
+            <select id="seletor-tema">
+              <option value="automatico">Automático (segue o aparelho)</option>
+              <option value="claro">Claro</option>
+              <option value="escuro">Escuro</option>
+              <option value="alto-contraste">Alto contraste</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-      <section aria-labelledby="titulo-equipe" class="inicio__secao">
-        <h2 id="titulo-equipe">Para a equipe</h2>
+      <main id="conteudo-principal" class="inicio__cartao">
+        <div class="inicio__titulos">
+          <p class="inicio__etiqueta">TCC · FCI/Mackenzie · protótipo em construção</p>
+          <h1>Navegação Acessível no Campus Mackenzie</h1>
+        </div>
+
+        <div class="inicio__aviso" role="note" aria-labelledby="titulo-aviso">
+          <h2 id="titulo-aviso" class="oculto-visualmente">Aviso de segurança</h2>
+          <span class="inicio__selo" aria-hidden="true">SEGURANÇA</span>
+          <p>Apoio à orientação. Nunca substitui a bengala, o cão-guia ou as técnicas de mobilidade.</p>
+        </div>
+
+        <button type="button" class="inicio__destino" disabled>Escolher destino · em novembro</button>
+
         <a class="inicio__link-grande" href="/medicao.html">
-          Medição de GPS (equipe)
-          <span class="inicio__link-detalhe">Ferramenta de campo. Não é navegação.</span>
+          <span>Medição de GPS (equipe)</span>
+          <span aria-hidden="true">→</span>
         </a>
-      </section>
-    </main>
-
-    <footer class="inicio__rodape">
-      <p>
-        Projeto de TCC (FCI/Mackenzie). Mapa: &copy; colaboradores do OpenStreetMap.
-      </p>
-    </footer>
+      </main>
+    </div>
 
     <script type="module" src="/src/inicio/pagina.ts"></script>
   </body>
