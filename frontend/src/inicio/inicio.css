@@ -1,0 +1,139 @@
+/* Estilos só da página inicial. Paleta, fonte e foco vêm de ../estilos.css. */
+.inicio { padding-bottom: 2rem; }
+
+.inicio__cabecalho,
+.inicio__principal,
+.inicio__rodape {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.inicio__cabecalho { padding-top: 1.25rem; }
+
+.inicio__etiqueta {
+  font-size: 0.9rem;
+  color: var(--cor-texto-suave);
+  margin-bottom: 0.25rem;
+}
+
+.inicio__cabecalho h1 {
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-weight: 800;
+  color: var(--cor-primaria-escura);
+}
+
+.inicio__frase {
+  margin-top: 0.6rem;
+  max-width: 60ch;
+  font-size: 1.1rem;
+}
+
+/* Aviso de segurança: texto e título, nunca só cor; borda grossa e escura. */
+.inicio__aviso {
+  max-width: 56rem;
+  margin: 1.25rem auto 0;
+  padding: 0.9rem 1rem;
+  background: var(--cor-primaria-escura);
+  color: #fff;
+  border-left: 8px solid #fff;
+  font-size: 1.05rem;
+}
+
+.inicio__aviso-titulo {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inicio__aviso p { margin: 0; font-weight: 600; }
+
+@media (min-width: 60rem) {
+  .inicio__aviso { border-radius: 4px; }
+}
+
+.inicio__secao {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-left: 4px solid var(--cor-primaria);
+  border-radius: 6px;
+  padding: 1rem 1.2rem 1.2rem;
+  margin-top: 1.25rem;
+}
+
+.inicio__secao h2 { font-size: 1.3rem; margin-bottom: 0.6rem; }
+
+.inicio__secao h3 {
+  font-size: 1.05rem;
+  margin: 1rem 0 0.35rem;
+  color: var(--cor-primaria-escura);
+}
+
+.inicio__lista { margin: 0; padding-left: 1.25rem; }
+.inicio__lista li { margin-bottom: 0.4rem; }
+
+.inicio__nota {
+  font-size: 0.95rem;
+  color: var(--cor-texto-suave);
+  margin: 0.75rem 0 0;
+}
+
+.inicio__nota a,
+.inicio__rodape a { color: var(--cor-primaria-escura); font-weight: 600; }
+
+.inicio__nota a {
+  display: inline-block;
+  padding: 0.6rem 0;
+  min-height: 44px;
+}
+
+.inicio__mapa {
+  width: 100%;
+  height: 50vh;
+  height: 50dvh;
+  min-height: 300px;
+  margin-top: 0.5rem;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  background: var(--cor-borda);
+}
+
+.inicio__marcador {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: var(--cor-primaria);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px var(--cor-primaria-escura), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.inicio__link-grande {
+  display: block;
+  min-height: 64px;
+  padding: 1rem 1.2rem;
+  background: var(--cor-primaria);
+  color: #fff;
+  border: 2px solid var(--cor-primaria-escura);
+  border-radius: 6px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.inicio__link-grande:hover { background: var(--cor-primaria-escura); }
+
+.inicio__link-detalhe {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.inicio__rodape {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--cor-texto-suave);
+}
