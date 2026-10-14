@@ -1,11 +1,13 @@
 /**
- * Página inicial (index.html): só mostra o mapa do campus como referência visual.
+ * Página inicial (index.html): mapa do campus como referência visual, com o cartão de entrada.
  * Não chama a API do projeto (as rotas novas ainda não existem) e não depende de
  * nenhum terceiro além dos tiles do OpenStreetMap. Se o mapa falhar, o texto da
  * página continua completo.
  */
 import "../estilos.css";
 import "./inicio.css";
+import "../mapa/marcadores.css";
+import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -26,7 +28,10 @@ function iniciarMapaCampus(): void {
       zoom: ZOOM_INICIAL,
       minZoom: ZOOM_MINIMO,
       maxZoom: ZOOM_MAXIMO,
+      zoomControl: false,
     });
+    // Zoom embaixo à direita: no alto ficam a etiqueta do campus e o seletor de tema.
+    L.control.zoom({ position: "bottomright" }).addTo(mapa);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: ZOOM_MAXIMO,
@@ -34,15 +39,17 @@ function iniciarMapaCampus(): void {
         '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>',
     }).addTo(mapa);
 
-    // Marcador de referência: quadrado com borda dupla, para não depender só da cor.
+    // Referência do campus: a bola de posição, sem seta (aqui não há rumo, e o mapa não chuta direção).
+    // Não é a posição de quem abre a página: essa nunca é lida nem gravada nesta tela.
+    const metade = TAMANHO_ICONE_POSICAO_PX / 2;
     L.marker(CENTRO_CAMPUS, {
       title: "Campus Mackenzie Higienópolis (referência aproximada)",
       alt: "Campus Mackenzie Higienópolis (referência aproximada)",
       icon: L.divIcon({
         className: "",
-        html: '<span class="inicio__marcador" aria-hidden="true"></span>',
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
+        html: htmlMarcadorPosicao(null),
+        iconSize: [TAMANHO_ICONE_POSICAO_PX, TAMANHO_ICONE_POSICAO_PX],
+        iconAnchor: [metade, metade],
       }),
     }).addTo(mapa);
   } catch {

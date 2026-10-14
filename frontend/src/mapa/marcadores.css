@@ -1,0 +1,62 @@
+/*
+ * Marcadores do mapa (aprovados no canvas de 14/10/2026). Só tokens mapa-*, que não mudam com o
+ * tema porque os tiles do OpenStreetMap são sempre claros. HTML em marcadores.ts.
+ */
+
+/* Contêiner do divIcon de posição: 60 x 60 px, com a bola no centro. */
+.mapa-posicao {
+  position: relative;
+  display: block;
+  width: 60px;
+  height: 60px;
+}
+
+/* Você está aqui: BOLA de 22 px, borda branca de 4 px e sombra. */
+.mapa-bola {
+  position: absolute;
+  left: 19px;
+  top: 19px;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--raio-circulo);
+  background: var(--mapa-posicao);
+  border: 4px solid var(--mapa-contorno);
+  box-shadow: 0 0 0 1px var(--mapa-posicao), var(--sombra-marcador);
+}
+
+/* Seta de direção: triângulo que gira em torno do centro da bola (só existe quando há rumo). */
+.mapa-seta {
+  position: absolute;
+  left: 22px;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 15px solid var(--mapa-posicao);
+  transform-origin: 8px 30px;
+  filter: drop-shadow(0 0 1px var(--mapa-contorno));
+}
+
+/* Entrada acessível: PINO (gota), para não se confundir com a bola de posição. */
+.mapa-pino {
+  display: block;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  margin: 3px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--mapa-acessivel);
+  border: 2px solid var(--mapa-contorno);
+  box-shadow: 0 0 0 1px var(--mapa-acessivel);
+}
+
+/* Halo da precisão (L.circle com className): raio = accuracy em metros. */
+.mapa-halo {
+  fill: var(--mapa-posicao-halo);
+  fill-opacity: 1;
+  stroke: var(--mapa-posicao);
+  stroke-width: var(--linha-controle);
+}
