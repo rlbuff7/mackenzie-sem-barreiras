@@ -1,0 +1,73 @@
+/* Estilos só da página de medição. A paleta, a fonte e os botões vêm de ../estilos.css. */
+.medicao { padding-bottom: 3rem; }
+
+.medicao__avisos { position: sticky; top: 0; z-index: 10; }
+
+.medicao__aviso {
+  margin: 0;
+  padding: 0.6rem 1rem;
+  background: #123449;
+  color: #fff;
+  font-size: 0.95rem;
+  border-bottom: 3px solid #fff;
+}
+
+.medicao__aviso--https {
+  background: #7a2e0c;
+}
+
+.medicao__cabecalho,
+.medicao__principal { max-width: 40rem; margin: 0 auto; padding: 0 1rem; }
+
+.medicao__cabecalho h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+
+.medicao__secao {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.medicao__secao h2 { margin-top: 0; font-size: 1.15rem; }
+
+.medicao .campo input,
+.medicao .campo select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  color: var(--cor-texto);
+  background: #fff;
+  border: 2px solid var(--cor-texto-suave);
+  border-radius: 4px;
+}
+
+.medicao .ajuda { color: var(--cor-texto-suave); }
+
+.medicao__botoes { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.medicao .botao--perigo {
+  background: #8f2410;
+  border-color: #5e1709;
+  color: #fff;
+}
+
+.medicao__status,
+.medicao__leitura { margin: 0.75rem 0 0; min-height: 1.4em; }
+
+.medicao__leitura { font-size: 1.25rem; font-weight: 600; }
+
+.medicao__confirmacao {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 3px solid #8f2410;
+  border-radius: 6px;
+}
+
+.medicao__lista { padding-left: 1.25rem; margin: 1rem 0 0; }
+
+.medicao__lista li { margin-bottom: 0.6rem; overflow-wrap: anywhere; }
+
+.medicao .campo { margin-bottom: 0.9rem; }
