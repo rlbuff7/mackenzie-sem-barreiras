@@ -331,8 +331,18 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
 
         resposta = pedir(frontend, "GET", "/")
         v.checar(
-            "GET / do frontend devolve o index.html (200)",
-            resposta.status_code == 200 and "Mackenzie sem Barreiras" in resposta.text,
+            "GET / do frontend devolve a página inicial do escopo novo (200)",
+            resposta.status_code == 200
+            and "Navegação Acessível no Campus" in resposta.text
+            and "Aviso de segurança" in resposta.text
+            and "Relatar barreira" not in resposta.text,
+            f"HTTP {resposta.status_code}",
+        )
+
+        resposta = pedir(frontend, "GET", "/medicao.html")
+        v.checar(
+            "GET /medicao.html do frontend devolve a página de medição de GPS (200)",
+            resposta.status_code == 200 and "Medição de GPS" in resposta.text,
             f"HTTP {resposta.status_code}",
         )
 
