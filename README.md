@@ -23,12 +23,20 @@ de acessibilidade. Contexto completo, requisitos, decisões e convenções:
 ## Estado atual (14/10/2026)
 
 O escopo novo está no começo: o repositório ainda tem o código do escopo antigo e a
-documentação está sendo atualizada. Ainda **não existem** as tabelas de grafo (`nos`,
-`arestas`, `pontos_interesse`), o pgRouting, `app/orientacao/` nem as rotas novas.
+documentação está sendo atualizada. O M1 está feito: a migration
+`db/migrations/004_grafo_campus.sql` criou `pontos_interesse`, `nos` e `arestas` (com
+índices GiST) e habilitou o pgRouting 3.6.1 (imagem `pgrouting/pgrouting:16-3.4-3.6.1`:
+PostgreSQL 16, PostGIS 3.4 e pgRouting 3.6.1). As tabelas estão vazias até o
+mapeamento do campus. Ainda **não existem** `app/orientacao/`, as rotas novas da API
+nem os dados do campus.
+
+A página de medição de GPS (`frontend/medicao.html`, servida em `/medicao.html`) já
+existe. Fora do localhost ela só funciona em HTTPS (AWS ou túnel), e é necessária para a
+ida a campo de 22/10.
 
 **Reaproveitado do escopo antigo, continua em uso:**
 
-- Docker Compose e PostGIS
+- Docker Compose e PostGIS (agora com pgRouting 3.6.1 na mesma imagem)
 - migrations e seeds com `db/banco.sh`
 - backend FastAPI e sua estrutura
 - frontend Leaflet com proxy same-origin no nginx
@@ -174,7 +182,7 @@ As entregas virão como `docs/requisitos.md`, `docs/arquitetura.md`,
 
 **Código (em paralelo; um marco por vez)**
 
-- [ ] **M1**: migrations novas (`pontos_interesse`, `nos`, `arestas`, pgRouting)
+- [x] **M1**: migrations novas (`pontos_interesse`, `nos`, `arestas`, pgRouting): migration 004, tabelas ainda vazias
 - [ ] **M2**: recorte do campus digitalizado
 - [ ] **M3**: `GET /pontos-interesse` e `POST /rotas`
 - [ ] **M4**: `app/orientacao/` com testes e `POST /orientacoes`
