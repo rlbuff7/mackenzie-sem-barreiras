@@ -12,7 +12,8 @@ name: mackenzie-sem-barreiras
 
 services:
   db:
-    image: postgis/postgis:16-3.4
+    # PostgreSQL 16 + PostGIS 3.4 + pgRouting 3.6.1 (imagem oficial do projeto pgRouting)
+    image: pgrouting/pgrouting:16-3.4-3.6.1
     # Volta sozinho quando a VM do WSL reinicia; `docker compose stop` ainda para.
     restart: unless-stopped
     environment:
