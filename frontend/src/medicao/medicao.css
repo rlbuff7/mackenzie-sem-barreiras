@@ -70,7 +70,6 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   color: var(--primaria-escura);
 }
 
-.medicao__linha .seletor-tema { margin: 0; flex-wrap: nowrap; }
 .medicao__linha .seletor-tema select { max-width: 13rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
 
 .medicao__titulo {
@@ -166,6 +165,8 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   color: var(--sobre-primaria);
 }
 
+.medicao .botao--perigo:active { background: var(--perigo-escuro); }
+
 .medicao__confirmacao {
   margin-top: var(--espaco-4);
   padding: var(--espaco-4);
@@ -258,7 +259,7 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   cursor: pointer;
 }
 
-.medicao__botao-contagem:hover { background: var(--realce); }
+.medicao__botao-contagem:active { background: var(--realce-ativo); }
 
 .medicao__dica { margin: var(--espaco-4) 0 0; font-size: 0.9rem; color: var(--texto-suave); }
 
@@ -340,7 +341,7 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   cursor: pointer;
 }
 
-.medicao__proximo:hover { background: var(--primaria-escura); }
+.medicao__proximo:active { background: var(--primaria-escura); }
 
 .medicao__ultimos {
   margin-top: var(--espaco-5);
@@ -407,7 +408,7 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   cursor: pointer;
 }
 
-.medicao__registrar:hover { background: var(--primaria-escura); }
+.medicao__registrar:active:not(:disabled) { background: var(--primaria-escura); }
 .medicao__registrar:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Halo da precisão e marcador sobre o mapa pequeno: ver ../mapa/marcadores.css. */
@@ -420,3 +421,13 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
 .medicao__config > summary::-webkit-details-marker { display: none; }
 .medicao__config > summary::before { content: "▸"; margin-right: var(--espaco-3); }
 .medicao__config[open] > summary::before { content: "▾"; }
+
+/* Passar o mouse só em aparelho com mouse de verdade (no toque o :hover gruda). O estado pressionado
+   (:active) fica junto de cada botão acima e vale em qualquer aparelho. */
+@media (hover: hover) and (pointer: fine) {
+  .medicao__botao-contagem:hover { background: var(--realce); }
+  .medicao__botao-contagem:active { background: var(--realce-ativo); }
+  .medicao__proximo:hover { background: var(--primaria-escura); }
+  .medicao__registrar:hover:not(:disabled) { background: var(--primaria-escura); }
+  .medicao .botao--perigo:hover { background: var(--perigo-escuro); }
+}

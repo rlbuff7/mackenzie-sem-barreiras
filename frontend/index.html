@@ -17,6 +17,13 @@
           document.documentElement.setAttribute("data-tema", t);
         }
       } catch (e) {}
+      /* Mesma ideia para "Reduzir animações" (src/design/movimento.ts). */
+      try {
+        var m = localStorage.getItem("msb-movimento");
+        if (m === "reduzido") {
+          document.documentElement.setAttribute("data-movimento", "reduzido");
+        }
+      } catch (e) {}
     </script>
   </head>
   <body class="inicio">
@@ -41,14 +48,21 @@
         </p>
         <div class="inicio__topo-mapa">
           <span class="inicio__chip">Campus Higienópolis</span>
-          <div class="seletor-tema">
-            <label for="seletor-tema">Tema</label>
-            <select id="seletor-tema">
-              <option value="automatico">Automático (segue o aparelho)</option>
-              <option value="claro">Claro</option>
-              <option value="escuro">Escuro</option>
-              <option value="alto-contraste">Alto contraste</option>
-            </select>
+          <div class="preferencias">
+            <div class="seletor-tema">
+              <label for="seletor-tema">Tema</label>
+              <select id="seletor-tema">
+                <option value="automatico">Automático (segue o aparelho)</option>
+                <option value="claro">Claro</option>
+                <option value="escuro">Escuro</option>
+                <option value="alto-contraste">Alto contraste</option>
+              </select>
+            </div>
+            <div class="interruptor">
+              <input id="interruptor-movimento" type="checkbox" role="switch" aria-describedby="nota-movimento" />
+              <label for="interruptor-movimento">Reduzir animações</label>
+            </div>
+            <p id="nota-movimento" class="ajuda" hidden>Ligado pelo seu aparelho.</p>
           </div>
         </div>
       </div>

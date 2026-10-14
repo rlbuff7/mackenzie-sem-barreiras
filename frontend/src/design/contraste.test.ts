@@ -31,7 +31,7 @@ function razao(a: Rgb, b: Rgb): number {
   return (claro + 0.05) / (escuro + 0.05);
 }
 
-/** color-mix(in srgb, frente pct%, fundo): o realce de hover (--realce em estilos.css). */
+/** color-mix(in srgb, frente pct%, fundo): o realce de hover e o de pressionado (--realce e --realce-ativo em estilos.css). */
 function misturar(frente: Rgb, fundo: Rgb, pct: number): Rgb {
   return frente.map((v, i) => Math.round((v * pct) / 100 + fundo[i]! * (100 - pct) / 100)) as Rgb;
 }
@@ -43,6 +43,7 @@ function cor(tema: string, nome: string): Rgb {
   if (nome === BRANCO) return rgb(BRANCO);
   if (nome === TILE_OSM) return rgb(TILE_OSM);
   if (nome === "realce") return misturar(cor(tema, "primaria"), cor(tema, "superficie"), 10);
+  if (nome === "realce-ativo") return misturar(cor(tema, "primaria"), cor(tema, "superficie"), 20);
   const t = tokens.color.tokens.find((x) => x.name === nome);
   assert.ok(t, `token ${nome} não existe`);
   return rgb(t.value[tema]!);
@@ -58,6 +59,8 @@ const TEXTO: [string, string, string][] = [
   ["primaria-escura", "superficie", "h3 e links nas seções, botão secundário"],
   ["primaria-escura", "realce", "botão secundário em hover"],
   ["texto", "realce", "item de lista em hover"],
+  ["primaria-escura", "realce-ativo", "botão secundário pressionado (:active)"],
+  ["sobre-primaria", "perigo-escuro", "botão de perigo pressionado (:active) e em hover"],
   ["sobre-primaria", "primaria", "botão primário e link grande"],
   ["sobre-primaria", "primaria-escura", "aviso de segurança, hover, pular conteúdo"],
   ["sobre-primaria", "perigo", "botão de perigo"],

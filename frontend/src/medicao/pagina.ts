@@ -12,6 +12,7 @@ import "../mapa/marcadores.css";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
+import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
 import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
 import { rumoParaSeta } from "../mapa/rumo.ts";
 import { FilaEnvio, type FetchSimulavel, type ItemFila, type ResultadoRodada } from "./fila.ts";
@@ -383,10 +384,19 @@ function mostrarVista(nova: "medir" | "confirmar"): void {
   barraMedir.hidden = nova !== "medir";
   barraConfirmar.hidden = nova !== "confirmar";
   desenhar();
-  if (nova === "medir") mapa?.invalidateSize();
+  if (nova === "medir") mapa?.invalidateSize({ animate: false });
 }
 
 // ---------- mapa pequeno ----------
+
+/** O mapa nunca anima (público cego e com baixa visão): nada de zoom, fade, inércia nem salto no limite. */
+const SEM_ANIMACAO = {
+  zoomAnimation: false,
+  fadeAnimation: false,
+  markerZoomAnimation: false,
+  inertia: false,
+  bounceAtZoomLimits: false,
+} as const;
 
 let mapa: L.Map | null = null;
 let marcador: L.Marker | null = null;
@@ -395,7 +405,13 @@ let rumoDoMarcador: number | null | undefined;
 
 function iniciarMapa(): void {
   try {
-    mapa = L.map(el("mapa-medicao"), { center: CENTRO_CAMPUS, zoom: 17, minZoom: 15, maxZoom: 19 });
+    mapa = L.map(el("mapa-medicao"), {
+      center: CENTRO_CAMPUS,
+      zoom: 17,
+      minZoom: 15,
+      maxZoom: 19,
+      ...SEM_ANIMACAO,
+    });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution:
@@ -446,7 +462,7 @@ function atualizarMapa(): void {
     marcador.setIcon(iconePosicao(rumo));
     rumoDoMarcador = rumo;
   }
-  if (!mapa.getBounds().contains(ll)) mapa.panTo(ll);
+  if (!mapa.getBounds().contains(ll)) mapa.panTo(ll, { animate: false });
 }
 
 // ---------- posição (uma vigia só, usada pelo painel, pelo mapa e pelo trajeto) ----------
@@ -998,6 +1014,7 @@ window.addEventListener("online", () => {
 window.addEventListener("offline", desenhar);
 
 iniciarSeletorTema();
+iniciarInterruptorMovimento();
 iniciarMapa();
 desenharPrecisao(null);
 pararContagem();

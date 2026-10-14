@@ -9,6 +9,7 @@ import "./inicio.css";
 import "../mapa/marcadores.css";
 import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
+import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -17,6 +18,15 @@ const CENTRO_CAMPUS: L.LatLngTuple = [-23.5475, -46.6522];
 const ZOOM_INICIAL = 17;
 const ZOOM_MAXIMO = 19;
 const ZOOM_MINIMO = 15;
+
+/** O mapa nunca anima (público cego e com baixa visão): nada de zoom, fade, inércia nem salto no limite. */
+const SEM_ANIMACAO = {
+  zoomAnimation: false,
+  fadeAnimation: false,
+  markerZoomAnimation: false,
+  inertia: false,
+  bounceAtZoomLimits: false,
+} as const;
 
 function iniciarMapaCampus(): void {
   const contêiner = document.getElementById("mapa-campus");
@@ -29,6 +39,7 @@ function iniciarMapaCampus(): void {
       minZoom: ZOOM_MINIMO,
       maxZoom: ZOOM_MAXIMO,
       zoomControl: false,
+      ...SEM_ANIMACAO,
     });
     // Zoom embaixo à direita: no alto ficam a etiqueta do campus e o seletor de tema.
     L.control.zoom({ position: "bottomright" }).addTo(mapa);
@@ -60,4 +71,5 @@ function iniciarMapaCampus(): void {
 }
 
 iniciarSeletorTema();
+iniciarInterruptorMovimento();
 iniciarMapaCampus();

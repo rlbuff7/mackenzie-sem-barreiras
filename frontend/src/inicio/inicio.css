@@ -64,10 +64,9 @@
   color: var(--primaria-escura);
 }
 
-.inicio__topo-mapa .seletor-tema {
-  margin: 0;
+/* As preferências formam um só quadro sobre o mapa (tema em cima, interruptor embaixo). */
+.inicio__topo-mapa .preferencias {
   padding: var(--espaco-2) var(--espaco-3);
-  flex-wrap: nowrap;
   background: var(--superficie);
   border: var(--linha-fina) solid var(--borda);
   border-radius: var(--raio-controle);
@@ -161,7 +160,12 @@
   text-underline-offset: 4px;
 }
 
-.inicio__link-grande:hover { background: var(--primaria-escura); }
+.inicio__link-grande:active { background: var(--primaria-escura); }
+
+/* Passar o mouse só em aparelho com mouse de verdade; o :active acima vale em qualquer aparelho. */
+@media (hover: hover) and (pointer: fine) {
+  .inicio__link-grande:hover { background: var(--primaria-escura); }
+}
 
 @media (min-width: 60rem) {
   .inicio__tela {
