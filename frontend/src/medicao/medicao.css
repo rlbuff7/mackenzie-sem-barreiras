@@ -80,29 +80,33 @@
   color: var(--texto);
 }
 
-/* Barra de 12 segmentos: completo = cheio; atual = cheio na cor da marca com anel; pendente = vazado. */
+/* Barra de 12 segmentos, só no azul da marca (laranja é só do foco do teclado):
+   feito = primaria cheio; atual = primaria-escura cheio e mais alto; pendente = vazado;
+   pulado = vazado e tracejado. */
 .medicao__progresso {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: center;
   gap: var(--espaco-1);
 }
 
 .medicao__segmento {
-  height: 10px;
+  height: 8px;
   box-sizing: border-box;
   border: var(--linha-controle) solid var(--borda-controle);
   border-radius: var(--raio-marcador);
   background: transparent;
 }
 
-.medicao__segmento[data-completo="true"] { background: var(--confirmada); border-color: var(--confirmada); }
+.medicao__segmento[data-pulado="true"] { border-style: dashed; }
+
+.medicao__segmento[data-completo="true"] { background: var(--primaria); border-color: var(--primaria); }
 
 .medicao__segmento[data-atual="true"] {
-  outline: var(--linha-controle) solid var(--alerta);
-  outline-offset: 1px;
+  height: 12px;
+  background: var(--primaria-escura);
+  border-color: var(--primaria-escura);
 }
-
-.medicao__segmento[data-atual="true"][data-completo="false"] { background: var(--primaria); border-color: var(--primaria); }
 
 /* Configuração recolhível. */
 .medicao__config {
@@ -199,15 +203,13 @@
   gap: var(--espaco-1);
   padding: var(--espaco-4);
   background: var(--superficie);
-  border: var(--linha-controle) solid var(--primaria);
+  border: var(--linha-fina) solid var(--borda);
   border-radius: var(--raio-secao);
 }
 
-.medicao__painel[data-nivel="boa"] { border-color: var(--confirmada); }
-.medicao__painel[data-nivel="boa"] .medicao__painel-nivel { color: var(--confirmada); }
-.medicao__painel[data-nivel="media"] { border-color: var(--pendente); }
+/* Selo da precisão: palavra e forma sempre; cor de estado só quando algo não está bom. */
+.medicao__painel[data-nivel="boa"] .medicao__painel-nivel { color: var(--primaria); }
 .medicao__painel[data-nivel="media"] .medicao__painel-nivel { color: var(--pendente); }
-.medicao__painel[data-nivel="ruim"] { border-color: var(--perigo); border-style: dashed; }
 .medicao__painel[data-nivel="ruim"] .medicao__painel-nivel { color: var(--perigo); }
 
 .medicao__painel-rotulo { font-size: 0.85rem; color: var(--texto-suave); }
@@ -274,7 +276,7 @@
   margin-top: var(--espaco-4);
   padding: var(--espaco-4);
   background: var(--superficie);
-  border: var(--linha-controle) solid var(--confirmada);
+  border: var(--linha-controle) solid var(--primaria);
   border-radius: var(--raio-secao);
 }
 
@@ -293,7 +295,7 @@
   height: 40px;
   box-sizing: border-box;
   border-radius: var(--raio-circulo);
-  background: var(--confirmada);
+  background: var(--primaria);
   color: var(--sobre-primaria);
   font-size: 1.3rem;
   font-weight: 800;
@@ -353,7 +355,7 @@
 
 .medicao__lista li:last-child { border-bottom: 0; }
 .medicao__item-estado { font-weight: 700; text-align: right; }
-.medicao__item-estado[data-estado="enviado"] { color: var(--confirmada); }
+.medicao__item-estado[data-estado="enviado"] { color: var(--primaria); }
 .medicao__item-estado[data-estado="na_fila"] { color: var(--pendente); }
 .medicao__item-estado[data-estado="recusado"] { color: var(--perigo); }
 .medicao__item-valor { font-variant-numeric: tabular-nums; font-weight: 700; }

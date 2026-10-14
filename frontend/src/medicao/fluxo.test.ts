@@ -73,7 +73,14 @@ test("segmentosProgresso: 12 segmentos, completo com 3 medições, um atual", ()
   assert.deepEqual(seg.filter((s) => s.completo).map((s) => s.ponto), [1]);
   assert.deepEqual(seg.filter((s) => s.atual).map((s) => s.ponto), [2]);
   assert.equal(pontosCompletos(seg), 1);
+  assert.deepEqual(seg.filter((s) => s.pulado).map((s) => s.ponto), [], "nenhum ponto antes do atual ficou incompleto");
   assert.equal(textoProgresso(seg), "1 de 12 pontos completos. Ponto atual: 2.");
+});
+
+test("segmentosProgresso marca como pulado o ponto incompleto antes do atual", () => {
+  const seg = segmentosProgresso([ponto(1), ponto(1), ponto(1), ponto(2)], "Galaxy A54", 4);
+  assert.deepEqual(seg.filter((s) => s.pulado).map((s) => s.ponto), [2, 3]);
+  assert.ok(seg.filter((s) => s.completo || s.atual).every((s) => !s.pulado));
 });
 
 test("proximoPonto para no 12", () => {

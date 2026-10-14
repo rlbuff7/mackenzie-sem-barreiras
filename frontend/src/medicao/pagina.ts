@@ -235,6 +235,7 @@ function desenharCabecalho(): void {
     if (!filho) return;
     filho.setAttribute("data-completo", String(s.completo));
     filho.setAttribute("data-atual", String(s.atual));
+    filho.setAttribute("data-pulado", String(s.pulado));
   });
   progresso.setAttribute("aria-valuenow", String(pontosCompletos(segmentos)));
   progresso.setAttribute("aria-valuetext", textoProgresso(segmentos));

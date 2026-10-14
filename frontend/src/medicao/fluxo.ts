@@ -62,16 +62,15 @@ export interface Segmento {
   ponto: number;
   completo: boolean;
   atual: boolean;
+  /** Ficou para trás sem as 3 medições (foi pulado ou ficou pela metade). */
+  pulado: boolean;
 }
 
 export function segmentosProgresso(registros: readonly Registro[], aparelho: string, pontoAtual: number): Segmento[] {
   return Array.from({ length: TOTAL_PONTOS }, (_, i) => {
     const ponto = i + 1;
-    return {
-      ponto,
-      completo: medicoesFeitas(registros, ponto, aparelho) >= MEDICOES_POR_PONTO,
-      atual: ponto === pontoAtual,
-    };
+    const completo = medicoesFeitas(registros, ponto, aparelho) >= MEDICOES_POR_PONTO;
+    return { ponto, completo, atual: ponto === pontoAtual, pulado: !completo && ponto < pontoAtual };
   });
 }
 
