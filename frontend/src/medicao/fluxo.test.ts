@@ -77,15 +77,15 @@ test("textoMedicao: de 1 a 3 'N de 3'; depois, medição extra", () => {
   assert.equal(textoMedicao(4), "medição extra (4)");
 });
 
-test("segmentosProgresso: 12 segmentos, completo com 3 medições, um atual", () => {
+test("segmentosProgresso: 10 segmentos, completo com 3 medições, um atual", () => {
   const rs = [ponto(1), ponto(1), ponto(1), ponto(2), ponto(2)];
   const seg = segmentosProgresso(rs, "Galaxy A54", 2);
-  assert.equal(seg.length, 12);
+  assert.equal(seg.length, 10);
   assert.deepEqual(seg.filter((s) => s.completo).map((s) => s.ponto), [1]);
   assert.deepEqual(seg.filter((s) => s.atual).map((s) => s.ponto), [2]);
   assert.equal(pontosCompletos(seg), 1);
   assert.deepEqual(seg.filter((s) => s.pulado).map((s) => s.ponto), [], "nenhum ponto antes do atual ficou incompleto");
-  assert.equal(textoProgresso(seg), "1 de 12 pontos completos. Ponto atual: 2.");
+  assert.equal(textoProgresso(seg), "1 de 10 pontos completos. Ponto atual: 2.");
 });
 
 test("segmentosProgresso marca como pulado o ponto incompleto antes do atual", () => {
@@ -94,9 +94,9 @@ test("segmentosProgresso marca como pulado o ponto incompleto antes do atual", (
   assert.ok(seg.filter((s) => s.completo || s.atual).every((s) => !s.pulado));
 });
 
-test("proximoPonto para no 12", () => {
+test("proximoPonto para no 10", () => {
   assert.equal(proximoPonto(3), 4);
-  assert.equal(proximoPonto(12), null);
+  assert.equal(proximoPonto(10), null);
 });
 
 test("segundosRestantes arredonda para cima, não fica negativo e ignora relógio que voltou", () => {
@@ -169,8 +169,8 @@ test("etapaInicial: sem aparelho ou sem código começa em Preparar; com os dois
 });
 
 test("anuncioDaEtapa: uma frase por etapa, sem repetir o título (o foco já lê o título)", () => {
-  assert.equal(anuncioDaEtapa("medir", 3, 2), "Ponto 3 de 12, medição 2 de 3.");
-  assert.equal(anuncioDaEtapa("medir", 5, 4), "Ponto 5 de 12, medição extra (4).");
+  assert.equal(anuncioDaEtapa("medir", 3, 2), "Ponto 3 de 10, medição 2 de 3.");
+  assert.equal(anuncioDaEtapa("medir", 5, 4), "Ponto 5 de 10, medição extra (4).");
   assert.equal(anuncioDaEtapa("resultado", 3, 2), "Ponto 3 registrado, medição 2 de 3.");
   assert.match(anuncioDaEtapa("preparar", 1, 1), /aparelho/);
   for (const e of ETAPAS) {
