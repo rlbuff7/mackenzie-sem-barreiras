@@ -160,7 +160,7 @@ do Rodrigo (o arquivo vai por stdin, nada aparece na tela nem no histórico):
 ```bash
 ssh -i ~/.ssh/tcc-navegacao.pem ubuntu@<ip-elastico> '
   cd ~/mackenzie-sem-barreiras && cp .env .env.bak-$(date +%s) &&
-  read -r codigo &&
+  { read -r codigo || [ -n "$codigo" ]; } &&
   sed -i "/^MEDICAO_CODIGO_EQUIPE=/d" .env &&
   printf "MEDICAO_CODIGO_EQUIPE=%s\n" "$codigo" >> .env &&
   chmod 600 .env &&
