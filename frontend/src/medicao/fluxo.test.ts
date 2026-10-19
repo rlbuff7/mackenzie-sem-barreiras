@@ -1,13 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  anuncioDaEtapa,
+  anuncioRecomecou,
   classificarPrecisao,
   descreverEnvio,
+  ETAPAS,
+  etapaInicial,
+  numeroDaEtapa,
+  textoConfirmarRecomecar,
+  textoEtapa,
+  TOTAL_ETAPAS,
+  tituloEtapa,
   formatarMetros,
   fracaoContagem,
   numeroDaProximaMedicao,
   pontosCompletos,
+  medicoesFeitas,
   proximoPonto,
+  registrosDaRodada,
   segmentosProgresso,
   segundosRestantes,
   textoMedicao,
@@ -127,4 +138,87 @@ test("descreverEnvio: na fila sem sinal, offline, servidor desligado e falta de 
     descreverEnvio({ ...base, estado: "na_fila", temCodigo: false }).titulo,
     "Não enviado: falta o código da equipe",
   );
+});
+
+// ---------- etapas: uma por tela ----------
+
+test("são 3 etapas, nesta ordem: preparar, medir o ponto, resultado do ponto", () => {
+  assert.equal(TOTAL_ETAPAS, 3);
+  assert.deepEqual(
+    ETAPAS.map((e) => e.id),
+    ["preparar", "medir", "resultado"],
+  );
+  assert.equal(tituloEtapa("preparar"), "Preparar");
+  assert.equal(tituloEtapa("medir"), "Medir o ponto");
+  assert.equal(tituloEtapa("resultado"), "Resultado do ponto");
+});
+
+test("textoEtapa diz 'Etapa X de Y' e numeroDaEtapa conta de 1", () => {
+  assert.equal(numeroDaEtapa("preparar"), 1);
+  assert.equal(numeroDaEtapa("resultado"), 3);
+  assert.equal(textoEtapa("preparar"), "Etapa 1 de 3");
+  assert.equal(textoEtapa("medir"), "Etapa 2 de 3");
+  assert.equal(textoEtapa("resultado"), "Etapa 3 de 3");
+});
+
+test("etapaInicial: sem aparelho ou sem código começa em Preparar; com os dois, volta direto a Medir", () => {
+  assert.equal(etapaInicial({ temAparelho: false, temCodigo: false }), "preparar");
+  assert.equal(etapaInicial({ temAparelho: true, temCodigo: false }), "preparar");
+  assert.equal(etapaInicial({ temAparelho: false, temCodigo: true }), "preparar");
+  assert.equal(etapaInicial({ temAparelho: true, temCodigo: true }), "medir");
+});
+
+test("anuncioDaEtapa: uma frase por etapa, sem repetir o título (o foco já lê o título)", () => {
+  assert.equal(anuncioDaEtapa("medir", 3, 2), "Ponto 3 de 12, medição 2 de 3.");
+  assert.equal(anuncioDaEtapa("medir", 5, 4), "Ponto 5 de 12, medição extra (4).");
+  assert.equal(anuncioDaEtapa("resultado", 3, 2), "Ponto 3 registrado, medição 2 de 3.");
+  assert.match(anuncioDaEtapa("preparar", 1, 1), /aparelho/);
+  for (const e of ETAPAS) {
+    assert.ok(!anuncioDaEtapa(e.id, 1, 1).includes(e.titulo), `o anúncio de ${e.id} repete o título`);
+  }
+});
+
+test("textoConfirmarRecomecar com pendentes: diz quantos esperam internet, que CONTINUAM e saem sozinhos", () => {
+  const t = textoConfirmarRecomecar(3);
+  assert.match(t, /volta ao ponto 1/);
+  assert.match(t, /3 registros ainda esperam internet e CONTINUAM neste aparelho/);
+  assert.match(t, /serão enviados sozinhos quando houver sinal/);
+  assert.match(t, /continua lá/);
+  assert.match(t, /nada é apagado no servidor/);
+  assert.match(t, /aparelho, o código da equipe e a condição/);
+  assert.doesNotMatch(t, /apaga os|serão perdidos|perdido/);
+});
+
+test("textoConfirmarRecomecar no singular", () => {
+  const t = textoConfirmarRecomecar(1);
+  assert.match(t, /1 registro ainda espera internet e CONTINUA neste aparelho/);
+  assert.match(t, /será enviado sozinho quando houver sinal/);
+});
+
+test("textoConfirmarRecomecar sem pendentes: não menciona fila nem internet", () => {
+  const t = textoConfirmarRecomecar(0);
+  assert.doesNotMatch(t, /fila|internet|sinal|CONTINUA/);
+  assert.match(t, /volta ao ponto 1/);
+  assert.match(t, /nada é apagado no servidor/);
+});
+
+test("anuncioRecomecou: com pendentes diz que seguem e saem sozinhos; sem pendentes não fala de fila", () => {
+  assert.match(anuncioRecomecou(2), /2 registros ainda esperam internet e serão enviados sozinhos/);
+  assert.match(anuncioRecomecou(1), /1 registro ainda espera internet e será enviado sozinho/);
+  for (const n of [0, 1, 2]) {
+    assert.match(anuncioRecomecou(n), /ponto 1/);
+    assert.match(anuncioRecomecou(n), /continua lá/);
+  }
+  assert.doesNotMatch(anuncioRecomecou(0), /fila|internet/);
+});
+
+test("registrosDaRodada: sem marca valem todos; com marca valem só os feitos depois do recomeço", () => {
+  const antigo = ponto(1);
+  const novo = ponto(1);
+  antigo.horario_iso = "2026-10-22T10:00:00.000Z";
+  novo.horario_iso = "2026-10-22T11:00:00.000Z";
+  assert.equal(registrosDaRodada([antigo, novo], null).length, 2);
+  assert.deepEqual(registrosDaRodada([antigo, novo], "2026-10-22T10:30:00.000Z"), [novo]);
+  // o que esperava envio de antes do recomeço não conta no ponto 1 da rodada nova
+  assert.equal(medicoesFeitas(registrosDaRodada([antigo], "2026-10-22T10:30:00.000Z"), 1, "Galaxy A54"), 0);
 });

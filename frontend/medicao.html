@@ -14,6 +14,13 @@
           document.documentElement.setAttribute("data-tema", t);
         }
       } catch (e) {}
+      /* Mesma ideia para "Reduzir animações" (src/design/movimento.ts). */
+      try {
+        var m = localStorage.getItem("msb-movimento");
+        if (m === "reduzido") {
+          document.documentElement.setAttribute("data-movimento", "reduzido");
+        }
+      } catch (e) {}
     </script>
   </head>
   <body class="medicao">
@@ -32,14 +39,34 @@
       <header class="medicao__topo">
         <div class="medicao__linha">
           <a class="medicao__voltar" href="/">← Início</a>
-          <div class="seletor-tema">
-            <label for="seletor-tema">Tema</label>
-            <select id="seletor-tema">
-              <option value="automatico">Automático (segue o aparelho)</option>
-              <option value="claro">Claro</option>
-              <option value="escuro">Escuro</option>
-              <option value="alto-contraste">Alto contraste</option>
-            </select>
+          <button type="button" id="botao-ajustes" class="botao botao--secundaria" aria-expanded="false" aria-controls="painel-ajustes">Ajustes</button>
+          <button type="button" id="botao-recomecar" class="botao botao--secundaria" aria-expanded="false" aria-controls="confirmar-recomecar">Recomeçar</button>
+        </div>
+
+        <div id="painel-ajustes" class="ajustes" role="group" aria-labelledby="botao-ajustes" hidden>
+          <div class="preferencias">
+            <div class="seletor-tema">
+              <label for="seletor-tema">Tema</label>
+              <select id="seletor-tema">
+                <option value="automatico">Automático (segue o aparelho)</option>
+                <option value="claro">Claro</option>
+                <option value="escuro">Escuro</option>
+                <option value="alto-contraste">Alto contraste</option>
+              </select>
+            </div>
+            <div class="interruptor">
+              <input id="interruptor-movimento" type="checkbox" role="switch" aria-describedby="nota-movimento" />
+              <label for="interruptor-movimento">Reduzir animações</label>
+            </div>
+            <p id="nota-movimento" class="ajuda" hidden>Ligado pelo seu aparelho.</p>
+          </div>
+        </div>
+
+        <div id="confirmar-recomecar" class="medicao__confirmacao" role="group" aria-labelledby="texto-confirmar" hidden>
+          <p id="texto-confirmar"></p>
+          <div class="medicao__botoes">
+            <button type="button" id="botao-recomecar-sim" class="botao botao--perigo">Sim, recomeçar</button>
+            <button type="button" id="botao-recomecar-nao" class="botao botao--secundaria">Não, continuar</button>
           </div>
         </div>
 
@@ -71,55 +98,6 @@
           <span class="medicao__segmento"></span>
         </div>
 
-        <details id="config" class="medicao__config">
-          <summary id="resumo-config">Aparelho, código da equipe e condição</summary>
-          <div class="medicao__config-corpo">
-            <div class="campo">
-              <label for="campo-aparelho">Aparelho (ex.: Galaxy A54, iPhone 13)</label>
-              <input id="campo-aparelho" type="text" autocomplete="off" maxlength="60" />
-            </div>
-            <div class="campo">
-              <p id="codigo-salvo" class="medicao__codigo-salvo" hidden>
-                Código da equipe: salvo neste aparelho.
-                <button type="button" id="botao-trocar-codigo" class="botao botao--secundaria">Trocar código</button>
-              </p>
-              <div id="codigo-edicao">
-                <label for="campo-codigo">Código da equipe</label>
-                <input id="campo-codigo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ajuda-codigo" />
-                <p id="ajuda-codigo" class="ajuda">Sem o código, os registros ficam só neste aparelho.</p>
-                <button type="button" id="botao-salvar-codigo" class="botao botao--secundaria">Salvar código</button>
-              </div>
-            </div>
-            <div class="campo">
-              <label for="campo-ponto">Ir para o ponto (1 a 12)</label>
-              <input id="campo-ponto" type="number" inputmode="numeric" min="1" max="12" step="1" value="1" />
-            </div>
-            <div class="campo">
-              <label for="campo-condicao">Condição do ponto</label>
-              <select id="campo-condicao">
-                <option value="ceu_aberto">Céu aberto</option>
-                <option value="entre_predios">Entre prédios</option>
-                <option value="coberto">Coberto</option>
-              </select>
-            </div>
-            <div class="campo">
-              <label for="campo-observacao">Observação (opcional)</label>
-              <input id="campo-observacao" type="text" autocomplete="off" maxlength="200" />
-            </div>
-            <div class="campo">
-              <button type="button" id="botao-apagar" class="botao botao--secundaria">Apagar todos os registros</button>
-              <div id="confirmar-apagar" class="medicao__confirmacao" role="group" aria-labelledby="texto-confirmar" hidden>
-                <p id="texto-confirmar"></p>
-                <div class="medicao__botoes">
-                  <button type="button" id="botao-apagar-sim" class="botao botao--perigo">Sim, apagar tudo</button>
-                  <button type="button" id="botao-apagar-nao" class="botao botao--secundaria">Não, manter</button>
-                </div>
-              </div>
-              <p id="status-registros" class="medicao__status" role="status" aria-live="polite"></p>
-            </div>
-          </div>
-        </details>
-
         <div id="faixa-trajeto" class="medicao__faixa" hidden>
           <p id="status-trajeto" role="status" aria-live="polite"></p>
           <button type="button" id="botao-parar-trajeto" class="botao botao--secundaria">Parar trajeto</button>
@@ -127,8 +105,56 @@
       </header>
 
       <main id="conteudo-principal" class="medicao__principal">
-        <!-- Vista 1: medindo no ponto -->
-        <div id="vista-medir">
+        <!-- Um único anúncio por troca de etapa; o foco vai para o título da etapa. -->
+        <p id="anuncio-etapa" class="oculto-visualmente" role="status" aria-live="polite"></p>
+
+        <!-- Etapa 1: preparar o aparelho -->
+        <section id="etapa-preparar" class="medicao__etapa medicao__etapa--suave" aria-labelledby="titulo-etapa-preparar" hidden>
+          <h2 id="titulo-etapa-preparar" class="medicao__etapa-titulo" tabindex="-1">
+            <span class="medicao__etapa-contador">Etapa 1 de 3</span><span class="oculto-visualmente">. </span>
+            <span>Preparar</span>
+          </h2>
+          <p class="ajuda">Preencha uma vez por aparelho. Depois, siga para a medição.</p>
+
+          <div class="campo">
+            <label for="campo-aparelho">Aparelho (ex.: Galaxy A54, iPhone 13)</label>
+            <input id="campo-aparelho" name="aparelho" type="text" autocomplete="off" spellcheck="false" maxlength="60" />
+          </div>
+          <div class="campo">
+            <p id="codigo-salvo" class="medicao__codigo-salvo" hidden>
+              Código da equipe: salvo neste aparelho.
+              <button type="button" id="botao-trocar-codigo" class="botao botao--secundaria">Trocar código</button>
+            </p>
+            <div id="codigo-edicao">
+              <label for="campo-codigo">Código da equipe</label>
+              <input id="campo-codigo" name="codigo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="ajuda-codigo" />
+              <p id="ajuda-codigo" class="ajuda">Sem o código, os registros ficam só neste aparelho.</p>
+              <button type="button" id="botao-salvar-codigo" class="botao botao--secundaria">Salvar código</button>
+            </div>
+          </div>
+          <div class="campo">
+            <label for="campo-ponto">Ir para o ponto (1 a 12)</label>
+            <input id="campo-ponto" name="ponto" type="number" inputmode="numeric" min="1" max="12" step="1" value="1" />
+          </div>
+
+          <p id="status-registros" class="medicao__status" role="status" aria-live="polite"></p>
+          <button type="button" id="botao-continuar" class="medicao__proximo">
+            <span>Continuar para a medição</span><span aria-hidden="true">→</span>
+          </button>
+        </section>
+
+        <!-- Etapa 2: medir o ponto -->
+        <section id="etapa-medir" class="medicao__etapa" aria-labelledby="titulo-etapa-medir" hidden>
+          <h2 id="titulo-etapa-medir" class="medicao__etapa-titulo" tabindex="-1">
+            <span class="medicao__etapa-contador">Etapa 2 de 3</span><span class="oculto-visualmente">. </span>
+            <span>Medir o ponto</span>
+          </h2>
+
+          <div class="medicao__resumo">
+            <p id="resumo-config"></p>
+            <button type="button" id="botao-alterar" class="botao botao--secundaria">Alterar preparação</button>
+          </div>
+
           <div
             id="mapa-medicao"
             class="medicao__mapa"
@@ -156,10 +182,24 @@
           <p id="dica-medicao" class="medicao__dica" aria-live="polite">
             Pare em cima do ponto. A contagem de 30 s registra sozinha no fim.
           </p>
+
+          <div class="campo medicao__campo-ponto">
+            <label for="campo-condicao">Condição do ponto</label>
+            <select id="campo-condicao" name="condicao">
+              <option value="ceu_aberto">Céu aberto</option>
+              <option value="entre_predios">Entre prédios</option>
+              <option value="coberto">Coberto</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="campo-observacao">Observação (opcional)</label>
+            <input id="campo-observacao" name="observacao" type="text" autocomplete="off" maxlength="200" />
+          </div>
+
           <p id="estado-envio" class="medicao__envio" role="status" aria-live="polite"></p>
 
           <section id="painel-bussola" class="medicao__bussola" aria-labelledby="t-bussola" hidden>
-            <h2 id="t-bussola">Bússola e vibração</h2>
+            <h3 id="t-bussola">Bússola e vibração</h3>
             <div class="medicao__botoes">
               <button type="button" id="botao-bussola" class="botao botao--secundaria">Ativar bússola</button>
               <button type="button" id="botao-registrar-bussola" class="botao botao--secundaria" disabled>Registrar leitura da bússola</button>
@@ -169,10 +209,15 @@
             <button type="button" id="botao-vibrar" class="botao botao--secundaria">Testar vibração</button>
             <p id="status-vibracao" class="medicao__status" role="status" aria-live="polite"></p>
           </section>
-        </div>
+        </section>
 
-        <!-- Vista 2: confirmação do envio -->
-        <div id="vista-confirmar" hidden>
+        <!-- Etapa 3: resultado do ponto -->
+        <section id="etapa-resultado" class="medicao__etapa" aria-labelledby="titulo-etapa-resultado" hidden>
+          <h2 id="titulo-etapa-resultado" class="medicao__etapa-titulo" tabindex="-1">
+            <span class="medicao__etapa-contador">Etapa 3 de 3</span><span class="oculto-visualmente">. </span>
+            <span>Resultado do ponto</span>
+          </h2>
+
           <div id="cartao-estado" class="medicao__cartao" data-estado="fila" role="status" aria-live="polite">
             <span id="cartao-icone" class="medicao__icone" aria-hidden="true">◆</span>
             <div>
@@ -187,19 +232,20 @@
               <p id="fila-detalhe" class="medicao__cartao-detalhe"></p>
             </div>
           </div>
+          <button type="button" id="botao-corrigir-codigo" class="botao botao--secundaria" hidden>Informar o código da equipe</button>
           <button type="button" id="botao-proximo" class="medicao__proximo">
             <span id="texto-proximo">Próxima medição</span><span aria-hidden="true">→</span>
           </button>
 
           <section class="medicao__ultimos" aria-labelledby="t-ultimos">
-            <h2 id="t-ultimos">Últimos registros</h2>
+            <h3 id="t-ultimos">Últimos registros</h3>
             <p id="contagem-registros" class="medicao__status" role="status" aria-live="polite"></p>
             <ol id="lista-registros" class="medicao__lista"></ol>
           </section>
-        </div>
+        </section>
       </main>
 
-      <div class="medicao__barra" id="barra-medir">
+      <div class="medicao__barra" id="barra-medir" hidden>
         <button type="button" id="botao-registrar" class="medicao__registrar">Registrar agora</button>
         <div class="medicao__barra-linha">
           <button type="button" id="botao-abrir-bussola" class="botao botao--secundaria" aria-expanded="false" aria-controls="painel-bussola">Bússola</button>

@@ -52,6 +52,13 @@
   --linha-secao: 4px;
   --linha-rota: 6px;
   --linha-aviso: 8px;
+  /* movimento */
+  --mov-toque: 100ms;
+  --mov-painel: 200ms;
+  --mov-painel-saida: 150ms;
+  --mov-pagina: 250ms;
+  --mov-curva: cubic-bezier(0.2, 0, 0, 1);
+  --mov-deslocamento: 0.5rem;
   /* tipografia: famílias */
   --font-texto: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-exibicao: "Arial Narrow", "Public Sans", sans-serif;

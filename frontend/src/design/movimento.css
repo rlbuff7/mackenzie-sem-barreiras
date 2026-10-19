@@ -1,0 +1,101 @@
+/*
+ * Movimento do projeto. TODO movimento mora neste arquivo e é opt-in:
+ *  - só existe dentro de `@media (prefers-reduced-motion: no-preference)`: se o aparelho pede menos
+ *    movimento, nada se move (a mudança de estado continua, instantânea);
+ *  - todo seletor leva a guarda `:root:not([data-movimento="reduzido"])`: o interruptor
+ *    "Reduzir animações" (src/design/movimento.ts) desliga tudo, mesmo com o aparelho liberando.
+ * Em movimento reduzido não há "versão menor": o deslocamento some e o estado muda na hora.
+ *
+ * Regras (conferidas por movimento-css.test.ts):
+ *  - durações e curva só pelos tokens mov-* (tokens.json): nada acima de 300 ms, sem bounce, sem ease-in;
+ *  - só opacity, transform e cor; nunca largura, altura, margem nem posição; nunca `transition: all`;
+ *  - sem loop, sem @keyframes;
+ *  - NUNCA anima: mapa, posição, bola, seta, rumo, rota, instrução de navegação, avisos de erro ou
+ *    de sinal fraco, nem leituras ao vivo (precisão, contagem, fila). O que muda ali muda inteiro e
+ *    é falado uma vez pelo aria-live, nunca "deslizando".
+ * O foco do teclado (:focus-visible, em alerta) não entra em nenhuma transição.
+ */
+
+/* Mapa do Leaflet: rede de segurança SEMPRE ligada (não é movimento, é o contrário). O JS já
+   desliga zoomAnimation, fadeAnimation, markerZoomAnimation e inertia; isto garante o resto. */
+.leaflet-container,
+.leaflet-container * {
+  transition: none !important;
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Troca entre index.html e medicao.html: só crossfade (sem deslize). Navegador sem suporte
+     (Firefox hoje) troca de página sem animação, o que é aceitável. */
+  @view-transition {
+    navigation: auto;
+  }
+
+  ::view-transition-group(root) {
+    animation-duration: var(--mov-pagina);
+    animation-timing-function: var(--mov-curva);
+  }
+
+  /* Interruptor ligado: a troca de página também é instantânea. */
+  :root[data-movimento="reduzido"]::view-transition-group(*),
+  :root[data-movimento="reduzido"]::view-transition-old(*),
+  :root[data-movimento="reduzido"]::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  /* Botões e links grandes: fundo em ~100 ms ao pressionar ou passar o mouse; ao pressionar, no
+     máximo scale(0.98). Só propriedades listadas, nunca `all`, e o contorno de foco fora. */
+  :root:not([data-movimento="reduzido"]) .botao,
+  :root:not([data-movimento="reduzido"]) .inicio__link-grande,
+  :root:not([data-movimento="reduzido"]) .medicao__proximo,
+  :root:not([data-movimento="reduzido"]) .medicao__registrar,
+  :root:not([data-movimento="reduzido"]) .medicao__botao-contagem {
+    transition:
+      background-color var(--mov-toque) var(--mov-curva),
+      border-color var(--mov-toque) var(--mov-curva),
+      color var(--mov-toque) var(--mov-curva),
+      transform var(--mov-toque) var(--mov-curva);
+  }
+
+  /* O scale vale só para toque e mouse: `:not(:focus-visible)` deixa de fora o Enter/Espaço no teclado
+     (ação repetida, sem animação). A cor do :active continua para todos, sem transição. */
+  :root:not([data-movimento="reduzido"]) .botao:active:not(:disabled):not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .inicio__link-grande:active:not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .medicao__proximo:active:not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .medicao__registrar:active:not(:disabled):not(:focus-visible),
+  :root:not([data-movimento="reduzido"]) .medicao__botao-contagem:active:not(:focus-visible) {
+    transform: scale(0.98);
+  }
+
+  /* Cartão inferior da página inicial: entra com opacity + translateY curto (200 ms). Nunca anima
+     a altura. O corte do contêiner evita barra de rolagem durante a entrada. */
+  :root:not([data-movimento="reduzido"]) .inicio__tela {
+    overflow: clip;
+  }
+
+  :root:not([data-movimento="reduzido"]) .inicio__cartao {
+    transition:
+      opacity var(--mov-painel) var(--mov-curva),
+      transform var(--mov-painel) var(--mov-curva);
+  }
+
+  @starting-style {
+    :root:not([data-movimento="reduzido"]) .inicio__cartao {
+      opacity: 0;
+      transform: translateY(var(--mov-deslocamento));
+    }
+  }
+
+  /* Troca de etapa da medição: só a etapa Preparar (formulário, sem mapa nem leitura ao vivo) entra
+     com fade curto de opacidade, sem deslocamento. As etapas Medir (mapa, precisão, contagem) e
+     Resultado (estado do envio, avisos de fila e de erro) trocam NA HORA: nada disso pode animar. */
+  :root:not([data-movimento="reduzido"]) .medicao__etapa--suave {
+    transition: opacity var(--mov-painel) var(--mov-curva);
+  }
+
+  @starting-style {
+    :root:not([data-movimento="reduzido"]) .medicao__etapa--suave {
+      opacity: 0;
+    }
+  }
+}

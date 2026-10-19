@@ -353,6 +353,19 @@ export class FilaEnvio {
     this.salvar();
   }
 
+  /**
+   * Tira da lista local só o que já foi enviado com sucesso (o banco já tem). Fica tudo que ainda não
+   * foi enviado (na fila ou recusado): continua sendo reenviado sozinho, com o mesmo recuo (`falhas`
+   * não muda). Devolve quantos saíram.
+   */
+  limparEnviados(): number {
+    const antes = this.itensFila.length;
+    this.itensFila = this.itensFila.filter((i) => i.estado !== "enviado");
+    const removidos = antes - this.itensFila.length;
+    if (removidos > 0) this.salvar();
+    return removidos;
+  }
+
   /** O código mudou: o que foi recusado por código errado volta para a fila, e o recuo zera. */
   reabrirRecusadosPorCodigo(): number {
     let n = 0;

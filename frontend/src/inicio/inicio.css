@@ -46,6 +46,7 @@
   right: var(--espaco-5);
   z-index: 1100;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--espaco-3);
@@ -64,16 +65,8 @@
   color: var(--primaria-escura);
 }
 
-.inicio__topo-mapa .seletor-tema {
-  margin: 0;
-  padding: var(--espaco-2) var(--espaco-3);
-  flex-wrap: nowrap;
-  background: var(--superficie);
-  border: var(--linha-fina) solid var(--borda);
-  border-radius: var(--raio-controle);
-}
-
-.inicio__topo-mapa .seletor-tema select { max-width: 11rem; font-size: 0.9rem; padding-inline: var(--espaco-2); }
+/* O painel Ajustes abre logo abaixo da etiqueta e do botão, por cima do mapa. */
+.inicio__ajustes { flex: 1 0 100%; }
 
 .inicio__cartao {
   display: flex;
@@ -161,7 +154,12 @@
   text-underline-offset: 4px;
 }
 
-.inicio__link-grande:hover { background: var(--primaria-escura); }
+.inicio__link-grande:active { background: var(--primaria-escura); }
+
+/* Passar o mouse só em aparelho com mouse de verdade; o :active acima vale em qualquer aparelho. */
+@media (hover: hover) and (pointer: fine) {
+  .inicio__link-grande:hover { background: var(--primaria-escura); }
+}
 
 @media (min-width: 60rem) {
   .inicio__tela {

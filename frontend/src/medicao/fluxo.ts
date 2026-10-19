@@ -103,6 +103,85 @@ export function fracaoContagem(restantes_s: number, total_s: number = DURACAO_CO
   return Math.min(1, Math.max(0, (total_s - restantes_s) / total_s));
 }
 
+// ---------- etapas: uma por tela ----------
+
+export type Etapa = "preparar" | "medir" | "resultado";
+
+export const ETAPAS: readonly { id: Etapa; titulo: string }[] = [
+  { id: "preparar", titulo: "Preparar" },
+  { id: "medir", titulo: "Medir o ponto" },
+  { id: "resultado", titulo: "Resultado do ponto" },
+];
+
+export const TOTAL_ETAPAS = ETAPAS.length;
+
+export function numeroDaEtapa(etapa: Etapa): number {
+  return ETAPAS.findIndex((e) => e.id === etapa) + 1;
+}
+
+export function textoEtapa(etapa: Etapa): string {
+  return `Etapa ${numeroDaEtapa(etapa)} de ${TOTAL_ETAPAS}`;
+}
+
+export function tituloEtapa(etapa: Etapa): string {
+  return ETAPAS.find((e) => e.id === etapa)?.titulo ?? "";
+}
+
+/** Sem aparelho ou sem código da equipe, a medição começa por Preparar; com os dois, volta direto a Medir. */
+export function etapaInicial(estado: { temAparelho: boolean; temCodigo: boolean }): Etapa {
+  return estado.temAparelho && estado.temCodigo ? "medir" : "preparar";
+}
+
+/**
+ * Frase falada UMA vez (aria-live) quando a etapa troca. O foco vai para o título da etapa e o leitor
+ * de tela já lê "Etapa X de Y, <título>": por isso a frase traz só o que o título não diz.
+ */
+export function anuncioDaEtapa(etapa: Etapa, ponto: number, medicao: number): string {
+  if (etapa === "preparar") return "Preencha o aparelho e o código da equipe. Depois, continue para a medição.";
+  if (etapa === "medir") return `Ponto ${ponto} de ${TOTAL_PONTOS}, ${textoMedicao(medicao)}.`;
+  return `Ponto ${ponto} registrado, ${textoMedicao(medicao)}.`;
+}
+
+function registrosEsperando(n: number): string {
+  return n === 1 ? "1 registro ainda espera internet" : `${n} registros ainda esperam internet`;
+}
+
+/** Falado uma vez depois de confirmar "Recomeçar", junto com a volta à etapa Preparar. */
+export function anuncioRecomecou(esperando: number): string {
+  const fila =
+    esperando > 0
+      ? ` ${registrosEsperando(esperando)} e ${esperando === 1 ? "será enviado" : "serão enviados"} sozinho${esperando === 1 ? "" : "s"}.`
+      : "";
+  return `Recomeçado. Você voltou ao ponto 1.${fila} O que já foi enviado ao banco continua lá.`;
+}
+
+/**
+ * Registros da rodada atual: os feitos desde o último "Recomeçar" (`desde_iso`, null = todos). Os que
+ * ficaram esperando envio de antes do recomeço continuam na fila, mas não contam no ponto N de 12.
+ */
+export function registrosDaRodada(registros: readonly Registro[], desde_iso: string | null): Registro[] {
+  if (!desde_iso) return [...registros];
+  return registros.filter((r) => r.horario_iso >= desde_iso);
+}
+
+/**
+ * Texto da confirmação do botão "Recomeçar". Recomeçar volta ao ponto 1 e zera a contagem de pontos;
+ * NÃO apaga o que ainda não foi enviado: esses registros continuam na fila e saem sozinhos quando
+ * houver internet. O que já foi enviado continua no banco (nada é apagado no servidor).
+ * `esperando` = registros ainda na fila de envio.
+ */
+export function textoConfirmarRecomecar(esperando: number): string {
+  const inicio = "Recomeçar volta ao ponto 1 e zera a contagem de pontos.";
+  const fila =
+    esperando > 0
+      ? ` ${registrosEsperando(esperando)} e ${esperando === 1 ? "CONTINUA" : "CONTINUAM"} neste aparelho: ${esperando === 1 ? "será enviado" : "serão enviados"} sozinho${esperando === 1 ? "" : "s"} quando houver sinal.`
+      : "";
+  return (
+    `${inicio}${fila} O que já foi enviado ao banco continua lá: nada é apagado no servidor.` +
+    " Ficam salvos o aparelho, o código da equipe e a condição."
+  );
+}
+
 // ---------- como o estado de envio aparece na tela ----------
 
 export type EstadoCartao = "enviado" | "fila" | "recusado";

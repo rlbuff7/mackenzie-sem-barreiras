@@ -395,6 +395,53 @@ test("importarLegado põe os registros antigos na fila com id novo; apagarTudo l
   assert.equal(fila.itens.length, 0);
 });
 
+test("limparEnviados sem pendentes: tira tudo o que foi enviado e a fila fica vazia", async () => {
+  const { fila } = criar(okGravou);
+  fila.adicionar(regPonto(1));
+  fila.adicionar(regPonto(2));
+  await fila.descarregar();
+  assert.equal(fila.contagem().enviado, 2);
+  assert.equal(fila.limparEnviados(), 2);
+  assert.equal(fila.itens.length, 0);
+  assert.equal(fila.limparEnviados(), 0);
+});
+
+test("limparEnviados com pendentes: os não enviados continuam na fila, com o mesmo recuo, e saem sozinhos depois", async () => {
+  let ligado = true;
+  const { fila, chamadas } = criar((c) => {
+    if (!ligado) throw new TypeError("Failed to fetch");
+    return okGravou(c);
+  });
+  fila.adicionar(regPonto(1));
+  assert.equal((await fila.descarregar()).situacao, "enviado");
+  ligado = false; // sem internet: o recomeço acontece aqui
+  const esperando = fila.adicionar(regPonto(2));
+  assert.equal((await fila.descarregar()).situacao, "sem_sinal");
+  assert.equal((await fila.descarregar()).situacao, "sem_sinal");
+  const recuo = fila.proximoAtraso_ms();
+  assert.equal(recuo, 10000);
+
+  assert.equal(fila.limparEnviados(), 1, "só o ponto 1, já enviado, sai da lista");
+  assert.deepEqual(fila.itens.map((i) => i.id_cliente), [esperando.id_cliente]);
+  assert.equal(fila.itens[0]!.estado, "na_fila");
+  assert.equal(fila.proximoAtraso_ms(), recuo, "o recuo 5-10-30-60 s não zera");
+
+  ligado = true; // a internet volta: a fila envia sozinha o que ficou
+  const antes = chamadas.length;
+  assert.equal((await fila.descarregar()).situacao, "enviado");
+  assert.equal(chamadas.length, antes + 1);
+  assert.equal(fila.itens[0]!.estado, "enviado");
+});
+
+test("limparEnviados guarda o que foi recusado pelo servidor (não some em silêncio)", async () => {
+  const { fila } = criar(() => resp(422, { detail: "inválido" }));
+  fila.adicionar(regPonto(1));
+  await fila.descarregar();
+  assert.equal(fila.contagem().recusado, 1);
+  assert.equal(fila.limparEnviados(), 0);
+  assert.equal(fila.itens.length, 1);
+});
+
 test("interpretar422 monta 'campo x: mensagem' por índice e tolera formatos estranhos", () => {
   const e = interpretar422({ detail: [{ loc: ["body", "medicoes", 0, "latitude"], msg: "fora da faixa" }, { loc: ["body"], msg: "geral ruim" }] });
   assert.equal(e.porIndice.get(0), "campo latitude: fora da faixa");
