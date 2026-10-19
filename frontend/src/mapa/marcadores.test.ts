@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { htmlMarcadorPosicao, htmlPinoEntradaAcessivel } from "./marcadores.ts";
+import { htmlMarcadorPosicao, htmlMarcadorReferencia, htmlPinoEntradaAcessivel } from "./marcadores.ts";
 
 test("sem rumo, o marcador é só a bola (sem seta)", () => {
   const html = htmlMarcadorPosicao(null);
@@ -22,4 +22,11 @@ test("o pino de entrada acessível é outra forma, não a bola", () => {
   const html = htmlPinoEntradaAcessivel();
   assert.ok(html.includes("mapa-pino"));
   assert.ok(!html.includes("mapa-bola"));
+});
+
+test("a referência do ponto é um losango, outra forma que a bola e o pino", () => {
+  const html = htmlMarcadorReferencia();
+  assert.ok(html.includes("mapa-losango"));
+  assert.ok(!html.includes("mapa-bola") && !html.includes("mapa-pino"));
+  assert.ok(html.includes('aria-hidden="true"'));
 });

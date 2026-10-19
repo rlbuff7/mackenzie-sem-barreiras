@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { ETAPAS, textoEtapa, tituloEtapa } from "./fluxo.ts";
+import { PONTOS_CONTROLE } from "./pontos-controle.ts";
 
 const html = readFileSync(new URL("../../medicao.html", import.meta.url), "utf8");
 
@@ -95,4 +96,17 @@ test("só a etapa Preparar entra com fade: Medir (mapa e leituras) e Resultado (
   assert.match(classe("etapa-preparar"), /medicao__etapa--suave/);
   assert.doesNotMatch(classe("etapa-medir"), /suave/);
   assert.doesNotMatch(classe("etapa-resultado"), /suave/);
+});
+
+test("pontos de controle: 10 segmentos, 'de 10' e nome, observação e legenda do ◆ na etapa Medir", () => {
+  const total = String(PONTOS_CONTROLE.length);
+  assert.equal(html.match(/class="medicao__segmento"/g)?.length, PONTOS_CONTROLE.length);
+  assert.match(html, new RegExp(`aria-valuemax="${total}"`));
+  assert.match(html, new RegExp(`Ponto 1 de ${total}`));
+  assert.match(html, new RegExp(`max="${total}"`));
+  assert.doesNotMatch(html, /de 12\b|a 12\)|max="12"/);
+  const medir = secao("etapa-medir");
+  for (const id of ["ponto-nome", "ponto-observacao", "legenda-referencia"]) {
+    assert.ok(medir.includes(`id="${id}"`), `${id} deveria estar em Medir`);
+  }
 });

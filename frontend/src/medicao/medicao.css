@@ -212,6 +212,10 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
 
 .medicao__nota { margin: var(--espaco-3) 0 0; font-size: 0.9rem; color: var(--texto-suave); }
 
+.medicao__ponto-nome { margin: var(--espaco-3) 0 0; font-weight: 700; font-size: 1.05rem; }
+.medicao__nota--ponto { margin-top: var(--espaco-2); margin-bottom: var(--espaco-3); }
+.medicao__legenda { margin-top: var(--espaco-3); }
+
 .medicao__paineis {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

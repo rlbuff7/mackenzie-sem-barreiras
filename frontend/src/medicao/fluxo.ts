@@ -1,12 +1,13 @@
 /*
- * Lógica pura do fluxo guiado da medição: "Ponto N de 12 · medição N de 3", barra de 12 segmentos,
+ * Lógica pura do fluxo guiado da medição: "Ponto N de 10 · medição N de 3", barra de 10 segmentos,
  * nível da precisão (palavra e forma, nunca só cor) e contagem de 30 s parado.
  * Sem DOM nem relógio: tudo recebe os dados por parâmetro, para o node:test.
  */
 import { MOTIVO_SEM_SINAL, type EstadoEnvio } from "./fila.ts";
 import { contarPontoRegistrado, type Registro } from "./medicao.ts";
+import { PONTOS_CONTROLE } from "./pontos-controle.ts";
 
-export const TOTAL_PONTOS = 12;
+export const TOTAL_PONTOS = PONTOS_CONTROLE.length;
 export const MEDICOES_POR_PONTO = 3;
 export const DURACAO_CONTAGEM_S = 30;
 
@@ -157,7 +158,7 @@ export function anuncioRecomecou(esperando: number): string {
 
 /**
  * Registros da rodada atual: os feitos desde o último "Recomeçar" (`desde_iso`, null = todos). Os que
- * ficaram esperando envio de antes do recomeço continuam na fila, mas não contam no ponto N de 12.
+ * ficaram esperando envio de antes do recomeço continuam na fila, mas não contam no ponto N de 10.
  */
 export function registrosDaRodada(registros: readonly Registro[], desde_iso: string | null): Registro[] {
   if (!desde_iso) return [...registros];
