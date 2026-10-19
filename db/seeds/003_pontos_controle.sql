@@ -1,7 +1,7 @@
 -- Pontos de controle P01..P10 escolhidos pelo Maurício (docs/medicao-gps.md, prazo
 -- 19/10/2026). Coordenadas = estimativa por imagem de satélite, não topografia.
--- Condição: 'Entrada de prédio' (rótulo do documento) vira 'coberto' (valor do app);
--- o rótulo original fica em rotulo_condicao_original.
+-- Condição: 'Entrada de prédio' (rótulo do documento) = 'entrada_predio' (migration
+-- 007); o rótulo original fica em rotulo_condicao_original.
 --
 -- Idempotente: reaplicado a cada `./db/banco.sh migrar`, com ON CONFLICT DO UPDATE
 -- (o documento é a fonte; corrigir o texto aqui corrige o banco, como nos outros
@@ -18,11 +18,11 @@ VALUES
      ST_SetSRID(ST_MakePoint(-46.65202165910552, -23.546013383953508), 4326), 'Próximo ao Bosque das Fadas e a Ultra Coffee Mackenzie'),
     (3, 'P03', 'Passagem entre os Prédios 6 e 24', 'entre_predios', 'Entre prédios',
      ST_SetSRID(ST_MakePoint(-46.65172517217903, -23.546915816255126), 4326), 'Próximo ao escadão que da acesso a frente do Starbucks'),
-    (4, 'P04', 'Entrada principal do Prédio 29', 'coberto', 'Entrada de prédio',
+    (4, 'P04', 'Entrada principal do Prédio 29', 'entrada_predio', 'Entrada de prédio',
      ST_SetSRID(ST_MakePoint(-46.6516827262256, -23.54757664389376), 4326), 'Em frente ao predio 31 e Colado ao Predio do MackGraphe'),
-    (5, 'P05', 'Entrada principal do Prédio 31', 'coberto', 'Entrada de prédio',
+    (5, 'P05', 'Entrada principal do Prédio 31', 'entrada_predio', 'Entrada de prédio',
      ST_SetSRID(ST_MakePoint(-46.65146814951144, -23.54744263607399), 4326), 'Em frente ao MackGraphe'),
-    (6, 'P06', 'Entrada do Auditório da Escola Americana', 'coberto', 'Entrada de prédio',
+    (6, 'P06', 'Entrada do Auditório da Escola Americana', 'entrada_predio', 'Entrada de prédio',
      ST_SetSRID(ST_MakePoint(-46.652778943818376, -23.547747707942488), 4326), 'Próximo a entrada da rua Piauí'),
     (7, 'P07', 'Bifurcação de caminhos do campus', 'ceu_aberto', 'Céu aberto',
      ST_SetSRID(ST_MakePoint(-46.652032195907886, -23.5468504473735), 4326), 'Próximo ao Starbucks'),

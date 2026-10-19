@@ -534,13 +534,13 @@ SELECT pg_temp.afirmar('seed: todas as referências caem no campus (lat -23,55..
     NOT EXISTS (SELECT 1 FROM pontos_controle
                 WHERE ST_Y(geom_referencia) NOT BETWEEN -23.55 AND -23.54
                    OR ST_X(geom_referencia) NOT BETWEEN -46.654 AND -46.651));
-SELECT pg_temp.afirmar('seed: condições 5 ceu_aberto / 2 entre_predios / 3 coberto',
+SELECT pg_temp.afirmar('seed: condições 5 ceu_aberto / 2 entre_predios / 3 entrada_predio',
     (SELECT count(*) FILTER (WHERE condicao = 'ceu_aberto') = 5
         AND count(*) FILTER (WHERE condicao = 'entre_predios') = 2
-        AND count(*) FILTER (WHERE condicao = 'coberto') = 3 FROM pontos_controle));
-SELECT pg_temp.afirmar('seed: P04..P06 são "Entrada de prédio" mapeados para coberto',
+        AND count(*) FILTER (WHERE condicao = 'entrada_predio') = 3 FROM pontos_controle));
+SELECT pg_temp.afirmar('seed: P04..P06 são "Entrada de prédio" = entrada_predio',
     (SELECT count(*) = 3 FROM pontos_controle
-     WHERE rotulo_condicao_original = 'Entrada de prédio' AND condicao = 'coberto'
+     WHERE rotulo_condicao_original = 'Entrada de prédio' AND condicao = 'entrada_predio'
        AND numero IN (4, 5, 6)));
 SELECT pg_temp.afirmar('pontos_controle.geom_referencia é Point em SRID 4326',
     EXISTS (SELECT 1 FROM geometry_columns
@@ -555,9 +555,9 @@ SELECT pg_temp.afirmar('origem_referencia padrão diz estimativa por satélite',
 SELECT pg_temp.deve_rejeitar('ponto de controle com número 13',
     $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
        VALUES (13, 'P13', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
-SELECT pg_temp.deve_rejeitar('ponto de controle com condição fora da lista do app',
+SELECT pg_temp.deve_rejeitar('ponto de controle com condição inventada',
     $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
-       VALUES (11, 'P11', 'x', 'entrada_predio', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+       VALUES (11, 'P11', 'x', 'inventada', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
 SELECT pg_temp.deve_rejeitar('código que não confere com o número',
     $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
        VALUES (11, 'P99', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
@@ -608,6 +608,18 @@ SELECT pg_temp.afirmar('vw_erro_por_ponto_aparelho: n = 3, mediana ~ 10 m, p90 ~
 SELECT pg_temp.afirmar('vw_erro_por_ponto_aparelho: erro <= precisão em 2 de 3 medições (0 m e 10 m; 20 m não)',
     (SELECT abs(fracao_erro_dentro_precisao - 2.0 / 3) < 1e-9
      FROM vw_erro_por_ponto_aparelho WHERE aparelho = 'T-erro' AND ponto = 1));
+
+SELECT pg_temp.afirmar('pontos_controle aceita condição entrada_predio',
+    (SELECT count(*) = 3 FROM pontos_controle WHERE condicao = 'entrada_predio'));
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, condicao, geom, precisao_m)
+VALUES (gen_random_uuid(), 'ponto', now(), 'T-cond', 4, 'entrada_predio',
+        ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5);
+SELECT pg_temp.afirmar('medicoes_gps aceita condicao entrada_predio',
+    EXISTS (SELECT 1 FROM medicoes_gps WHERE aparelho = 'T-cond' AND condicao = 'entrada_predio'));
+SELECT pg_temp.deve_rejeitar('medicoes_gps com condicao inventada',
+    $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, condicao, geom, precisao_m)
+       VALUES (gen_random_uuid(), 'ponto', now(), 'X', 4, 'inventada',
+               ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5)$q$, '23514');
 
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
