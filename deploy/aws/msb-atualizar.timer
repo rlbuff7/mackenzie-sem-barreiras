@@ -1,0 +1,11 @@
+[Unit]
+Description=Verifica imagens novas do protótipo do TCC a cada 5 min e no boot
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

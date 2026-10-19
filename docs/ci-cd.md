@@ -82,6 +82,13 @@ variables → Actions → Variables** antes de rodar o workflow — não é prec
 
 ### Implantação (deploy) — ainda não automatizada
 
+**Atualização atual: por pull no servidor.** O job `implantar` continua desativado
+(sem segredo de deploy no GitHub e sem porta aberta). Quem atualiza é um timer systemd
+na instância da AWS: em até ~5 min depois do job "Publicar imagens (GHCR)" terminar, ele
+baixa as imagens novas, migra o banco, confere `/api/saude` e volta à versão anterior se
+a saúde falhar. Instalação, log e como desligar: [`implantacao-aws.md` §4.1](implantacao-aws.md).
+O texto abaixo é só para quem ativar o job `implantar` numa hospedagem com deploy hook.
+
 O workflow tem um job `implantar`, mas **desativado** (`if: false`): a hospedagem com
 HTTPS (necessária para a geolocalização do navegador — ver
 [`coleta-em-campo.md` §4](coleta-em-campo.md)) ainda não foi escolhida (pendência
