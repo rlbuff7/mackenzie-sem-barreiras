@@ -65,7 +65,7 @@ class MedicaoEntrada(BaseModel):
     medido_em: Annotated[AwareDatetime, Field(strict=True)]
     aparelho: str = Field(min_length=1, max_length=80)
     ponto: int | None = Field(default=None, strict=True, ge=1, le=12)
-    condicao: Literal["ceu_aberto", "entre_predios", "coberto"] | None = None
+    condicao: Literal["ceu_aberto", "entre_predios", "entrada_predio", "coberto"] | None = None
     latitude: _Numero | None = Field(default=None, ge=-90, le=90)
     longitude: _Numero | None = Field(default=None, ge=-180, le=180)
     precisao_m: _NumeroNaoNegativo | None = None
