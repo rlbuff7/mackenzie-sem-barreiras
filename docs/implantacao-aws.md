@@ -106,6 +106,72 @@ docker compose -f docker-compose.prod.yml up -d --wait
 
 Nunca `down -v` (apaga o volume do banco). Confira depois `/api/saude` por HTTPS.
 
+### 4.1 Deploy automático por pull (preferido)
+
+Um timer systemd na própria máquina confere o GHCR a cada 5 min (e 2 min depois de
+cada boot, com atraso aleatório de até 30 s) e atualiza sozinho. Não abre porta nem
+guarda chave SSH ou credencial da AWS no GitHub: o servidor só **puxa** imagens públicas.
+O job `Implantar (desativado)` do CI continua desativado.
+
+O que `deploy/aws/atualizar-se-mudou.sh` faz a cada ciclo:
+
+1. `flock` (nunca duas execuções ao mesmo tempo) e `docker compose pull` de `api` e
+   `frontend` (tag `IMAGEM_TAG`, padrão `latest`).
+2. Sem imagem nova: sai em silêncio. Com imagem nova: `git pull --ff-only`,
+   `up -d --no-deps --pull never`, `./db/banco.sh --prod migrar` e a sonda
+   `http://127.0.0.1:8091/api/saude` (espera até 90 s por `"status":"ok","banco":"ok"`).
+3. Se o `up`, a migração ou a saúde falhar: **rollback** para as imagens que rodavam
+   antes, a versão ruim fica marcada em `~/.local/state/msb-atualizar/versao-ruim` e não
+   é tentada de novo até o CI publicar outra. Migrações já aplicadas não são desfeitas
+   (cada uma roda em transação e é pensada para ser compatível com a versão anterior).
+4. Só mexe em `api` e `frontend`: o banco e o `.env` ficam como estão (o script nunca
+   lê nem imprime o `.env`). Mudança só em `docker-compose.prod.yml` ou no `.env` não
+   dispara nada: aplique à mão (`git pull` + `up -d`, §4).
+
+**Instalar** (uma vez, na máquina, depois do clone da §2 passo 5; refazer é seguro):
+
+```bash
+cd ~/mackenzie-sem-barreiras && git pull
+sudo ./deploy/aws/instalar-auto-atualizacao.sh
+```
+
+**Ver o log** (o script escreve no journal; sem mudança não há linha nenhuma):
+
+```bash
+journalctl -u msb-atualizar --since "1 hour ago" --no-pager
+systemctl list-timers msb-atualizar.timer      # próxima e última execução
+```
+
+**Rodar agora**, sem esperar o timer: `sudo systemctl start msb-atualizar.service`
+(ou `./deploy/aws/atualizar-se-mudou.sh` como usuário `ubuntu`).
+
+**Desligar**: pausa `sudo systemctl disable --now msb-atualizar.timer`; remover de vez
+`sudo ./deploy/aws/instalar-auto-atualizacao.sh --remover`. Para liberar uma versão
+marcada como ruim sem esperar outra publicação: `rm ~/.local/state/msb-atualizar/versao-ruim`.
+
+**Teste local** (sem AWS, sem Docker; docker, curl e git são simulados):
+`bash deploy/aws/testes/testar-atualizar.sh`.
+
+### 4.2 Colocar o `MEDICAO_CODIGO_EQUIPE` no servidor sem ecoar o valor
+
+O valor fica em `~/.segredos-tcc/medicao-codigo-equipe` na máquina do Rodrigo. Na máquina
+do Rodrigo (o arquivo vai por stdin, nada aparece na tela nem no histórico):
+
+```bash
+ssh -i ~/.ssh/tcc-navegacao.pem ubuntu@<ip-elastico> '
+  cd ~/mackenzie-sem-barreiras && cp .env .env.bak-$(date +%s) &&
+  read -r codigo &&
+  sed -i "/^MEDICAO_CODIGO_EQUIPE=/d" .env &&
+  printf "MEDICAO_CODIGO_EQUIPE=%s\n" "$codigo" >> .env &&
+  chmod 600 .env &&
+  docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api </dev/null
+' < ~/.segredos-tcc/medicao-codigo-equipe
+```
+
+Confira sem mostrar o valor: `POST /api/medicoes` com código errado deve dar 401 (e não
+503, que significa "código vazio, medição desligada"). O `.env.bak-*` guarda o `.env`
+anterior (permissão herdada, 600); apague-o depois.
+
 ## 5. Backup do banco
 
 A conta do Learner Lab some quando o curso acaba, e o disco só existe lá: o backup tem de
@@ -144,7 +210,8 @@ Os dados de transferência para fora (15 GB de graça por mês) não devem pesar
 - Tipos de instância pequenos (use `t3.small`); alguns serviços são bloqueados.
 - A sessão dura 4 h; ao fim as instâncias param. Credenciais temporárias (vão em
   `~/.aws/credentials`, nunca no repositório).
-- O CI não deploya (credenciais mudam a cada sessão): deploy manual, §4.
+- O CI não deploya (credenciais mudam a cada sessão): deploy por pull no servidor (§4.1)
+  ou manual (§4). A instância parada não atualiza nada; ao religar, o timer recupera sozinho.
 - A conta some quando o curso acaba: tenha backup fora da AWS (§5) e o túnel
   Cloudflare como plano B ([`implantacao.md`](implantacao.md) §5).
 - O IP de quem usa o protótipo chega à AWS (e ao Let's Encrypt só o nome do site):
