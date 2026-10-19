@@ -318,6 +318,31 @@ def test_tipo_errado_e_recusado_sem_conversao(
     assert f"medicoes.0.{campo}" in _campos(resposta)
 
 
+@pytest.mark.parametrize("condicao", ["ceu_aberto", "entre_predios", "entrada_predio", "coberto"])
+def test_as_quatro_condicoes_sao_aceitas(
+    cliente: TestClient, configurar: Callable[..., None], condicao: str
+) -> None:
+    configurar()
+
+    resposta = _enviar(cliente, [_ponto(condicao=condicao)])
+
+    assert resposta.status_code == 200, resposta.text
+    assert resposta.json() == {"gravadas": 1, "repetidas": 0}
+
+
+def test_condicao_inventada_continua_recusada_no_formato_de_erro(
+    cliente: TestClient, configurar: Callable[..., None]
+) -> None:
+    configurar()
+
+    resposta = _enviar(cliente, [_ponto(condicao="entrada_de_predio")])
+
+    assert resposta.status_code == 422
+    corpo = resposta.json()
+    assert set(corpo) == {"mensagem", "erros"}
+    assert "medicoes.0.condicao" in _campos(resposta)
+
+
 @pytest.mark.parametrize(
     ("campo", "valor"),
     [

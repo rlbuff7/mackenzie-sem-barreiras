@@ -112,7 +112,7 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
     `vibracao`), `medido_em` texto ISO 8601 COM fuso (`...-03:00` ou `...Z`),
     `aparelho` 1 a 80 caracteres (espaços nas pontas removidos), todos obrigatórios.
   - `ponto` inteiro 1 a 12, obrigatório quando `tipo = "ponto"`; `condicao`
-    `ceu_aberto`|`entre_predios`|`coberto`.
+    `ceu_aberto`|`entre_predios`|`entrada_predio`|`coberto`.
   - `latitude` [-90, 90] e `longitude` [-180, 180]: obrigatórias em `ponto` e
     `trajeto`; nos outros tipos, ou as duas ou nenhuma. `precisao_m` >= 0
     (metros): obrigatória nos tipos com posição E sempre que há latitude e
