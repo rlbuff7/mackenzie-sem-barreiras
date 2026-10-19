@@ -22,7 +22,7 @@ esperado de barreiras confirmadas (padrão 1) — existe só para provar, sem
 editar código, que uma falha deliberada faz o script sair com código != 0 e
 mesmo assim `scripts/ponta-a-ponta.sh` derruba a pilha isolada.
 
-Medição de GPS (`POST /api/medicoes`, `GET /api/medicoes/resumo`): pelo proxy do
+Medição de GPS (`POST /api/medicoes`, `GET /api/medicoes/resumo` e `/analise`): pelo proxy do
 frontend. Desligada por padrão (503); com `MEDICAO_CODIGO_EQUIPE` definido confere
 o contrato inteiro (`_verificar_medicoes`).
 
@@ -449,6 +449,17 @@ def _verificar_medicoes(v: Verificador, frontend: httpx.Client, token_admin: str
         resposta.status_code == 200
         and resumo.get("total") == 4
         and [a.get("medicoes") for a in resumo.get("por_aparelho", [])] == [4],
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    resposta = pedir(frontend, "GET", "/api/medicoes/analise", headers=cabecalhos_admin)
+    analise = json_seguro(resposta)
+    v.checar(
+        "GET /api/medicoes/analise responde 200 com aviso, total e as duas listas",
+        resposta.status_code == 200
+        and isinstance(analise.get("aviso"), str)
+        and isinstance(analise.get("total_medicoes_analisadas"), int)
+        and isinstance(analise.get("por_ponto_aparelho"), list)
+        and isinstance(analise.get("por_condicao"), list),
         f"HTTP {resposta.status_code}: {resposta.text}",
     )
     if token_admin:

@@ -1,4 +1,4 @@
-"""`POST /medicoes` e `GET /medicoes/resumo` (medição de GPS em tempo real).
+"""`POST /medicoes`, `GET /medicoes/resumo` e `/medicoes/analise` (medição de GPS em tempo real).
 
 É dado DA EQUIPE: os celulares dela nos pontos de controle do campus, enviados na
 hora (com fila no celular quando falta sinal). A posição de quem NAVEGA nunca é
@@ -176,5 +176,75 @@ def resumo(conexao: ConexaoDaRequisicao) -> dict[str, Any]:
                 "precisao_p90_m": _arredondar(p90),
             }
             for ponto, medicoes, mediana, p90 in por_ponto
+        ],
+    }
+
+
+AVISO_ANALISE = (
+    "O erro é a distância entre a posição medida pelo celular e uma referência "
+    "estimada por imagem de satélite (não é topografia). Ele inclui, portanto, a "
+    "incerteza da própria referência: não é o erro absoluto do GPS."
+)
+
+
+def _arredondar_1(valor: float | None) -> float | None:
+    return None if valor is None else round(valor, 1)
+
+
+@router.get("/analise", dependencies=[Depends(exigir_token_admin)])
+def analise(conexao: ConexaoDaRequisicao) -> dict[str, Any]:
+    """Erro das medições de ponto contra a referência dos pontos de controle.
+
+    Lê as views `vw_erro_medicoes` (uma linha por medição de ponto com referência;
+    distância em SRID 31983, metros) e `vw_erro_por_ponto_aparelho`. Medição de ponto
+    sem referência cadastrada (11 e 12) não entra. Erros em metros com 1 casa;
+    `fracao_erro_dentro_precisao` é uma fração de 0 a 1 com 2 casas. Em
+    `por_condicao` só entram medições que informaram a condição. Sem dados: listas
+    vazias e total 0.
+    """
+    total = conexao.execute("SELECT count(*) FROM vw_erro_medicoes").fetchone()[0]
+    por_ponto_aparelho = conexao.execute(
+        """
+        SELECT ponto_codigo, p.nome, aparelho, n, erro_mediana_m, erro_p90_m,
+               fracao_erro_dentro_precisao
+        FROM vw_erro_por_ponto_aparelho v
+        JOIN pontos_controle p ON p.numero = v.ponto
+        ORDER BY ponto, aparelho
+        """
+    ).fetchall()
+    por_condicao = conexao.execute(
+        """
+        SELECT condicao, count(*),
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY erro_m),
+               percentile_cont(0.9) WITHIN GROUP (ORDER BY erro_m)
+        FROM vw_erro_medicoes
+        WHERE condicao IS NOT NULL
+        GROUP BY condicao
+        ORDER BY condicao
+        """
+    ).fetchall()
+    return {
+        "aviso": AVISO_ANALISE,
+        "total_medicoes_analisadas": total,
+        "por_ponto_aparelho": [
+            {
+                "ponto_codigo": codigo,
+                "ponto_nome": nome,
+                "aparelho": aparelho,
+                "n": n,
+                "erro_mediana_m": _arredondar_1(mediana),
+                "erro_p90_m": _arredondar_1(p90),
+                "fracao_erro_dentro_precisao": None if fracao is None else round(fracao, 2),
+            }
+            for codigo, nome, aparelho, n, mediana, p90, fracao in por_ponto_aparelho
+        ],
+        "por_condicao": [
+            {
+                "condicao": condicao,
+                "n": n,
+                "erro_mediana_m": _arredondar_1(mediana),
+                "erro_p90_m": _arredondar_1(p90),
+            }
+            for condicao, n, mediana, p90 in por_condicao
         ],
     }

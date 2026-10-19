@@ -1,4 +1,6 @@
-"""Testes HTTP de `POST /medicoes` e `GET /medicoes/resumo` (contrato de 14/10/2026).
+"""Testes HTTP de `POST /medicoes`, `GET /medicoes/resumo` e `/medicoes/analise`.
+
+Contrato de 14/10/2026.
 
 A medição de GPS é dado DA EQUIPE (os celulares dela nos pontos de controle). O
 envio é em lote, idempotente por `id_cliente`, e protegido pelo header
@@ -786,4 +788,97 @@ def test_resumo_agrupa_por_aparelho_e_por_ponto(
         {"ponto": 1, "medicoes": 4, "precisao_mediana_m": 6.0, "precisao_p90_m": 16.1},
         {"ponto": 2, "medicoes": 1, "precisao_mediana_m": 10.0, "precisao_p90_m": 10.0},
         {"ponto": 3, "medicoes": 1, "precisao_mediana_m": None, "precisao_p90_m": None},
+    ]
+
+
+# --- GET /medicoes/analise ---
+
+# Referência do P01 (db/seeds/003_pontos_controle.sql), em 4326.
+_P01_LONGITUDE = -46.65279158889783
+_P01_LATITUDE = -23.54667967656296
+
+
+def _ao_norte_do_p01(conexao: psycopg.Connection, distancia_m: float) -> tuple[float, float]:
+    """(latitude, longitude) a `distancia_m` metros ao norte do P01, somando em
+    SRID 31983 (metro) e voltando para 4326."""
+    lon, lat = conexao.execute(
+        """
+        SELECT ST_X(g), ST_Y(g) FROM (
+            SELECT ST_Transform(ST_Translate(
+                ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), 31983), 0, %s), 4326) AS g
+        ) t
+        """,
+        (_P01_LONGITUDE, _P01_LATITUDE, distancia_m),
+    ).fetchone()
+    return lat, lon
+
+
+def test_analise_sem_token_configurado_e_aberta_e_vazia_sem_dados(
+    cliente: TestClient, configurar: Callable[..., None]
+) -> None:
+    configurar(token_admin="")
+
+    resposta = cliente.get("/medicoes/analise")
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["total_medicoes_analisadas"] == 0
+    assert corpo["por_ponto_aparelho"] == []
+    assert corpo["por_condicao"] == []
+    assert "referência" in corpo["aviso"] and "satélite" in corpo["aviso"]
+
+
+def test_analise_com_token_configurado_sem_header_ou_errado_devolve_401(
+    cliente: TestClient, configurar: Callable[..., None]
+) -> None:
+    configurar(token_admin=_TOKEN_ADMIN)
+
+    assert cliente.get("/medicoes/analise").status_code == 401
+    assert cliente.get("/medicoes/analise", headers={"X-Token-Admin": "errado"}).status_code == 401
+    assert cliente.get("/medicoes/analise", headers=_CABECALHO).status_code == 401
+    assert (
+        cliente.get("/medicoes/analise", headers={"X-Token-Admin": _TOKEN_ADMIN}).status_code == 200
+    )
+
+
+def test_analise_calcula_o_erro_contra_a_referencia_em_metros(
+    cliente: TestClient, configurar: Callable[..., None], conexao: psycopg.Connection
+) -> None:
+    configurar(token_admin=_TOKEN_ADMIN)
+    medicoes = []
+    for distancia_m, condicao in [(0, "ceu_aberto"), (10, "ceu_aberto"), (20, "coberto")]:
+        latitude, longitude = _ao_norte_do_p01(conexao, distancia_m)
+        medicoes.append(
+            _ponto(
+                ponto=1,
+                condicao=condicao,
+                latitude=latitude,
+                longitude=longitude,
+                precisao_m=12.0,
+            )
+        )
+    # Ponto 11 não tem referência; trajeto não é ponto: nenhum dos dois entra.
+    medicoes.append(_ponto(ponto=11))
+    medicoes.append(_trajeto())
+    _gravar(cliente, medicoes)
+
+    resposta = cliente.get("/medicoes/analise", headers={"X-Token-Admin": _TOKEN_ADMIN})
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["total_medicoes_analisadas"] == 3
+    assert corpo["por_ponto_aparelho"] == [
+        {
+            "ponto_codigo": "P01",
+            "ponto_nome": "Praça de convivência próxima ao Prédio 18",
+            "aparelho": "Galaxy A54",
+            "n": 3,
+            "erro_mediana_m": 10.0,
+            "erro_p90_m": 18.0,
+            "fracao_erro_dentro_precisao": 0.67,
+        }
+    ]
+    assert corpo["por_condicao"] == [
+        {"condicao": "ceu_aberto", "n": 2, "erro_mediana_m": 5.0, "erro_p90_m": 9.0},
+        {"condicao": "coberto", "n": 1, "erro_mediana_m": 20.0, "erro_p90_m": 20.0},
     ]

@@ -156,6 +156,25 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `por_ponto` (ordem do ponto): só linhas com número de ponto, `medicoes` conta todas
   elas. Mediana e p90 (`percentile_cont`, interpolados, em metros, 2 casas) usam só as
   linhas com `precisao_m`; sem nenhuma, `null`.
+- `GET /medicoes/analise` (mesma proteção do `/medicoes/resumo`: header
+  `X-Token-Admin`, `TOKEN_ADMIN` vazio deixa aberta só em desenvolvimento, 401) → 200
+  ```json
+  {"aviso": "O erro é a distância entre a posição medida pelo celular e uma referência estimada por imagem de satélite ...",
+   "total_medicoes_analisadas": 3,
+   "por_ponto_aparelho": [{"ponto_codigo": "P01", "ponto_nome": "Praça de convivência ...",
+                           "aparelho": "Galaxy A54", "n": 3, "erro_mediana_m": 10.0,
+                           "erro_p90_m": 18.0, "fracao_erro_dentro_precisao": 0.67}],
+   "por_condicao": [{"condicao": "ceu_aberto", "n": 2, "erro_mediana_m": 5.0,
+                     "erro_p90_m": 9.0}]}
+  ```
+  Erro de cada medição de `tipo = "ponto"` contra a referência do ponto de controle
+  (views `vw_erro_medicoes` e `vw_erro_por_ponto_aparelho`, distância em SRID 31983).
+  A referência é uma estimativa por imagem de satélite, então o erro inclui a incerteza
+  dela: NÃO é o erro absoluto do GPS (o `aviso` diz isso). Pontos sem referência (11 e
+  12) e medições sem posição não entram. Erros em metros com 1 casa;
+  `fracao_erro_dentro_precisao` (0 a 1, 2 casas) é a parcela das medições com erro
+  menor ou igual à `precisao_m` informada pelo celular. `por_condicao` só conta
+  medições que informaram `condicao`. Sem dados: listas vazias e total 0 (200).
 - **422 de parâmetro inválido** (query: `bbox` ausente ou malformado, `status`/`origem`
   fora das opções), em todas as rotas: `{"mensagem": "Requisição inválida.", "erros":
   [{"campo": "origem", "erro": "Deve ser um destes valores: 'real' ou 'simulacao'."}]}`.
