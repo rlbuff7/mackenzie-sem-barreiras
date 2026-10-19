@@ -1,5 +1,5 @@
 /*
- * Tela da página de medição de GPS (medicao.html), fluxo guiado: ponto N de 12, medição N de 3,
+ * Tela da página de medição de GPS (medicao.html), fluxo guiado: ponto N de 10, medição N de 3,
  * contagem de 30 s parado, envio em tempo real para a equipe. Liga a lógica pura (medicao.ts,
  * fluxo.ts, fila.ts, mapa/) às APIs do navegador: geolocalização, orientação do aparelho,
  * vibração, localStorage, fetch e download do CSV.
@@ -14,7 +14,12 @@ import L from "leaflet";
 import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
-import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
+import {
+  TAMANHO_ICONE_LOSANGO_PX,
+  TAMANHO_ICONE_POSICAO_PX,
+  htmlMarcadorPosicao,
+  htmlMarcadorReferencia,
+} from "../mapa/marcadores.ts";
 import { rumoParaSeta } from "../mapa/rumo.ts";
 import { FilaEnvio, type FetchSimulavel, type ItemFila, type ResultadoRodada } from "./fila.ts";
 import {
@@ -42,7 +47,6 @@ import {
   type Etapa,
 } from "./fluxo.ts";
 import {
-  ROTULO_CONDICAO,
   gerarCsv,
   montarRegistroBussola,
   montarRegistroPosicao,
@@ -54,19 +58,25 @@ import {
   type PosicaoMedida,
   type Registro,
 } from "./medicao.ts";
+import {
+  CENTRO_CAMPUS as CENTRO_CAMPUS_REFERENCIA,
+  distanciaMetros,
+  pontoDeControle,
+  textoDistanciaReferencia,
+  tituloDoPonto,
+} from "./pontos-controle.ts";
 
 const CHAVE_FILA = "msb-medicao-fila";
 const CHAVE_REGISTROS_ANTIGA = "msb-medicao-registros";
 const CHAVE_APARELHO = "msb-medicao-aparelho";
 const CHAVE_CODIGO = "msb-medicao-codigo";
 const CHAVE_PONTO = "msb-medicao-ponto-atual";
-const CHAVE_CONDICAO = "msb-medicao-condicao";
 const CHAVE_RECOMECO = "msb-medicao-recomeco";
 const TIMEOUT_POSICAO_MS = 30000;
 const MAX_ULTIMOS = 6;
 
 // Centro aproximado do campus (confirmar com o mapeamento): só o mapa inicial, antes do primeiro fix.
-const CENTRO_CAMPUS: L.LatLngTuple = [-23.5475, -46.6522];
+const CENTRO_CAMPUS: L.LatLngTuple = [CENTRO_CAMPUS_REFERENCIA[0], CENTRO_CAMPUS_REFERENCIA[1]];
 
 function el<T extends HTMLElement>(id: string): T {
   const e = document.getElementById(id);
@@ -116,6 +126,9 @@ const contagemValor = el<HTMLElement>("contagem-valor");
 const contagemBarra = el<HTMLDivElement>("contagem-barra");
 const botaoContagem = el<HTMLButtonElement>("botao-contagem");
 const dicaMedicao = el<HTMLParagraphElement>("dica-medicao");
+const pontoNome = el<HTMLParagraphElement>("ponto-nome");
+const pontoObservacao = el<HTMLParagraphElement>("ponto-observacao");
+const legendaReferencia = el<HTMLParagraphElement>("legenda-referencia");
 const estadoEnvio = el<HTMLParagraphElement>("estado-envio");
 const painelBussola = el<HTMLElement>("painel-bussola");
 const botaoBussola = el<HTMLButtonElement>("botao-bussola");
@@ -210,7 +223,7 @@ function migrarRegistrosAntigos(): void {
 
 let pontoAtual = 1;
 let etapa: Etapa = "preparar";
-/** Instante do último "Recomeçar" (ISO): só os registros feitos depois contam no "ponto N de 12". */
+/** Instante do último "Recomeçar" (ISO): só os registros feitos depois contam no "ponto N de 10". */
 let recomecoIso: string | null = null;
 /** Registros da rodada atual: os que esperavam envio de antes do recomeço seguem na fila, mas não contam. */
 const registrosDaRodadaAtual = (): Registro[] => registrosDaRodada(fila.registros(), recomecoIso);
@@ -228,10 +241,22 @@ function pontoValido(valor: string): number | null {
   return Number.isInteger(n) && n >= 1 && n <= TOTAL_PONTOS ? n : null;
 }
 
+/** A condição vem do ponto (plano do Maurício), pré-preenchida: a pessoa pode corrigir no campo. */
+function preencherCondicaoDoPonto(n: number): void {
+  const p = pontoDeControle(n);
+  if (p) campoCondicao.value = p.condicao;
+}
+
 function definirPonto(n: number): void {
+  const mudou = n !== pontoAtual;
   pontoAtual = n;
+  if (mudou) preencherCondicaoDoPonto(n);
   campoPonto.value = String(n);
   gravarLocal(CHAVE_PONTO, String(n));
+  if (mudou) {
+    desenharReferencia();
+    enquadrarMapa();
+  }
 }
 
 // ---------- desenho ----------
@@ -250,6 +275,9 @@ function desenharCabecalho(): void {
     medicao = ultimo.medicao;
   }
   texto(tituloPonto, `Ponto ${ponto} de ${TOTAL_PONTOS}`);
+  const dados = pontoDeControle(ponto);
+  texto(pontoNome, dados ? tituloDoPonto(dados) : "");
+  texto(pontoObservacao, dados ? `${dados.condicao_plano}. ${dados.observacao}` : "");
   texto(tituloMedicao, textoMedicao(medicao));
 
   const segmentos = segmentosProgresso(registros, ap, ponto);
@@ -431,7 +459,10 @@ function irParaEtapa(nova: Etapa, opcoes: { foco?: "titulo" | "nenhum"; anuncio?
   for (const id of Object.keys(secoesEtapa) as Etapa[]) secoesEtapa[id].hidden = id !== nova;
   barraMedir.hidden = nova !== "medir";
   barraConfirmar.hidden = nova !== "resultado";
-  if (nova === "medir") mapa?.invalidateSize({ animate: false });
+  if (nova === "medir") {
+    mapa?.invalidateSize({ animate: false });
+    enquadrarMapa();
+  }
   if (opcoes.foco !== "nenhum") titulosEtapa[nova].focus();
   if (opcoes.anuncio !== null) anunciar(opcoes.anuncio ?? frasePadraoDaEtapa(nova));
 }
@@ -451,6 +482,45 @@ let mapa: L.Map | null = null;
 let marcador: L.Marker | null = null;
 let halo: L.Circle | null = null;
 let rumoDoMarcador: number | null | undefined;
+let marcadorReferencia: L.Marker | null = null;
+
+function referenciaAtual(): L.LatLng | null {
+  const p = pontoDeControle(pontoAtual);
+  return p ? L.latLng(p.referencia_lat, p.referencia_lon) : null;
+}
+
+/** Legenda em texto do ◆ e a distância até ele. Só informa: a posição medida nunca é "corrigida" por ela. */
+function desenharReferencia(): void {
+  const ref = referenciaAtual();
+  const distancia_m =
+    ref && ultimaPosicao ? distanciaMetros(ultimaPosicao.latitude, ultimaPosicao.longitude, ref.lat, ref.lng) : null;
+  texto(legendaReferencia, `◆ no mapa: referência do ponto. ${textoDistanciaReferencia(distancia_m)}`);
+}
+
+/** Mapa centrado entre a posição (com a precisão) e a referência do ponto, sem animação. */
+function enquadrarMapa(): void {
+  const ref = referenciaAtual();
+  if (!mapa || !ref) return;
+  if (marcadorReferencia) marcadorReferencia.setLatLng(ref);
+  else {
+    const metade = TAMANHO_ICONE_LOSANGO_PX / 2;
+    marcadorReferencia = L.marker(ref, {
+      icon: L.divIcon({
+        className: "",
+        html: htmlMarcadorReferencia(),
+        iconSize: [TAMANHO_ICONE_LOSANGO_PX, TAMANHO_ICONE_LOSANGO_PX],
+        iconAnchor: [metade, metade],
+      }),
+      interactive: false,
+      keyboard: false,
+    }).addTo(mapa);
+  }
+  const limites = L.latLngBounds([ref]);
+  if (halo) limites.extend(halo.getBounds());
+  else if (ultimaPosicao) limites.extend(L.latLng(ultimaPosicao.latitude, ultimaPosicao.longitude));
+  if (limites.getSouthWest().equals(limites.getNorthEast())) mapa.setView(ref, 18, { animate: false });
+  else mapa.fitBounds(limites, { maxZoom: 19, padding: [20, 20], animate: false });
+}
 
 function iniciarMapa(): void {
   try {
@@ -466,6 +536,7 @@ function iniciarMapa(): void {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>',
     }).addTo(mapa);
+    enquadrarMapa();
   } catch {
     mapa = null;
     el("mapa-medicao").hidden = true;
@@ -501,9 +572,11 @@ function atualizarMapa(): void {
     halo = L.circle(ll, { radius: p.accuracy, className: "mapa-halo", interactive: false }).addTo(mapa);
     marcador = L.marker(ll, { icon: iconePosicao(rumo), interactive: false, keyboard: false }).addTo(mapa);
     rumoDoMarcador = rumo;
-    mapa.fitBounds(halo.getBounds(), { maxZoom: 19, padding: [20, 20], animate: false });
+    desenharReferencia();
+    enquadrarMapa();
     return;
   }
+  desenharReferencia();
   halo.setLatLng(ll);
   halo.setRadius(p.accuracy);
   marcador.setLatLng(ll);
@@ -719,7 +792,7 @@ function irParaProximo(): void {
 function pularPonto(): void {
   const seguinte = proximoPonto(pontoAtual);
   if (seguinte === null) {
-    texto(statusPonto, "Este é o último ponto (12).");
+    texto(statusPonto, `Este é o último ponto (${TOTAL_PONTOS}).`);
     return;
   }
   pararContagem();
@@ -1043,17 +1116,16 @@ if (window.isSecureContext === false) {
 
 migrarRegistrosAntigos();
 campoAparelho.value = lerLocal(CHAVE_APARELHO);
-const condicaoSalva = lerLocal(CHAVE_CONDICAO);
-if (condicaoSalva in ROTULO_CONDICAO) campoCondicao.value = condicaoSalva;
 recomecoIso = lerLocal(CHAVE_RECOMECO) || null;
 definirPonto(pontoValido(lerLocal(CHAVE_PONTO)) ?? 1);
+preencherCondicaoDoPonto(pontoAtual);
+desenharReferencia();
 
 campoAparelho.addEventListener("change", () => {
   gravarLocal(CHAVE_APARELHO, aparelho());
   desenhar();
 });
 campoCondicao.addEventListener("change", () => {
-  gravarLocal(CHAVE_CONDICAO, campoCondicao.value);
   desenhar();
 });
 campoPonto.addEventListener("change", () => {

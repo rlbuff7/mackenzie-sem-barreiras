@@ -53,6 +53,19 @@
   box-shadow: 0 0 0 1px var(--mapa-acessivel);
 }
 
+/* Referência do ponto de controle: LOSANGO cheio (quadrado girado 45 graus) em mapa-atencao. */
+.mapa-losango {
+  display: block;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  margin: 4px;
+  transform: rotate(45deg);
+  background: var(--mapa-atencao);
+  border: 2px solid var(--mapa-contorno);
+  box-shadow: 0 0 0 1px var(--mapa-atencao);
+}
+
 /* Halo da precisão (L.circle com className): raio = accuracy em metros. */
 .mapa-halo {
   fill: var(--mapa-posicao-halo);

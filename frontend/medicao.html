@@ -71,7 +71,7 @@
         </div>
 
         <h1 class="medicao__titulo">
-          <span id="titulo-ponto">Ponto 1 de 12</span><span class="oculto-visualmente"> · </span>
+          <span id="titulo-ponto">Ponto 1 de 10</span><span class="oculto-visualmente"> · </span>
           <span id="titulo-medicao" class="medicao__titulo-medicao">medição 1 de 3</span>
         </h1>
 
@@ -81,11 +81,9 @@
           role="progressbar"
           aria-label="Pontos completos"
           aria-valuemin="0"
-          aria-valuemax="12"
+          aria-valuemax="10"
           aria-valuenow="0"
         >
-          <span class="medicao__segmento"></span>
-          <span class="medicao__segmento"></span>
           <span class="medicao__segmento"></span>
           <span class="medicao__segmento"></span>
           <span class="medicao__segmento"></span>
@@ -133,8 +131,8 @@
             </div>
           </div>
           <div class="campo">
-            <label for="campo-ponto">Ir para o ponto (1 a 12)</label>
-            <input id="campo-ponto" name="ponto" type="number" inputmode="numeric" min="1" max="12" step="1" value="1" />
+            <label for="campo-ponto">Ir para o ponto (1 a 10)</label>
+            <input id="campo-ponto" name="ponto" type="number" inputmode="numeric" min="1" max="10" step="1" value="1" />
           </div>
 
           <p id="status-registros" class="medicao__status" role="status" aria-live="polite"></p>
@@ -155,12 +153,16 @@
             <button type="button" id="botao-alterar" class="botao botao--secundaria">Alterar preparação</button>
           </div>
 
+          <p id="ponto-nome" class="medicao__ponto-nome"></p>
+          <p id="ponto-observacao" class="medicao__nota medicao__nota--ponto"></p>
+
           <div
             id="mapa-medicao"
             class="medicao__mapa"
             role="region"
-            aria-label="Mapa com a sua posição e o círculo de precisão (referência visual)"
+            aria-label="Mapa com a sua posição, o círculo de precisão e a referência do ponto (referência visual)"
           ></div>
+          <p id="legenda-referencia" class="medicao__nota medicao__legenda"></p>
           <p id="mapa-indisponivel" class="medicao__nota" role="status" hidden>
             O mapa não pôde ser carregado. As medições continuam valendo.
           </p>
