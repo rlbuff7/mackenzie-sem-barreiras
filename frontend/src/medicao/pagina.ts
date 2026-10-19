@@ -54,6 +54,7 @@ import {
   nomeArquivoCsv,
   oscilacaoBussola,
   podeGravarTrajeto,
+  ROTULO_CONDICAO,
   type Condicao,
   type PosicaoMedida,
   type Registro,
@@ -277,7 +278,7 @@ function desenharCabecalho(): void {
   texto(tituloPonto, `Ponto ${ponto} de ${TOTAL_PONTOS}`);
   const dados = pontoDeControle(ponto);
   texto(pontoNome, dados ? tituloDoPonto(dados) : "");
-  texto(pontoObservacao, dados ? `${dados.condicao_plano}. ${dados.observacao}` : "");
+  texto(pontoObservacao, dados ? `${ROTULO_CONDICAO[dados.condicao]}. ${dados.observacao}` : "");
   texto(tituloMedicao, textoMedicao(medicao));
 
   const segmentos = segmentosProgresso(registros, ap, ponto);

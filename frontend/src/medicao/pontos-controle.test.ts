@@ -30,15 +30,14 @@ test("todas as referências ficam dentro do campus (recorte provisório de 500 m
   }
 });
 
-test("condição é uma das que a API aceita e traz o rótulo do plano de medição", () => {
+test("condição é uma das que a API aceita", () => {
   for (const p of PONTOS_CONTROLE) {
     assert.ok(p.condicao in ROTULO_CONDICAO, p.codigo);
-    assert.ok(["Céu aberto", "Entre prédios", "Entrada de prédio"].includes(p.condicao_plano), p.codigo);
     assert.ok(p.nome.length > 0 && p.observacao.length > 0, p.codigo);
   }
   assert.equal(pontoDeControle(1)?.condicao, "ceu_aberto");
   assert.equal(pontoDeControle(3)?.condicao, "entre_predios");
-  assert.equal(pontoDeControle(4)?.condicao, "coberto");
+  for (const n of [4, 5, 6]) assert.equal(pontoDeControle(n)?.condicao, "entrada_predio");
 });
 
 test("pontoDeControle: fora de 1..10 é undefined", () => {

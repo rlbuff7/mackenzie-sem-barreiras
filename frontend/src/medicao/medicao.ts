@@ -6,11 +6,12 @@
  */
 
 export type TipoRegistro = "ponto" | "trajeto" | "bussola" | "vibracao";
-export type Condicao = "ceu_aberto" | "entre_predios" | "coberto";
+export type Condicao = "ceu_aberto" | "entre_predios" | "entrada_predio" | "coberto";
 
 export const ROTULO_CONDICAO: Record<Condicao, string> = {
   ceu_aberto: "Céu aberto",
   entre_predios: "Entre prédios",
+  entrada_predio: "Entrada de prédio",
   coberto: "Coberto",
 };
 
