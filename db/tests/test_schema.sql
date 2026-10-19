@@ -521,5 +521,93 @@ SELECT pg_temp.deve_rejeitar('observação com mais de 500 caracteres',
     $q$INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, observacao)
        VALUES (gen_random_uuid(), 'vibracao', now(), 'X', repeat('a', 501))$q$, '22001');
 
+-- ---------------------------------------------------------------------------
+-- Pontos de controle e erro das medições (migration 006 + seed 003)
+-- ---------------------------------------------------------------------------
+
+SELECT pg_temp.afirmar('tabela pontos_controle existe', to_regclass('pontos_controle') IS NOT NULL);
+SELECT pg_temp.afirmar('seed: 10 pontos de controle (P01..P10)',
+    (SELECT count(*) = 10 AND min(numero) = 1 AND max(numero) = 10 FROM pontos_controle));
+SELECT pg_temp.afirmar('seed: código P01..P10 confere com o número',
+    NOT EXISTS (SELECT 1 FROM pontos_controle WHERE codigo <> 'P' || lpad(numero::text, 2, '0')));
+SELECT pg_temp.afirmar('seed: todas as referências caem no campus (lat -23,55..-23,54; lon -46,654..-46,651)',
+    NOT EXISTS (SELECT 1 FROM pontos_controle
+                WHERE ST_Y(geom_referencia) NOT BETWEEN -23.55 AND -23.54
+                   OR ST_X(geom_referencia) NOT BETWEEN -46.654 AND -46.651));
+SELECT pg_temp.afirmar('seed: condições 5 ceu_aberto / 2 entre_predios / 3 coberto',
+    (SELECT count(*) FILTER (WHERE condicao = 'ceu_aberto') = 5
+        AND count(*) FILTER (WHERE condicao = 'entre_predios') = 2
+        AND count(*) FILTER (WHERE condicao = 'coberto') = 3 FROM pontos_controle));
+SELECT pg_temp.afirmar('seed: P04..P06 são "Entrada de prédio" mapeados para coberto',
+    (SELECT count(*) = 3 FROM pontos_controle
+     WHERE rotulo_condicao_original = 'Entrada de prédio' AND condicao = 'coberto'
+       AND numero IN (4, 5, 6)));
+SELECT pg_temp.afirmar('pontos_controle.geom_referencia é Point em SRID 4326',
+    EXISTS (SELECT 1 FROM geometry_columns
+            WHERE f_table_name = 'pontos_controle' AND f_geometry_column = 'geom_referencia'
+              AND type = 'POINT' AND srid = 4326));
+SELECT pg_temp.afirmar('índice idx_pontos_controle_geom é GiST',
+    EXISTS (SELECT 1 FROM pg_indexes
+            WHERE indexname = 'idx_pontos_controle_geom' AND indexdef ILIKE '%USING gist%'));
+SELECT pg_temp.afirmar('origem_referencia padrão diz estimativa por satélite',
+    (SELECT bool_and(origem_referencia LIKE '%estimativa%') FROM pontos_controle));
+
+SELECT pg_temp.deve_rejeitar('ponto de controle com número 13',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
+       VALUES (13, 'P13', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('ponto de controle com condição fora da lista do app',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
+       VALUES (11, 'P11', 'x', 'entrada_predio', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('código que não confere com o número',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
+       VALUES (11, 'P99', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('código repetido',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
+       VALUES (11, 'P01', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('número repetido',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
+       VALUES (1, 'P01', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326))$q$, '23505');
+SELECT pg_temp.deve_rejeitar('geom_referencia obrigatória',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao)
+       VALUES (11, 'P11', 'x', 'ceu_aberto')$q$, '23502');
+SELECT pg_temp.deve_rejeitar('geom_referencia com SRID 31983 em vez de 4326',
+    $q$INSERT INTO pontos_controle (numero, codigo, nome, condicao, geom_referencia)
+       VALUES (11, 'P11', 'x', 'ceu_aberto', ST_SetSRID(ST_MakePoint(333000, 7394000), 31983))$q$, '22023');
+
+-- Distância conhecida: pontos deslocados 0, 10 e 20 m para o norte do P01 (o
+-- deslocamento é feito em 31983, onde a unidade é metro) e um aparelho 'T-erro'.
+-- Também confere que medição de outro tipo e de ponto sem referência (11) fica de fora.
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, condicao, geom, precisao_m)
+SELECT gen_random_uuid(), 'ponto', now(), 'T-erro', 1, 'ceu_aberto',
+       ST_Transform(ST_Translate(ST_Transform(p.geom_referencia, 31983), 0, d.deslocamento_m), 4326),
+       d.precisao
+FROM pontos_controle p,
+     (VALUES (0.0, 12.0), (10.0, 12.0), (20.0, 12.0)) AS d(deslocamento_m, precisao)
+WHERE p.numero = 1;
+INSERT INTO medicoes_gps (id_cliente, tipo, medido_em, aparelho, ponto, geom, precisao_m)
+VALUES (gen_random_uuid(), 'ponto', now(), 'T-erro', 11,
+        ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5),
+       (gen_random_uuid(), 'trajeto', now(), 'T-erro', 1,
+        ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5);
+
+SELECT pg_temp.afirmar('vw_erro_medicoes: 3 linhas do T-erro (sem ponto 11, sem trajeto)',
+    (SELECT count(*) = 3 FROM vw_erro_medicoes WHERE aparelho = 'T-erro'));
+SELECT pg_temp.afirmar('vw_erro_medicoes: deslocamento de 10 m dá erro_m = 10 +- 0,5',
+    EXISTS (SELECT 1 FROM vw_erro_medicoes
+            WHERE aparelho = 'T-erro' AND abs(erro_m - 10) <= 0.5));
+SELECT pg_temp.afirmar('vw_erro_medicoes: erro_m em metros, não em grau (máximo 20 +- 0,5)',
+    (SELECT abs(max(erro_m) - 20) <= 0.5 AND min(erro_m) <= 0.5
+     FROM vw_erro_medicoes WHERE aparelho = 'T-erro'));
+SELECT pg_temp.afirmar('vw_erro_medicoes: traz ponto_codigo, precisao_m, aparelho, condicao e medido_em',
+    (SELECT bool_and(ponto_codigo = 'P01' AND precisao_m = 12 AND condicao = 'ceu_aberto'
+                     AND medido_em IS NOT NULL)
+     FROM vw_erro_medicoes WHERE aparelho = 'T-erro'));
+SELECT pg_temp.afirmar('vw_erro_por_ponto_aparelho: n = 3, mediana ~ 10 m, p90 ~ 18 m',
+    (SELECT n = 3 AND abs(erro_mediana_m - 10) <= 0.5 AND abs(erro_p90_m - 18) <= 0.5
+     FROM vw_erro_por_ponto_aparelho WHERE aparelho = 'T-erro' AND ponto = 1));
+SELECT pg_temp.afirmar('vw_erro_por_ponto_aparelho: erro <= precisão em 2 de 3 medições (0 m e 10 m; 20 m não)',
+    (SELECT abs(fracao_erro_dentro_precisao - 2.0 / 3) < 1e-9
+     FROM vw_erro_por_ponto_aparelho WHERE aparelho = 'T-erro' AND ponto = 1));
+
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
