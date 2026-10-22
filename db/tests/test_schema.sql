@@ -621,5 +621,42 @@ SELECT pg_temp.deve_rejeitar('medicoes_gps com condicao inventada',
        VALUES (gen_random_uuid(), 'ponto', now(), 'X', 4, 'inventada',
                ST_SetSRID(ST_MakePoint(-46.65, -23.54), 4326), 5)$q$, '23514');
 
+-- ---------------------------------------------------------------------------
+-- Fotos dos pontos de controle (fotos_pontos) — migration 008
+-- ---------------------------------------------------------------------------
+
+SELECT pg_temp.afirmar('tabela fotos_pontos existe', to_regclass('fotos_pontos') IS NOT NULL);
+SELECT pg_temp.afirmar('índice idx_fotos_pontos_ponto_aparelho existe',
+    EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_fotos_pontos_ponto_aparelho'));
+SELECT pg_temp.afirmar('fotos_pontos.id_cliente é UNIQUE com nome',
+    EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'fotos_pontos'::regclass
+            AND contype = 'u' AND conname = 'fotos_pontos_id_cliente_unico'));
+
+INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes,
+                          largura_px, altura_px, sha256)
+VALUES ('22222222-2222-4222-8222-222222222222', 3, 'Galaxy A54', now(), '\xffd8ffd9'::bytea, 4,
+        1280, 960, repeat('a', 64));
+SELECT pg_temp.afirmar('foto válida entra, com recebida_em preenchido pelo servidor',
+    (SELECT count(*) = 1 AND bool_and(recebida_em IS NOT NULL) FROM fotos_pontos
+      WHERE id_cliente = '22222222-2222-4222-8222-222222222222'));
+
+SELECT pg_temp.deve_rejeitar('foto com id_cliente repetido',
+    $q$INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes, sha256)
+       VALUES ('22222222-2222-4222-8222-222222222222', 3, 'X', now(), '\xff'::bytea, 1,
+               repeat('a', 64))$q$, '23505');
+SELECT pg_temp.deve_rejeitar('foto com tamanho_bytes diferente do conteúdo',
+    $q$INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes, sha256)
+       VALUES (gen_random_uuid(), 3, 'X', now(), '\xffd8ffd9'::bytea, 3, repeat('a', 64))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('foto maior que 1 MiB',
+    $q$INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes, sha256)
+       VALUES (gen_random_uuid(), 3, 'X', now(), decode(repeat('ff', 1048577), 'hex'), 1048577,
+               repeat('a', 64))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('foto de ponto 13',
+    $q$INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes, sha256)
+       VALUES (gen_random_uuid(), 13, 'X', now(), '\xff'::bytea, 1, repeat('a', 64))$q$, '23514');
+SELECT pg_temp.deve_rejeitar('foto com aparelho vazio',
+    $q$INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes, sha256)
+       VALUES (gen_random_uuid(), 3, '', now(), '\xff'::bytea, 1, repeat('a', 64))$q$, '23514');
+
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
