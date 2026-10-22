@@ -87,6 +87,13 @@ test("campos no lugar certo: aparelho, código e ponto em Preparar; condição e
   }
 });
 
+test("Preparar: 'Escolher o ponto' é um <select> nativo com label associada e fallback mínimo", () => {
+  const preparar = secao("etapa-preparar");
+  assert.match(preparar, /<label for="campo-ponto">Escolher o ponto<\/label>/);
+  assert.match(preparar, /<select id="campo-ponto" name="ponto">/);
+  assert.doesNotMatch(secao("etapa-medir"), /id="campo-ponto"/, "Medir não tem segundo campo de ponto");
+});
+
 test("o texto do Recomeçar não promete apagar o servidor (a confirmação vem de fluxo.ts)", () => {
   assert.doesNotMatch(html, /apagar todos os registros/i);
 });
@@ -103,7 +110,7 @@ test("pontos de controle: 10 segmentos, 'de 10' e nome, observação e legenda d
   assert.equal(html.match(/class="medicao__segmento"/g)?.length, PONTOS_CONTROLE.length);
   assert.match(html, new RegExp(`aria-valuemax="${total}"`));
   assert.match(html, new RegExp(`Ponto 1 de ${total}`));
-  assert.match(html, new RegExp(`max="${total}"`));
+  assert.doesNotMatch(html, /id="campo-ponto"[^>]*type="number"/, "o ponto é escolhido numa caixa de seleção, não digitado");
   assert.doesNotMatch(html, /de 12\b|a 12\)|max="12"/);
   const medir = secao("etapa-medir");
   for (const id of ["ponto-nome", "ponto-observacao", "legenda-referencia"]) {

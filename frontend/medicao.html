@@ -131,8 +131,11 @@
             </div>
           </div>
           <div class="campo">
-            <label for="campo-ponto">Ir para o ponto (1 a 10)</label>
-            <input id="campo-ponto" name="ponto" type="number" inputmode="numeric" min="1" max="10" step="1" value="1" />
+            <label for="campo-ponto">Escolher o ponto</label>
+            <!-- As opções P01 a P10 são montadas por pagina.ts a partir de pontos-controle.ts; esta é só o mínimo sem JS. -->
+            <select id="campo-ponto" name="ponto">
+              <option value="1">P01</option>
+            </select>
           </div>
 
           <p id="status-registros" class="medicao__status" role="status" aria-live="polite"></p>
