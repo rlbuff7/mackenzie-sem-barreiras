@@ -62,6 +62,7 @@ import {
 import {
   CENTRO_CAMPUS as CENTRO_CAMPUS_REFERENCIA,
   distanciaMetros,
+  opcoesDePontos,
   pontoDeControle,
   textoDistanciaReferencia,
   tituloDoPonto,
@@ -92,7 +93,7 @@ function texto(e: HTMLElement, valor: string): void {
 
 const campoAparelho = el<HTMLInputElement>("campo-aparelho");
 const campoCodigo = el<HTMLInputElement>("campo-codigo");
-const campoPonto = el<HTMLInputElement>("campo-ponto");
+const campoPonto = el<HTMLSelectElement>("campo-ponto");
 const campoCondicao = el<HTMLSelectElement>("campo-condicao");
 const campoObservacao = el<HTMLInputElement>("campo-observacao");
 const resumoConfig = el<HTMLElement>("resumo-config");
@@ -266,6 +267,20 @@ function itemDaFila(id_cliente: string): ItemFila | undefined {
   return fila.itens.find((i) => i.id_cliente === id_cliente);
 }
 
+/** Cria as 10 opções uma vez; depois só troca o texto (" · feito") e a seleção, sem refazer a lista. */
+function desenharOpcoesDePonto(completos: ReadonlySet<number>): void {
+  const opcoes = opcoesDePontos(completos);
+  if (campoPonto.options.length !== opcoes.length) {
+    campoPonto.replaceChildren(...opcoes.map((o) => new Option(o.texto, o.valor)));
+  } else {
+    opcoes.forEach((o, i) => {
+      const opcao = campoPonto.options[i];
+      if (opcao && opcao.textContent !== o.texto) opcao.textContent = o.texto;
+    });
+  }
+  campoPonto.value = String(pontoAtual);
+}
+
 function desenharCabecalho(): void {
   const registros = registrosDaRodadaAtual();
   const ap = aparelho();
@@ -290,6 +305,7 @@ function desenharCabecalho(): void {
     filho.setAttribute("data-atual", String(s.atual));
     filho.setAttribute("data-pulado", String(s.pulado));
   });
+  desenharOpcoesDePonto(new Set(segmentos.filter((s) => s.completo).map((s) => s.ponto)));
   progresso.setAttribute("aria-valuenow", String(pontosCompletos(segmentos)));
   progresso.setAttribute("aria-valuetext", textoProgresso(segmentos));
 

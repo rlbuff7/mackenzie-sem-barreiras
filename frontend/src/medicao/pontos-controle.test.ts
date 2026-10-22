@@ -5,6 +5,8 @@ import {
   PONTOS_CONTROLE,
   RAIO_CAMPUS_M,
   distanciaMetros,
+  opcoesDePontos,
+  textoOpcaoPonto,
   pontoDeControle,
   textoDistanciaReferencia,
   tituloDoPonto,
@@ -64,4 +66,20 @@ test("textoDistanciaReferencia: metros por extenso, plural certo e aviso de esti
     assert.match(t, /estimativa por imagem de satélite/);
   }
   assert.doesNotMatch(textoDistanciaReferencia(null), /metro/);
+});
+
+test("opcoesDePontos: 10 opções 'P01 · nome curto', '· feito' só nos pontos completos", () => {
+  const ops = opcoesDePontos(new Set([2, 10]));
+  assert.equal(ops.length, 10);
+  assert.deepEqual(ops.map((o) => o.valor), ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+  assert.equal(ops[0]?.texto, "P01 · Praça do Prédio 18");
+  assert.equal(ops[1]?.texto, "P02 · Biblioteca Central · feito");
+  assert.equal(ops[9]?.texto, "P10 · Circulação do Auditório · feito");
+  assert.equal(ops.filter((o) => o.texto.endsWith(" · feito")).length, 2);
+  assert.equal(opcoesDePontos(new Set()).filter((o) => o.texto.includes("feito")).length, 0);
+});
+
+test("nomes curtos: até 24 caracteres e a opção mais longa cabe em ~36 caracteres", () => {
+  for (const p of PONTOS_CONTROLE) assert.ok(p.nome_curto.length > 0 && p.nome_curto.length <= 24, p.codigo);
+  for (const p of PONTOS_CONTROLE) assert.ok(textoOpcaoPonto(p, true).length <= 38, p.codigo);
 });
