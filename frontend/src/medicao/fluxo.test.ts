@@ -5,6 +5,9 @@ import {
   anuncioRecomecou,
   classificarPrecisao,
   descreverEnvio,
+  deveAnunciarTrajeto,
+  textoPosicoes,
+  textoTrajeto,
   ETAPAS,
   etapaInicial,
   numeroDaEtapa,
@@ -221,4 +224,19 @@ test("registrosDaRodada: sem marca valem todos; com marca valem só os feitos de
   assert.deepEqual(registrosDaRodada([antigo, novo], "2026-10-22T10:30:00.000Z"), [novo]);
   // o que esperava envio de antes do recomeço não conta no ponto 1 da rodada nova
   assert.equal(medicoesFeitas(registrosDaRodada([antigo], "2026-10-22T10:30:00.000Z"), 1, "Galaxy A54"), 0);
+});
+
+test("trajeto: plural certo no texto visível", () => {
+  assert.equal(textoPosicoes(1), "1 posição");
+  assert.equal(textoPosicoes(12), "12 posições");
+  assert.equal(textoTrajeto(1, 25), "Trajeto gravando: 1 posição, precisão " + formatarMetros(25) + ".");
+  assert.match(textoTrajeto(12, 8), /^Trajeto gravando: 12 posições, precisão /);
+  assert.notEqual(textoTrajeto(2, 8), textoTrajeto(3, 8));
+});
+
+test("trajeto: o anúncio para leitor de tela só na 1ª e a cada 10", () => {
+  const falam = [];
+  for (let n = 1; n <= 31; n++) if (deveAnunciarTrajeto(n)) falam.push(n);
+  assert.deepEqual(falam, [1, 10, 20, 30]);
+  assert.equal(deveAnunciarTrajeto(0), false);
 });

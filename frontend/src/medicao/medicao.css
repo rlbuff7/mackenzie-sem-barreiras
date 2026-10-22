@@ -439,3 +439,32 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   .medicao__registrar:hover:not(:disabled) { background: var(--primaria-escura); }
   .medicao .botao--perigo:hover { background: var(--perigo-escuro); }
 }
+
+/* Foto do ponto: azul quando está bem; cor de estado só no problema. Sem animação. */
+.medicao__foto { margin-top: var(--espaco-4); }
+.medicao__foto h3 { margin: 0 0 var(--espaco-2); font-size: 1rem; }
+.medicao__foto .medicao__nota { margin: 0 0 var(--espaco-3); }
+.medicao__foto-botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+#campo-foto:focus-visible + .medicao__foto-botao {
+  outline: var(--linha-foco) solid var(--alerta);
+  outline-offset: 2px;
+}
+.medicao__fotos { list-style: none; margin: var(--espaco-3) 0 0; padding: 0; display: grid; gap: var(--espaco-3); }
+.medicao__foto-item { display: flex; align-items: center; gap: var(--espaco-3); }
+.medicao__foto-item img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--raio-controle);
+  border: var(--linha-fina) solid var(--borda);
+  flex: none;
+}
+.medicao__foto-item p { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--primaria-escura); }
+.medicao__foto-item[data-estado="fila"] p { color: var(--pendente); }
+.medicao__foto-item[data-estado="recusada"] p { color: var(--perigo); }

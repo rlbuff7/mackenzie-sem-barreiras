@@ -226,3 +226,20 @@ export function descreverEnvio(e: {
   }
   return { cartao: "fila", icone: "◆", titulo: "Na fila, enviando", curto: "◆ na fila" };
 }
+
+// ---------- aviso do trajeto ----------
+
+/** "1 posição" / "12 posições". */
+export function textoPosicoes(n: number): string {
+  return n === 1 ? "1 posição" : `${n} posições`;
+}
+
+/** Texto VISÍVEL da faixa do trajeto: muda a cada posição gravada. */
+export function textoTrajeto(gravadas: number, precisao_m: number | null): string {
+  return `Trajeto gravando: ${textoPosicoes(gravadas)}, precisão ${formatarMetros(precisao_m)}.`;
+}
+
+/** O leitor de tela só fala na 1ª posição e a cada 10 (o texto visível muda sempre). */
+export function deveAnunciarTrajeto(gravadas: number): boolean {
+  return gravadas === 1 || (gravadas > 0 && gravadas % 10 === 0);
+}

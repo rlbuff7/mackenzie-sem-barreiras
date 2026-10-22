@@ -117,3 +117,20 @@ test("pontos de controle: 10 segmentos, 'de 10' e nome, observação e legenda d
     assert.ok(medir.includes(`id="${id}"`), `${id} deveria estar em Medir`);
   }
 });
+
+test("foto do ponto: input escondido com capture, label-botão, frase fixa e um único aria-live", () => {
+  const m = /<section class="medicao__foto"[\s\S]*?<\/section>/.exec(html);
+  assert.ok(m, "falta a seção da foto");
+  const foto = m[0];
+  assert.match(foto, /<input[^>]*id="campo-foto"[^>]*type="file"[^>]*capture="environment"/);
+  assert.match(foto, /<input[^>]*class="oculto-visualmente"/);
+  assert.match(foto, /<label for="campo-foto"[^>]*>Fotografar o ponto<\/label>/);
+  assert.ok(foto.includes("Enquadre só o lugar, sem pessoas."));
+  assert.equal((foto.match(/aria-live=/g) ?? []).length, 1);
+  assert.match(foto, /<p id="estado-foto"[^>]*aria-live="polite"/);
+});
+
+test("faixa do trajeto: texto visível sem aria-live; anúncio em região própria", () => {
+  assert.match(html, /<p id="status-trajeto"><\/p>/);
+  assert.match(html, /<p id="anuncio-trajeto"[^>]*aria-live="polite"/);
+});
