@@ -34,6 +34,7 @@ no compose), esses dois passos falham mesmo que a API direta esteja saudável.
 """
 
 import argparse
+import base64
 import json
 import math
 import os
@@ -469,6 +470,68 @@ def _verificar_medicoes(v: Verificador, frontend: httpx.Client, token_admin: str
             resposta.status_code == 401,
             f"HTTP {resposta.status_code}: {resposta.text}",
         )
+    _verificar_fotos(v, frontend, codigo, cabecalhos_admin)
+
+
+# JPEG 1x1 válido, sem metadados (sem APP1/Exif).
+_JPEG_MINIMO = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////"
+    "////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
+)
+
+
+def _verificar_fotos(
+    v: Verificador, frontend: httpx.Client, codigo: str, cabecalhos_admin: dict[str, str]
+) -> None:
+    """`POST /api/medicoes/fotos` (corpo bruto image/jpeg) pelo proxy do frontend: 200,
+    idempotência, 401 e o resumo. Só roda com o código da equipe definido, como as
+    medições."""
+    parametros = {
+        "id_cliente": str(uuid.uuid4()),
+        "ponto": 1,
+        "aparelho": "Aparelho de teste e2e",
+        "tirada_em": "2026-10-22T10:30:00-03:00",
+        "largura_px": 1,
+        "altura_px": 1,
+    }
+    jpeg = {"Content-Type": "image/jpeg"}
+    resposta = pedir(
+        frontend,
+        "POST",
+        "/api/medicoes/fotos",
+        params=parametros,
+        content=_JPEG_MINIMO,
+        headers={**jpeg, "X-Codigo-Equipe": "errado"},
+    )
+    v.checar(
+        "POST /api/medicoes/fotos com o código errado é recusado (401)",
+        resposta.status_code == 401,
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    enviar = {
+        "params": parametros,
+        "content": _JPEG_MINIMO,
+        "headers": {**jpeg, "X-Codigo-Equipe": codigo},
+    }
+    resposta = pedir(frontend, "POST", "/api/medicoes/fotos", **enviar)
+    v.checar(
+        "POST /api/medicoes/fotos grava um JPEG mínimo sem EXIF (200, gravada=true)",
+        resposta.status_code == 200 and json_seguro(resposta) == {"gravada": True},
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    resposta = pedir(frontend, "POST", "/api/medicoes/fotos", **enviar)
+    v.checar(
+        "POST /api/medicoes/fotos é idempotente: o mesmo id_cliente dá gravada=false",
+        resposta.status_code == 200 and json_seguro(resposta) == {"gravada": False},
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
+    resposta = pedir(frontend, "GET", "/api/medicoes/fotos/resumo", headers=cabecalhos_admin)
+    itens = resposta.json() if resposta.status_code == 200 else []
+    v.checar(
+        "GET /api/medicoes/fotos/resumo mostra 1 foto do P01 do aparelho de teste",
+        any(i.get("ponto_codigo") == "P01" and i.get("fotos") == 1 for i in itens),
+        f"HTTP {resposta.status_code}: {resposta.text}",
+    )
 
 
 def _rejeitados_schema(api: httpx.Client) -> int | None:

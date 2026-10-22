@@ -175,6 +175,29 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
   `fracao_erro_dentro_precisao` (0 a 1, 2 casas) é a parcela das medições com erro
   menor ou igual à `precisao_m` informada pelo celular. `por_condicao` só conta
   medições que informaram `condicao`. Sem dados: listas vazias e total 0 (200).
+- `POST /medicoes/fotos?id_cliente=<uuid>&ponto=<1..12>&aparelho=<texto>&tirada_em=<ISO 8601 com fuso>[&largura_px=<1..2048>&altura_px=<1..2048>&observacao=<até 500>]`
+  (foto do ponto de controle, 22/10/2026; dado DA EQUIPE). Header `X-Codigo-Equipe`
+  (mesma regra do `POST /medicoes`: código não configurado = 503, ausente ou errado =
+  401), header `Content-Type: image/jpeg` e o JPEG como corpo bruto (sem multipart).
+  Sem metadados: o app reprocessa a imagem num canvas, que descarta EXIF/GPS.
+  - 200 `{"gravada": true}`; o mesmo `id_cliente` de novo: 200 `{"gravada": false}`
+    (idempotente, `ON CONFLICT DO NOTHING`).
+  - 413 `{"mensagem": ...}`: corpo vazio ou com mais de 1 048 576 bytes (confere o
+    `Content-Length` antes de ler; o nginx aceita até 1200k só nesta rota).
+  - 415: `Content-Type` diferente de `image/jpeg`, ou corpo que não começa com
+    `FF D8 FF`.
+  - 422 `{"mensagem": "A foto tem metadados (EXIF); envie pelo app, que remove."}`
+    se há um segmento `Exif\0\0` nos primeiros 64 KiB; parâmetro inválido ou
+    desconhecido: `{"mensagem": "Foto inválida.", "erros": [{"campo": "ponto",
+    "erro": "..."}]}`.
+  - 429 (só pelo nginx): mesmo limite de envio das medições.
+- `GET /medicoes/fotos/resumo` (header `X-Token-Admin`, como `/medicoes/resumo`) → 200
+  `[{"ponto_codigo": "P03", "ponto": 3, "aparelho": "Galaxy A54", "fotos": 2,
+  "ultima_em": "2026-10-22T13:31:00+00:00"}]`, sem os bytes, ordenado por ponto e
+  aparelho (pontos 11 e 12 saem como `P11` e `P12`).
+- `GET /medicoes/fotos/{id}` (header `X-Token-Admin`) → o JPEG (`image/jpeg`,
+  `Cache-Control: no-store`); 404 se o id não existe. Tabela `fotos_pontos`
+  (migration 008); código em `app/routers/fotos.py` e `app/schemas/foto.py`.
 - **422 de parâmetro inválido** (query: `bbox` ausente ou malformado, `status`/`origem`
   fora das opções), em todas as rotas: `{"mensagem": "Requisição inválida.", "erros":
   [{"campo": "origem", "erro": "Deve ser um destes valores: 'real' ou 'simulacao'."}]}`.
