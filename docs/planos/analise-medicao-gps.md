@@ -19,14 +19,14 @@
 | P3 | O celular "diz a verdade" sobre a própria precisão? | `erro_m` contra `precisao_m` (fração com erro <= precisão) | Se `precisao_m` pode ser usado como gatilho de silêncio, ou se só serve como sinal fraco |
 | P4 | Quanto a posição oscila com a pessoa parada? | Dispersão entre as 3 repetições do mesmo ponto e aparelho | Janela de suavização e histerese ao decidir "chegou" (evitar anunciar e desanunciar) |
 | P5 | Quanto a posição oscila andando, comparado a parado? | Trajeto (tipo `trajeto`, ~5 s) contra a mesma condição parada | Cadência de atualização da orientação enquanto a pessoa anda **[CONFERIR]** se haverá trajeto suficiente |
-| P6 | A bússola é estável? | `bussola_oscilacao_graus`, `bussola_fonte` | Quando falar direção ("à sua direita") ou só distância; método 3 **[CONFERIR]** |
+| P6 | A bússola é estável? | `bussola_oscilacao_graus`, `bussola_fonte` | Quando falar direção ("à sua direita") ou só distância; método 3 (confirmação por referência física) |
 
-**Ligação com os métodos decididos (1, 2 e 3).** O que os dados dizem entra assim, sem inventar o método:
+**Ligação com os métodos decididos em 14/10 (1 map matching, 2 filtro, 3 confirmação por referência física; o 4, contagem de passos, está em observação).** O que os dados dizem entra assim, sem inventar o método:
 
-- **Raio de chegada (método 1):** o raio não pode ser menor que o erro típico da condição pior em que o ponto fica. Os dados dão o piso; o valor final é **[DECIDIR]** com a orientadora (pendência de precisão mínima).
+- **Map matching (método 1):** o erro típico por condição define a distância máxima que o map matching pode "corrigir" sem arriscar encaixar a pessoa no caminho errado (por exemplo, entre dois caminhos paralelos). Os dados dão o piso do raio de "chegou ao ponto": ele não pode ser menor que o erro típico da condição pior em que o ponto fica; o valor final é **[DECIDIR]** com a orientadora (pendência de precisão mínima).
+- **Filtro (método 2):** a dispersão das repetições (P4) e a oscilação andando (P5) dizem quanta suavização e histerese o filtro precisa; a fração dentro da precisão (P3) diz se `precisao_m` pode alimentar o filtro e o gatilho de silêncio.
 - **Silêncio:** se P3 mostrar que o celular subestima o erro (erro > `precisao_m` com frequência), `precisao_m` sozinho não basta para calar o sistema. Princípio de segurança do CLAUDE.md: silêncio é melhor que palpite.
-- **Confirmação por referência física (método 2):** onde o erro de P1 for comparável à distância entre marcos (ex.: P05 e P06, entradas próximas), a posição não distingue os dois, e a pessoa deve confirmar por um marco tátil ou sonoro.
-- **Método 3:** a ser descrito no E3 com base em P6 e no que a equipe já decidiu **[CONFERIR com Rodrigo qual é o método 3 para não escrever errado]**.
+- **Confirmação por referência física (método 3):** onde o erro de P1 for comparável à distância entre marcos (ex.: P05 e P06, entradas próximas), a posição não distingue os dois, e a pessoa deve confirmar que chegou a uma referência do mundo real (por exemplo, "cheguei na rampa").
 
 Não há hipótese numérica prévia. Escrever limiares (por exemplo, "5 m") antes de ver os dados enviesaria a análise.
 
@@ -36,7 +36,7 @@ Não há hipótese numérica prévia. Escrever limiares (por exemplo, "5 m") ant
 
 ### 2.1 Unidade de análise e definição do erro
 
-- Unidade: uma linha de `vw_erro_medicoes` (tipo `ponto`, com referência). **[CONFERIR]** em `frontend/src/medicao/pagina.ts` se cada "medição de 30 s" vira **uma** linha (posição final ou a de melhor precisão) ou várias. A resposta muda a definição de "repetição" abaixo.
+- Unidade: uma linha de `vw_erro_medicoes` (tipo `ponto`, com referência). Cada contagem de 30 s (ou "Registrar agora") grava **uma** linha `ponto`; portanto "repetição" = linha, e há 3 repetições por ponto x aparelho.
 - `erro_m` = distância em metros (SRID 31983) entre a posição medida e a referência do ponto. A referência é estimada por imagem de satélite, então **`erro_m` inclui a incerteza da referência**; chamar de "desvio em relação à referência estimada", nunca de "erro absoluto do GPS".
 
 ### 2.2 Métricas (todas em metros, salvo a fração)
@@ -122,7 +122,7 @@ Arquivo: `backend/scripts/analisar_medicao_gps.py` (mesmo lugar dos outros scrip
 | Figuras F1 a F3 (SVG e PNG) | `docs/figuras/gps/` | Sim |
 | Script e teste | `backend/scripts/`, `backend/tests/` | Sim |
 
-**Revisão antes de commitar dado:** (a) nenhum `user_agent`, `observacao` livre ou horário exato que identifique uma pessoa; (b) nenhuma coordenada que não seja de ponto de controle (os 10 pontos são públicos do campus; coordenadas de casa ou de trajeto até o campus **não** entram, e o trajeto de ida e volta de quem mediu só entra agregado); (c) nome do aparelho em modelo ("Galaxy A54"), nunca nome de pessoa; (d) linhas "Teste*" fora; (e) **[DECIDIR]** se o repositório público recebe medições individuais (3 por ponto) ou só os agregados, a decisão é da equipe, e o padrão é só agregados.
+**Revisão antes de commitar dado:** (a) nenhum `user_agent`, `observacao` livre ou horário exato que identifique uma pessoa; (b) nenhuma coordenada que não seja de ponto de controle (os 10 pontos são públicos do campus; coordenadas de casa ou de trajeto até o campus **não** entram, e o trajeto de ida e volta de quem mediu só entra agregado); (c) nome do aparelho em modelo ("Galaxy A54"), nunca nome de pessoa; (d) linhas "Teste*" fora; (e) o Git recebe **só agregados**: sem medições individuais e sem coordenadas brutas; o CSV bruto fica fora do Git (decidido).
 
 ---
 
@@ -151,7 +151,7 @@ Nunca escrever que os dados "provam" a precisão do sistema; escrever "indicam" 
 | Quando | O que | Quem |
 |---|---|---|
 | **22/10 (hoje)** | Medição em campo. Ao fim: cada aparelho exporta o CSV e o envia ao Maurício (canal da equipe, nunca em repositório público). Conferir `GET /medicoes/resumo` para ver se subiu tudo | Equipe; Maurício confere |
-| **23/10** | Receber CSV; conferir cobertura (T1) e anotar pontos pulados. **[DECIDIR]** se algo precisa ser repetido antes de 26/10. Rodrigo responde as perguntas **[CONFERIR]** (30 s: 1 linha ou várias; método 3) | Maurício; Rodrigo |
+| **23/10** | Receber CSV; conferir cobertura (T1) e anotar pontos pulados. **[DECIDIR]** se algo precisa ser repetido antes de 26/10. | Maurício; Rodrigo |
 | **23 a 24/10** | Script, testes e T1/T2 (agente de backend, a pedido do orquestrador); rodar sobre os CSV reais assim que chegarem, nunca sobre sintético no texto | Agente `backend-api` (código); Rodrigo revisa |
 | **25/10** | Figuras F1 a F3; conferência contra a API/banco (origem A e C, só leitura, feita pelo Rodrigo ou pelo agente de infra) | Agente `backend-api`; Rodrigo (conferência) |
 | **26/10** | **Análise da medição de GPS entregue:** `resumo.json`, tabelas e figuras; Maurício lê os números e escreve as 3 conclusões e as decisões provisórias (raio, silêncio, referência) | **Maurício** (dono do card); Rodrigo revisa |
@@ -165,10 +165,7 @@ Nunca escrever que os dados "provam" a precisão do sistema; escrever "indicam" 
 
 ## 7. Pendências para decidir ou conferir
 
-1. **[CONFERIR]** o que o app grava numa "medição de 30 s": 1 linha (posição final ou melhor) ou várias. Define "repetição" e a dispersão.
-2. **[CONFERIR]** qual é o método 3 de confirmação, para o E3 não descrever errado.
-3. **[DECIDIR]** se o repositório público recebe medições individuais ou só agregados (padrão deste plano: só agregados).
-4. **[DECIDIR]** se repetir pontos com n abaixo do mínimo antes de 26/10.
-5. **[DECIDIR COM A ORIENTADORA]** o raio de "chegou ao ponto" e a precisão mínima para orientar (pendência de precisão mínima).
-6. **[CONFERIR]** que a aproximação métrica do script difere da `ST_Transform` em menos de 0,1 m no campus; se não, usar a distância do banco.
-7. Registrar no `.gitignore` a pasta `dados-campo/` antes da primeira exportação.
+1. **[DECIDIR]** se repetir pontos com n abaixo do mínimo antes de 26/10.
+2. **[DECIDIR COM A ORIENTADORA]** o raio de "chegou ao ponto" e a precisão mínima para orientar (pendência de precisão mínima).
+3. **[CONFERIR]** que a aproximação métrica do script difere da `ST_Transform` em menos de 0,1 m no campus; se não, usar a distância do banco.
+4. Registrar no `.gitignore` a pasta `dados-campo/` antes da primeira exportação.
