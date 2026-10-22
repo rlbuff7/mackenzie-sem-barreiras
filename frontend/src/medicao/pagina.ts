@@ -21,7 +21,17 @@ import {
   htmlMarcadorReferencia,
 } from "../mapa/marcadores.ts";
 import { rumoParaSeta } from "../mapa/rumo.ts";
-import { FilaEnvio, type FetchSimulavel, type ItemFila, type ResultadoRodada } from "./fila.ts";
+import { criarArmazemFotos } from "./armazem-fotos.ts";
+import { FilaFotos, type ItemFoto } from "./fila-fotos.ts";
+import {
+  altDaFoto,
+  dimensoesReduzidas,
+  MAX_BYTES_ALVO,
+  MOTIVO_SEM_GUARDA,
+  QUALIDADES_JPEG,
+  textoEstadoFoto,
+} from "./fotos.ts";
+import { FilaEnvio, novoUuid, type FetchSimulavel, type ItemFila, type ResultadoRodada } from "./fila.ts";
 import {
   DURACAO_CONTAGEM_S,
   MEDICOES_POR_PONTO,
@@ -1095,6 +1105,147 @@ function recomecar(): void {
   irParaEtapa("preparar", { anuncio: anuncioRecomecou(esperando) });
 }
 
+// ---------- foto do ponto ----------
+
+const campoFoto = el<HTMLInputElement>("campo-foto");
+const estadoFoto = el<HTMLParagraphElement>("estado-foto");
+const listaFotos = el<HTMLUListElement>("lista-fotos");
+
+const filaFotos = new FilaFotos({
+  armazem: criarArmazemFotos(),
+  fetch: async (url, init) => {
+    const r = await fetch(url, { ...init, body: init.body as Blob });
+    return { status: r.status, json: () => r.json() as Promise<unknown> };
+  },
+  codigo: codigoDaEquipe,
+});
+const miniaturas = new Map<string, string>();
+let relogioFotos: number | null = null;
+
+const codigoDoPonto = (n: number): string => pontoDeControle(n)?.codigo ?? `P${String(n).padStart(2, "0")}`;
+const estadoVisualFoto = (i: ItemFoto): "enviada" | "fila" | "recusada" =>
+  i.estado === "na_fila" ? "fila" : i.estado;
+
+function desenharFotos(): void {
+  const recentes = filaFotos.itens.slice(-4).reverse();
+  const manter = new Set(recentes.map((i) => i.id_cliente));
+  for (const [id, url] of miniaturas) {
+    if (!manter.has(id)) {
+      URL.revokeObjectURL(url);
+      miniaturas.delete(id);
+    }
+  }
+  listaFotos.replaceChildren(
+    ...recentes.map((i) => {
+      let url = miniaturas.get(i.id_cliente);
+      if (!url && i.blob instanceof Blob) {
+        url = URL.createObjectURL(i.blob);
+        miniaturas.set(i.id_cliente, url);
+      }
+      const li = document.createElement("li");
+      li.className = "medicao__foto-item";
+      li.dataset.estado = estadoVisualFoto(i);
+      if (url) {
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = altDaFoto(codigoDoPonto(i.ponto));
+        li.append(img);
+      }
+      const p = document.createElement("p");
+      p.textContent = textoEstadoFoto(codigoDoPonto(i.ponto), i.estado, i.motivo);
+      li.append(p);
+      return li;
+    }),
+  );
+}
+
+/** Um só aria-live: diz o estado da foto mais recente que mudou. */
+function dizerEstadoFoto(i: ItemFoto): void {
+  texto(estadoFoto, textoEstadoFoto(codigoDoPonto(i.ponto), i.estado, i.motivo));
+}
+
+async function enviarFotos(): Promise<void> {
+  const antes = filaFotos.itens.map((i) => i.estado);
+  await filaFotos.descarregar();
+  filaFotos.itens.forEach((i, n) => {
+    if (antes[n] !== i.estado) dizerEstadoFoto(i);
+  });
+  desenharFotos();
+  if (relogioFotos !== null) window.clearTimeout(relogioFotos);
+  relogioFotos = null;
+  if (filaFotos.pendentes().length > 0) {
+    relogioFotos = window.setTimeout(() => void enviarFotos(), filaFotos.proximoAtraso_ms());
+  }
+}
+
+/** Canvas descarta EXIF/GPS. Lado maior <= 1280 px; JPEG 0,8 e, se passar de 1 MB, 0,6. */
+async function reduzirFoto(arquivo: File): Promise<{ blob: Blob; largura_px: number; altura_px: number }> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(arquivo, { imageOrientation: "from-image" });
+  } catch {
+    bitmap = await createImageBitmap(arquivo);
+  }
+  const { largura_px, altura_px } = dimensoesReduzidas(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = largura_px;
+  canvas.height = altura_px;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas indisponível");
+  ctx.drawImage(bitmap, 0, 0, largura_px, altura_px);
+  bitmap.close?.();
+  let blob: Blob | null = null;
+  for (const q of QUALIDADES_JPEG) {
+    blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", q));
+    if (blob && blob.size <= MAX_BYTES_ALVO) break;
+  }
+  if (!blob) throw new Error("não foi possível gerar o JPEG");
+  return { blob, largura_px, altura_px };
+}
+
+async function aoFotografar(): Promise<void> {
+  const arquivo = campoFoto.files?.[0];
+  campoFoto.value = "";
+  if (!arquivo) return;
+  if (!aparelho()) {
+    texto(estadoFoto, "Preencha o campo Aparelho antes de fotografar.");
+    return;
+  }
+  texto(estadoFoto, "Preparando a foto…");
+  let reduzida: Awaited<ReturnType<typeof reduzirFoto>>;
+  try {
+    reduzida = await reduzirFoto(arquivo);
+  } catch {
+    texto(estadoFoto, "Não foi possível ler a foto. Tire de novo.");
+    return;
+  }
+  const r = await filaFotos.adicionar(
+    {
+      id_cliente: novoUuid(),
+      ponto: pontoAtual,
+      aparelho: aparelho(),
+      tirada_em: new Date().toISOString(),
+      largura_px: reduzida.largura_px,
+      altura_px: reduzida.altura_px,
+    },
+    reduzida.blob,
+  );
+  if (r.item) {
+    dizerEstadoFoto(r.item);
+    if (r.guardada && r.item.estado === "na_fila") agendarFotosSeguinte();
+  } else {
+    texto(estadoFoto, `Foto do ${codigoDoPonto(pontoAtual)}: ${r.motivo ?? MOTIVO_SEM_GUARDA}. Tire de novo quando tiver sinal.`);
+  }
+  desenharFotos();
+}
+
+function agendarFotosSeguinte(): void {
+  if (relogioFotos !== null) window.clearTimeout(relogioFotos);
+  relogioFotos = window.setTimeout(() => void enviarFotos(), filaFotos.proximoAtraso_ms());
+}
+
+campoFoto.addEventListener("change", () => void aoFotografar());
+
 // ---------- código da equipe ----------
 
 /** Grava o código digitado (se houver) e reabre o que foi recusado por código errado. */
@@ -1104,6 +1255,8 @@ function gravarCodigoDigitado(): boolean {
   gravarLocal(CHAVE_CODIGO, c);
   campoCodigo.value = "";
   fila.reabrirRecusadosPorCodigo();
+  filaFotos.reabrirRecusadasPorCodigo();
+  void enviarFotos();
   return true;
 }
 
@@ -1206,6 +1359,8 @@ botaoSalvarCodigo.addEventListener("click", salvarCodigo);
 botaoTrocarCodigo.addEventListener("click", trocarCodigo);
 
 window.addEventListener("online", () => {
+  filaFotos.zerarRecuo();
+  void enviarFotos();
   fila.zerarRecuo();
   desenhar();
   enviarAgora();
@@ -1224,3 +1379,8 @@ irParaEtapa(etapaInicial({ temAparelho: aparelho() !== "", temCodigo: codigoDaEq
 });
 iniciarVigia();
 enviarAgora();
+void filaFotos.carregar().then(() => {
+  filaFotos.reabrirRecusadasPorCodigo();
+  desenharFotos();
+  void enviarFotos();
+});

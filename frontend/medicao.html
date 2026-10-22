@@ -203,6 +203,15 @@
             <input id="campo-observacao" name="observacao" type="text" autocomplete="off" maxlength="200" />
           </div>
 
+          <section class="medicao__foto" aria-labelledby="t-foto">
+            <h3 id="t-foto">Foto do ponto (opcional)</h3>
+            <p class="medicao__nota">Enquadre só o lugar, sem pessoas.</p>
+            <input id="campo-foto" class="oculto-visualmente" type="file" accept="image/jpeg,image/*" capture="environment" />
+            <label for="campo-foto" id="rotulo-foto" class="botao botao--secundaria medicao__foto-botao">Fotografar o ponto</label>
+            <p id="estado-foto" class="medicao__status" role="status" aria-live="polite"></p>
+            <ul id="lista-fotos" class="medicao__fotos"></ul>
+          </section>
+
           <p id="estado-envio" class="medicao__envio" role="status" aria-live="polite"></p>
 
           <section id="painel-bussola" class="medicao__bussola" aria-labelledby="t-bussola" hidden>
