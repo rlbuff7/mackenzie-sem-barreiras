@@ -31,7 +31,10 @@ import {
   classificarPrecisao,
   descreverEnvio,
   etapaInicial,
+  deveAnunciarTrajeto,
   formatarMetros,
+  textoPosicoes,
+  textoTrajeto,
   fracaoContagem,
   medicoesFeitas,
   numeroDaProximaMedicao,
@@ -120,6 +123,7 @@ const tituloMedicao = el<HTMLElement>("titulo-medicao");
 const progresso = el<HTMLDivElement>("progresso");
 const faixaTrajeto = el<HTMLDivElement>("faixa-trajeto");
 const statusTrajeto = el<HTMLParagraphElement>("status-trajeto");
+const anuncioTrajeto = el<HTMLParagraphElement>("anuncio-trajeto");
 const botaoPararTrajeto = el<HTMLButtonElement>("botao-parar-trajeto");
 const painelPrecisao = el<HTMLDivElement>("painel-precisao");
 const precisaoValor = el<HTMLElement>("precisao-valor");
@@ -652,7 +656,10 @@ function iniciarVigia(): void {
     aoReceberPosicao,
     (e) => {
       texto(precisaoNivel, mensagemErroPosicao(e));
-      if (trajetoLigado) texto(statusTrajeto, `${mensagemErroPosicao(e)} O trajeto continua tentando.`);
+      if (trajetoLigado) {
+        const aviso = `${mensagemErroPosicao(e)} O trajeto continua tentando.`;
+        mostrarTrajeto(aviso, statusTrajeto.textContent !== aviso);
+      }
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: TIMEOUT_POSICAO_MS },
   );
@@ -820,6 +827,17 @@ function pularPonto(): void {
 
 // ---------- trajeto ----------
 
+/** Texto visível da faixa (sem aria-live) + anúncio opcional na região separada. */
+function mostrarTrajeto(visivel: string, anunciar: boolean): void {
+  texto(statusTrajeto, visivel);
+  if (anunciar) {
+    anuncioTrajeto.textContent = "";
+    window.setTimeout(() => {
+      anuncioTrajeto.textContent = visivel;
+    }, 60);
+  }
+}
+
 function gravarTrajeto(p: PosicaoMedida): void {
   const agora_ms = Date.now();
   if (!podeGravarTrajeto(ultimoTrajeto_ms, agora_ms)) return;
@@ -837,10 +855,8 @@ function gravarTrajeto(p: PosicaoMedida): void {
       agora: new Date(agora_ms),
     }),
   );
-  // O status só muda a cada 10 posições para o leitor de tela não tagarelar.
-  if (gravadosNoTrajeto === 1 || gravadosNoTrajeto % 10 === 0) {
-    texto(statusTrajeto, `Trajeto gravando: ${gravadosNoTrajeto} posições, precisão ${formatarMetros(p.accuracy)}.`);
-  }
+  // O texto visível muda a cada posição; o leitor de tela só fala na 1ª e a cada 10.
+  mostrarTrajeto(textoTrajeto(gravadosNoTrajeto, p.accuracy), deveAnunciarTrajeto(gravadosNoTrajeto));
 }
 
 function alternarTrajeto(): void {
@@ -848,7 +864,7 @@ function alternarTrajeto(): void {
     trajetoLigado = false;
     texto(botaoTrajeto, "Iniciar trajeto");
     botaoTrajeto.setAttribute("aria-pressed", "false");
-    texto(statusTrajeto, `Trajeto parado. ${gravadosNoTrajeto} posições gravadas.`);
+    mostrarTrajeto(`Trajeto parado. ${textoPosicoes(gravadosNoTrajeto)} gravadas.`, true);
     faixaTrajeto.hidden = true;
     enviarAgora();
     return;
@@ -867,7 +883,7 @@ function alternarTrajeto(): void {
   texto(botaoTrajeto, "Parar trajeto");
   botaoTrajeto.setAttribute("aria-pressed", "true");
   faixaTrajeto.hidden = false;
-  texto(statusTrajeto, "Trajeto iniciado. Aguardando a posição…");
+  mostrarTrajeto("Trajeto iniciado. Aguardando a posição…", true);
   if (ultimaPosicao) gravarTrajeto(ultimaPosicao);
 }
 
