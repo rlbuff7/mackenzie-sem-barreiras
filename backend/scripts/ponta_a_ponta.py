@@ -340,18 +340,20 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             resposta.status_code == 200
             and "Navegação Acessível no Campus" in resposta.text
             and "Aviso de segurança" in resposta.text
-            and "Relatar barreira" not in resposta.text,
-            f"HTTP {resposta.status_code}",
+            and "Relatar barreira" not in resposta.text
+            and resposta.headers.get("cache-control") == "no-cache",
+            f"HTTP {resposta.status_code}, cache-control={resposta.headers.get('cache-control')!r}",
         )
 
         resposta = pedir(frontend, "GET", "/medicao.html")
         v.checar(
-            "GET /medicao.html do frontend devolve a página de medição de GPS, não a inicial (200)",
+            "GET /medicao.html devolve a página de medição de GPS (200, sem cache)",
             resposta.status_code == 200
             and "<title>Medição de GPS — Mackenzie</title>" in resposta.text
             and "Registrar agora" in resposta.text
-            and "<title>Navegação Acessível no Campus Mackenzie</title>" not in resposta.text,
-            f"HTTP {resposta.status_code}",
+            and "<title>Navegação Acessível no Campus Mackenzie</title>" not in resposta.text
+            and resposta.headers.get("cache-control") == "no-cache",
+            f"HTTP {resposta.status_code}, cache-control={resposta.headers.get('cache-control')!r}",
         )
 
         _verificar_medicoes(v, frontend, token_admin)
