@@ -20,6 +20,7 @@ from app.routers import (
     medicoes,
     pontos_interesse,
     referencia,
+    rotas,
     validacao,
 )
 from app.validacao.mensagens import traduzir_erros_da_requisicao
@@ -67,6 +68,7 @@ def criar_app(*, expor_docs: bool) -> FastAPI:
     aplicacao.include_router(medicoes.router)
     aplicacao.include_router(fotos.router)
     aplicacao.include_router(pontos_interesse.router)
+    aplicacao.include_router(rotas.router)
     return aplicacao
 
 
