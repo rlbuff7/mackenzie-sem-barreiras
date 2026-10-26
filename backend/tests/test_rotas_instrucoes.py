@@ -48,7 +48,8 @@ def test_no_maximo_duas_referencias_por_instrucao():
     trechos = [_t(i, "calcada", 10, i, i + 1) for i in range(1, 6)]
     refs = {2: "Entrada A", 3: "Entrada B", 4: "Entrada C"}
     primeira = montar_instrucoes(trechos, refs, "Entrada Z")[0]
-    assert primeira.count("Você passa por:") == 2
+    assert primeira.count("Você passa por:") == 1
+    assert "Entrada A e Entrada B" in primeira
     assert "Entrada C" not in primeira
 
 

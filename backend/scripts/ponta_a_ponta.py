@@ -356,8 +356,127 @@ def rodar_verificacoes(v: Verificador, url_api: str, url_frontend: str) -> None:
             f"HTTP {resposta.status_code}, cache-control={resposta.headers.get('cache-control')!r}",
         )
 
+        _verificar_rotas(v, frontend)
         _verificar_medicoes(v, frontend, token_admin)
         _verificar_endurecimento(v, api, frontend)
+
+
+# Recorte amplo em torno do campus (o mesmo que o frontend pede).
+_BBOX_CAMPUS = "-46.6622,-23.5575,-46.6422,-23.5375"
+
+
+def _verificar_rotas(v: Verificador, frontend: httpx.Client) -> None:
+    """`GET /api/pontos-interesse` e `POST /api/rotas` pelo proxy do frontend, contra o
+    seed REAL do campus (o `migrar` da pilha isolada o aplica). Não fixa ids: acha os
+    pontos pelo `nome`."""
+    resposta = pedir(frontend, "GET", f"/api/pontos-interesse?bbox={_BBOX_CAMPUS}")
+    corpo = json_seguro(resposta)
+    pontos = {
+        f["properties"]["nome"]: f["properties"]
+        for f in corpo.get("features", [])
+        if "properties" in f
+    }
+    entradas = [p for p in pontos.values() if p["tipo"] == "entrada" and p["tem_no"]]
+    v.checar(
+        "GET /api/pontos-interesse devolve pelo menos 2 entradas ligadas ao mapa, com rótulo",
+        resposta.status_code == 200 and len(entradas) >= 2 and bool(corpo.get("rotulo")),
+        f"HTTP {resposta.status_code}, entradas com nó: {len(entradas)}",
+    )
+    resposta = pedir(frontend, "GET", "/api/pontos-interesse")
+    v.checar(
+        "GET /api/pontos-interesse sem bbox responde 422 (campo bbox)",
+        resposta.status_code == 422
+        and json_seguro(resposta).get("erros", [{}])[0].get("campo") == "bbox",
+        f"HTTP {resposta.status_code}",
+    )
+    if len(entradas) < 2:
+        return
+
+    origem = pontos.get("Entrada do Prédio 31", entradas[0])
+    destino = pontos.get("Entrada do Prédio 29", entradas[1])
+    resposta = pedir(
+        frontend,
+        "POST",
+        "/api/rotas",
+        json={"origem_id": origem["id"], "destino_id": destino["id"]},
+    )
+    rota = json_seguro(resposta)
+    instrucoes = rota.get("instrucoes") or [{}]
+    v.checar(
+        "POST /api/rotas entre duas entradas devolve LineString, distância, chegada e aviso",
+        resposta.status_code == 200
+        and rota.get("geometria", {}).get("type") == "LineString"
+        and rota.get("distancia_m", 0) > 0
+        and str(instrucoes[-1].get("texto", "")).startswith("Você chegou")
+        and str(rota.get("aviso_seguranca", "")).startswith("Apoio à orientação")
+        and bool(rota.get("rotulo")),
+        f"HTTP {resposta.status_code}: {resposta.text[:200]}",
+    )
+    v.checar(
+        "a rota do grafo provisório vem rotulada como provisória, com a atribuição do OSM",
+        rota.get("provisorio") is True
+        and "não conferidos a pé" in str(rota.get("rotulo"))
+        and "OpenStreetMap" in str(rota.get("atribuicao")),
+        f"provisorio={rota.get('provisorio')!r}, rotulo={rota.get('rotulo')!r}",
+    )
+    resposta = pedir(
+        frontend,
+        "POST",
+        "/api/rotas",
+        json={"origem_id": origem["id"], "destino_id": destino["id"], "perfil": "cadeirante"},
+    )
+    cadeirante = json_seguro(resposta)
+    v.checar(
+        "perfil cadeirante: 200 sem nenhum trecho de escada",
+        resposta.status_code == 200
+        and all(t.get("tipo") != "escada" for t in cadeirante.get("trechos", [])),
+        f"HTTP {resposta.status_code}",
+    )
+
+    # Segurança: onde o único caminho tem escada, cadeirante não recebe rota.
+    passagem = pontos.get("Passagem entre os Prédios 6 e 24")
+    if passagem is not None:
+        corpo_escada = {"origem_id": passagem["id"], "destino_id": destino["id"]}
+        livre = pedir(frontend, "POST", "/api/rotas", json=corpo_escada)
+        com_escada = any(t.get("tipo") == "escada" for t in json_seguro(livre).get("trechos", []))
+        v.checar(
+            "sem restrição: o único caminho pela escada devolve 200 com aviso de escada",
+            livre.status_code == 200
+            and com_escada
+            and any("escada" in a for a in json_seguro(livre).get("avisos", [])),
+            f"HTTP {livre.status_code}",
+        )
+        cad = pedir(frontend, "POST", "/api/rotas", json={**corpo_escada, "perfil": "cadeirante"})
+        v.checar(
+            "cadeirante onde só há escada: 404 com codigo sem_rota (nunca rota com escada)",
+            cad.status_code == 404
+            and json_seguro(cad).get("codigo") == "sem_rota"
+            and "trechos" not in json_seguro(cad),
+            f"HTTP {cad.status_code}: {cad.text[:200]}",
+        )
+
+    resposta = pedir(
+        frontend, "POST", "/api/rotas", json={"origem_id": origem["id"], "destino_id": origem["id"]}
+    )
+    v.checar(
+        "POST /api/rotas com origem igual ao destino responde 422",
+        resposta.status_code == 422,
+        f"HTTP {resposta.status_code}",
+    )
+    resposta = pedir(
+        frontend, "POST", "/api/rotas", json={"origem_id": origem["id"], "destino_id": 999999999}
+    )
+    v.checar(
+        "POST /api/rotas com ponto inexistente responde 404",
+        resposta.status_code == 404,
+        f"HTTP {resposta.status_code}",
+    )
+    resposta = pedir(frontend, "POST", "/api/rotas", content=" " * (20 * 1024))
+    v.checar(
+        "POST /api/rotas com corpo de 20 KiB é recusado (413)",
+        resposta.status_code == 413,
+        f"HTTP {resposta.status_code}",
+    )
 
 
 def _medicao_de_teste(*, tipo: str = "ponto") -> dict[str, Any]:

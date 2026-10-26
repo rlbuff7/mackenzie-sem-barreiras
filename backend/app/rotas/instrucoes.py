@@ -56,8 +56,9 @@ def montar_instrucoes(
             nome = referencias_por_no.get(no)
             if nome and nome not in nomes:
                 nomes.append(nome)
-        for nome in nomes[:MAX_REFERENCIAS_POR_INSTRUCAO]:
-            texto += f" Você passa por: {nome}."
+        citadas = nomes[:MAX_REFERENCIAS_POR_INSTRUCAO]
+        if citadas:
+            texto += f" Você passa por: {' e '.join(citadas)}."
         instrucoes.append(texto)
     instrucoes.append(f"Você chegou à {_minuscula_inicial(destino_nome)}.")
     return instrucoes
