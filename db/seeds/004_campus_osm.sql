@@ -8,11 +8,14 @@
 -- redistribuir deve manter esta atribuição.
 --
 -- Baixado em 2026-10-26 da Overpass API, retângulo (sul, oeste, norte, leste) = -23.5483, -46.6535, -23.5456, -46.651.
--- 24 nós, 26 arestas (calcada: 25, escada: 1), 12 pontos de interesse.
+-- 24 nós, 26 arestas (calcada: 24, escada: 2), 13 pontos de interesse.
 --
 -- PROVISÓRIO: não foi conferido a pé (fonte_verificacao = 'provisorio'). Vale só até o
 -- mapeamento do campus (M2) chegar. Aresta sem etiqueta de acessibilidade fica como
 -- 'não verificado' (NULL). Nenhuma mão única foi importada (tudo mão dupla).
+--
+-- Correções de campo (CORRECOES_DE_CAMPO no script) já aplicadas: escadaria da rua Piauí
+-- (relato do Maurício, 26/10/2026; aresta 5 e ponto 13), trecho que o OSM traz como via comum.
 --
 -- Idempotente: apaga e reinsere o grafo do campus com ids fixos a cada `migrar`.
 -- comprimento_m e custo são calculados AQUI, no banco, em SRID 31983 (metro).
@@ -33,7 +36,8 @@ INSERT INTO pontos_interesse (id, geom, tipo, nome, descricao, acessivel, fonte_
 (9, ST_SetSRID(ST_MakePoint(-46.6534448, -23.5478304), 4326), 'predio', 'Clinicas-CCBS', 'Prédio mapeado no OpenStreetMap (sem entrada marcada).', NULL, 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
 (10, ST_SetSRID(ST_MakePoint(-46.6532222, -23.5480390), 4326), 'predio', 'Auditorio Reverendo Wilson De Souza Lopes', 'Prédio mapeado no OpenStreetMap (sem entrada marcada).', NULL, 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
 (11, ST_SetSRID(ST_MakePoint(-46.6515899, -23.5464276), 4326), 'entrada', 'Entrada aproximada: Escola de Engenharia Mackenzie', 'Ponto do caminho mais próximo deste prédio; a porta exata ainda não está no mapa aberto.', NULL, 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
-(12, ST_SetSRID(ST_MakePoint(-46.6529368, -23.5480156), 4326), 'entrada', 'Entrada aproximada: Auditorio Reverendo Wilson De Souza Lopes', 'Ponto do caminho mais próximo deste prédio; a porta exata ainda não está no mapa aberto.', NULL, 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26');
+(12, ST_SetSRID(ST_MakePoint(-46.6529368, -23.5480156), 4326), 'entrada', 'Entrada aproximada: Auditorio Reverendo Wilson De Souza Lopes', 'Ponto do caminho mais próximo deste prédio; a porta exata ainda não está no mapa aberto.', NULL, 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
+(13, ST_SetSRID(ST_MakePoint(-46.6527957, -23.5479377), 4326), 'escada', 'Escadaria da rua Piauí', 'Escadaria externa na saída para a rua Piauí, perto do Auditório. Não há rota sem degraus por aqui.', FALSE, 'provisorio', 'Maurício (relato de campo)', DATE '2026-10-26');
 
 INSERT INTO nos (id, geom, ponto_interesse_id) VALUES
 (1, ST_SetSRID(ST_MakePoint(-46.6518550, -23.5469724), 4326), 2),
@@ -73,7 +77,7 @@ FROM (
         (2, 2, 5, 'calcada', NULL, 'LINESTRING(-46.6519928 -23.5468597, -46.6522857 -23.5466707)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
         (3, 4, 20, 'calcada', NULL, 'LINESTRING(-46.6526546 -23.5478597, -46.6527490 -23.5476958)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
         (4, 5, 21, 'calcada', NULL, 'LINESTRING(-46.6522857 -23.5466707, -46.6523919 -23.5465929, -46.6524191 -23.5465794, -46.6524451 -23.5465883, -46.6525182 -23.5466704)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
-        (5, 18, 4, 'calcada', NULL, 'LINESTRING(-46.6529368 -23.5480156, -46.6526546 -23.5478597)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
+        (5, 18, 4, 'escada', FALSE, 'LINESTRING(-46.6529368 -23.5480156, -46.6526546 -23.5478597)', 'provisorio', 'Maurício (relato de campo)', DATE '2026-10-26'),
         (6, 20, 2, 'calcada', NULL, 'LINESTRING(-46.6527490 -23.5476958, -46.6527464 -23.5476228, -46.6519928 -23.5468597)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
         (7, 21, 23, 'calcada', NULL, 'LINESTRING(-46.6525182 -23.5466704, -46.6526421 -23.5468093, -46.6530166 -23.5465303, -46.6530456 -23.5465084, -46.6530988 -23.5464713)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),
         (8, 5, 12, 'calcada', NULL, 'LINESTRING(-46.6522857 -23.5466707, -46.6520284 -23.5463989)', 'provisorio', 'OpenStreetMap (contribuidores)', DATE '2026-10-26'),

@@ -86,5 +86,31 @@ SELECT pg_temp.afirmar('há ao menos um par de pontos que depende de escada',
                         comprimento_m AS reverse_cost FROM arestas WHERE tipo <> ''escada''',
                 c.start_vid, c.end_vid, false) s)));
 
+-- Segurança (relato de campo do Maurício, 26/10/2026): a escadaria de saída para a rua
+-- Piauí (ponto de controle P08, POINT(-46.65280467 -23.54793173)) existe, mas o OSM a traz
+-- como via comum. A aresta que passa a até 5 m dela tem de ser escada, nunca acessível a
+-- cadeirante, e nenhuma rota de cadeirante pode atravessá-la.
+SELECT pg_temp.afirmar('segurança: aresta a até 5 m do P08 (escadaria da rua Piauí) existe e é escada, não acessível',
+    EXISTS (SELECT 1 FROM arestas
+            WHERE ST_Distance(ST_Transform(geom, 31983),
+                    ST_Transform(ST_SetSRID(ST_MakePoint(-46.65280467, -23.54793173), 4326), 31983)) <= 5)
+    AND NOT EXISTS (SELECT 1 FROM arestas
+            WHERE ST_Distance(ST_Transform(geom, 31983),
+                    ST_Transform(ST_SetSRID(ST_MakePoint(-46.65280467, -23.54793173), 4326), 31983)) <= 5
+              AND (tipo <> 'escada' OR acessivel_cadeirante IS DISTINCT FROM false)));
+SELECT pg_temp.afirmar('segurança: existe o ponto escada "Escadaria da rua Piauí"',
+    EXISTS (SELECT 1 FROM pontos_interesse WHERE tipo = 'escada' AND nome = 'Escadaria da rua Piauí'
+            AND acessivel IS NOT TRUE));
+SELECT pg_temp.afirmar('segurança: rota de cadeirante não cruza a escadaria Piauí, entre os dois lados (nós 18 e 4)',
+    -- sem restrição há caminho entre os dois lados...
+    EXISTS (SELECT 1 FROM pgr_dijkstraCost(
+        'SELECT id, origem_id AS source, destino_id AS target, comprimento_m AS cost,
+                comprimento_m AS reverse_cost FROM arestas', 18, 4, false))
+    -- ...e o grafo do cadeirante (sem escada e sem trecho inacessível) não tem
+    AND NOT EXISTS (SELECT 1 FROM pgr_dijkstraCost(
+        'SELECT id, origem_id AS source, destino_id AS target, comprimento_m AS cost,
+                comprimento_m AS reverse_cost FROM arestas
+         WHERE tipo <> ''escada'' AND acessivel_cadeirante IS DISTINCT FROM false', 18, 4, false)));
+
 ROLLBACK;
 \echo 'test_grafo_campus.sql: todos os testes passaram (somente leitura)'

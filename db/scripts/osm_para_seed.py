@@ -81,6 +81,31 @@ NOMES_DE_ESCADA = {
                 "Escada com corrimão entre os Prédios 6 e 24, de concreto."),
 }
 
+# Correções de campo: o OSM erra ou omite coisas que a equipe viu a pé. Cada correção é
+# aplicada POR GEOMETRIA (aresta que passa a até `raio_m` da referência), não por id do OSM:
+# o id é de um caminho inteiro, que o script corta em várias arestas, e o OSM muda.
+# Vale a cada regeneração do seed. Quem corrige é a pessoa que mediu; o trecho segue
+# 'provisorio' (não foi percorrido de ponta a ponta) e o aviso de escada sai na rota.
+CORRECOES_DE_CAMPO = (
+    {
+        # Relato de campo do Maurício em 26/10/2026: a escadaria de saída para a rua Piauí
+        # (ponto de controle P08, "Início de uma escadaria externa do campus") existe e ele
+        # mediu no começo dela (centroide medido -23.54784980, -46.65268246, a ~3 m do nó
+        # onde a via do OSM se divide). No OSM esse trecho é highway=service (id 554837660),
+        # então a v0 mandava cadeirante pela escada sem aviso. A referência do P08 fica a
+        # 1,0 m desse trecho e a 17 m das outras arestas do mesmo nó.
+        # Conservador: o trecho inteiro vira escada, mesmo que só parte tenha degraus.
+        "referencia": (-23.54793173, -46.65280467),  # P08 (lat, lon)
+        "raio_m": 5.0,
+        "tipo": "escada",
+        "nome": "Escadaria da rua Piauí",
+        "descricao": ("Escadaria externa na saída para a rua Piauí, perto do Auditório. "
+                      "Não há rota sem degraus por aqui."),
+        "mapeado_por": "Maurício (relato de campo)",
+        "mapeado_em": date(2026, 10, 26),
+    },
+)
+
 # O OSM no entorno tem muitos edifícios residenciais; só viram ponto "predio" os que o nome
 # mostra serem do campus (heurística de desenvolvimento).
 PADRAO_PREDIO_DO_CAMPUS = re.compile(r"pr[eé]dio|escola|audit[oó]rio|mackenzie|biblioteca|ccbs", re.I)
@@ -277,6 +302,36 @@ def construir_grafo(dados: dict, recorte=RECORTE, com_calcadas_de_rua: bool = Fa
     return grafo
 
 
+def distancia_ponto_linha_m(lat: float, lon: float, linha) -> float:
+    """Distância em metros de um ponto a uma linha [(lon, lat), ...] (plano local)."""
+    kx = math.cos(math.radians(lat)) * 111320.0  # metros por grau de longitude
+    ky = 110574.0                                  # metros por grau de latitude
+    px, py = lon * kx, lat * ky
+    melhor = math.inf
+    for (lon_a, lat_a), (lon_b, lat_b) in zip(linha, linha[1:]):
+        ax, ay, bx, by = lon_a * kx, lat_a * ky, lon_b * kx, lat_b * ky
+        dx, dy = bx - ax, by - ay
+        t = 0.0 if dx == dy == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+        melhor = min(melhor, math.hypot(px - ax - t * dx, py - ay - t * dy))
+    return melhor
+
+
+def aplicar_correcoes_de_campo(grafo: Grafo, correcoes=CORRECOES_DE_CAMPO) -> None:
+    """Força o tipo das arestas que passam perto da referência de cada correção de campo."""
+    for i, c in enumerate(correcoes):
+        lat, lon = c["referencia"]
+        alvo = [a for a in grafo.arestas if distancia_ponto_linha_m(lat, lon, a["linha"]) <= c["raio_m"]]
+        if not alvo:
+            grafo.avisos.append(f"correção de campo '{c['nome']}': nenhuma aresta a "
+                                f"{c['raio_m']:g} m da referência; NADA foi corrigido")
+        for a in alvo:
+            a["tipo"] = c["tipo"]
+            if c["tipo"] == "escada":
+                a["acessivel_cadeirante"] = False
+            a["correcao"] = i
+            a["mapeado_por"], a["mapeado_em"] = c["mapeado_por"], c["mapeado_em"]
+
+
 def no_mais_proximo(grafo: Grafo, lat: float, lon: float) -> tuple[int, float]:
     n = min(grafo.nos, key=lambda i: distancia_m(lat, lon, *grafo.nos[i]))
     return n, distancia_m(lat, lon, *grafo.nos[n])
@@ -306,7 +361,7 @@ def adicionar_pontos(grafo: Grafo, dados: dict, recorte=RECORTE) -> None:
     """
     nos_com_entrada: set[int] = set()
 
-    def ligar(nome, tipo, lat, lon, descricao, acessivel=None):
+    def ligar(nome, tipo, lat, lon, descricao, acessivel=None, meta=None):
         no, dist = no_mais_proximo(grafo, lat, lon)
         ligado = dist <= DISTANCIA_MAXIMA_LIGACAO_M
         if ligado and tipo in ("entrada", "portao"):
@@ -320,13 +375,13 @@ def adicionar_pontos(grafo: Grafo, dados: dict, recorte=RECORTE) -> None:
         grafo.pontos.append({
             "id": len(grafo.pontos) + 1, "nome": nome, "tipo": tipo, "lat": lat, "lon": lon,
             "descricao": descricao, "acessivel": acessivel,
-            "no": no if ligado else None, "distancia_ao_no_m": dist,
+            "no": no if ligado else None, "distancia_ao_no_m": dist, **(meta or {}),
         })
 
     # Escadas do grafo (toda aresta escada precisa de um ponto escada perto).
     vistas = set()
     for a in grafo.arestas:
-        if a["tipo"] != "escada" or a["osm_id"] in vistas:
+        if a["tipo"] != "escada" or "correcao" in a or a["osm_id"] in vistas:
             continue
         vistas.add(a["osm_id"])
         nome, desc = NOMES_DE_ESCADA.get(a["osm_id"], ("Escada do campus", "Escada com degraus."))
@@ -365,6 +420,14 @@ def adicionar_pontos(grafo: Grafo, dados: dict, recorte=RECORTE) -> None:
             ligar("Entrada aproximada: " + p["nome"], "entrada", lat, lon,
                   "Ponto do caminho mais próximo deste prédio; a porta exata ainda não está "
                   "no mapa aberto.")
+    # Escadas vindas de correção de campo: um ponto escada por correção, no meio da aresta.
+    # Por último, para os ids dos pontos anteriores não mudarem.
+    for i in sorted({a["correcao"] for a in grafo.arestas if "correcao" in a}):
+        c = CORRECOES_DE_CAMPO[i]
+        a = next(a for a in grafo.arestas if a.get("correcao") == i)
+        lat, lon = _ponto_medio(a["linha"])
+        ligar(c["nome"], c["tipo"], lat, lon, c["descricao"], acessivel=False,
+              meta={"mapeado_por": c["mapeado_por"], "mapeado_em": c["mapeado_em"]})
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +470,9 @@ def gerar_sql(grafo: Grafo, data_download: date, recorte=RECORTE) -> str:
         "-- mapeamento do campus (M2) chegar. Aresta sem etiqueta de acessibilidade fica como",
         "-- 'não verificado' (NULL). Nenhuma mão única foi importada (tudo mão dupla).",
         "--",
+        "-- Correções de campo (CORRECOES_DE_CAMPO no script) já aplicadas: escadaria da rua Piauí\n"
+        "-- (relato do Maurício, 26/10/2026; aresta 5 e ponto 13), trecho que o OSM traz como via comum.",
+        "--",
         "-- Idempotente: apaga e reinsere o grafo do campus com ids fixos a cada `migrar`.",
         "-- comprimento_m e custo são calculados AQUI, no banco, em SRID 31983 (metro).",
         "",
@@ -415,7 +481,10 @@ def gerar_sql(grafo: Grafo, data_download: date, recorte=RECORTE) -> str:
         "DELETE FROM pontos_interesse;",
         "",
     ]
-    meta = f"{aspas(FONTE_VERIFICACAO)}, {aspas(MAPEADO_POR)}, DATE {aspas(data_download.isoformat())}"
+    def meta_de(item) -> str:
+        """Proveniência da linha: a do download, ou a da correção de campo que a alterou."""
+        return (f"{aspas(FONTE_VERIFICACAO)}, {aspas(item.get('mapeado_por', MAPEADO_POR))}, "
+                f"DATE {aspas(item.get('mapeado_em', data_download).isoformat())}")
     linhas = list(cab)
     if grafo.pontos:
         linhas.append("INSERT INTO pontos_interesse (id, geom, tipo, nome, descricao, acessivel, "
@@ -423,7 +492,7 @@ def gerar_sql(grafo: Grafo, data_download: date, recorte=RECORTE) -> str:
         linhas.append(",\n".join(
             f"({p['id']}, ST_SetSRID(ST_MakePoint({p['lon']:.7f}, {p['lat']:.7f}), 4326), "
             f"{aspas(p['tipo'])}, {aspas(p['nome'])}, {aspas(p['descricao'])}, "
-            f"{booleano_sql(p['acessivel'])}, {meta})" for p in grafo.pontos) + ";")
+            f"{booleano_sql(p['acessivel'])}, {meta_de(p)})" for p in grafo.pontos) + ";")
         linhas.append("")
     # Um nó atende a um ponto só (o primeiro da lista, por ordem de id).
     ponto_do_no = {}
@@ -447,7 +516,7 @@ def gerar_sql(grafo: Grafo, data_download: date, recorte=RECORTE) -> str:
         "    FROM (VALUES")
     linhas.append(",\n".join(
         f"        ({a['id']}, {a['origem']}, {a['destino']}, {aspas(a['tipo'])}, "
-        f"{booleano_sql(a['acessivel_cadeirante'])}, {aspas(wkt_linha(a['linha']))}, {meta})"
+        f"{booleano_sql(a['acessivel_cadeirante'])}, {aspas(wkt_linha(a['linha']))}, {meta_de(a)})"
         for a in grafo.arestas))
     linhas.append(
         "    ) AS v(id, origem_id, destino_id, tipo, acessivel_cadeirante, wkt, fonte_verificacao, "
@@ -472,6 +541,7 @@ def gerar(dados: dict, data_download: date, recorte=RECORTE,
     grafo = construir_grafo(dados, recorte, com_calcadas_de_rua, alvos)
     if not grafo.arestas:
         raise SystemExit("erro: nenhum caminho no recorte.")
+    aplicar_correcoes_de_campo(grafo)
     adicionar_pontos(grafo, dados, recorte)
     return gerar_sql(grafo, data_download, recorte), grafo
 

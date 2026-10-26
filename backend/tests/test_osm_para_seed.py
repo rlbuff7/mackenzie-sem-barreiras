@@ -128,3 +128,37 @@ def test_aspas_sao_escapadas():
 def test_sem_caminhos_no_recorte_falha_com_mensagem():
     with pytest.raises(SystemExit):
         osm.gerar(_dados(), DATA)
+
+
+def test_correcao_de_campo_vira_escada_so_na_aresta_perto_da_referencia():
+    # duas vias em linha (10-11 e 11-12); a referência fica no meio da aresta 11-12
+    dados = _dados(_via(1, {"highway": "service"}, [(10, 0, 0), (11, 0, 30)]),
+                   _via(2, {"highway": "service"}, [(11, 0, 30), (12, 0, 60)]))
+    g = osm.construir_grafo(dados)
+    correcao = {
+        "referencia": (LAT + 1 * 9e-6, LON + 45 * 9e-6), "raio_m": 5.0, "tipo": "escada",
+        "nome": "Escadaria de teste", "descricao": "x",
+        "mapeado_por": "Fulano (relato de campo)", "mapeado_em": DATA,
+    }
+    osm.aplicar_correcoes_de_campo(g, (correcao,))
+    tipos = sorted((a["origem"], a["tipo"], a["acessivel_cadeirante"]) for a in g.arestas)
+    assert [t[1] for t in tipos] == ["calcada", "escada"]
+    escada = next(a for a in g.arestas if a["tipo"] == "escada")
+    assert escada["acessivel_cadeirante"] is False
+    assert escada["mapeado_por"] == "Fulano (relato de campo)"
+    assert not g.avisos
+
+
+def test_correcao_sem_aresta_perto_avisa_em_vez_de_corrigir_em_silencio():
+    g = osm.construir_grafo(_grafo_t())
+    osm.aplicar_correcoes_de_campo(g, ({
+        "referencia": (LAT + 0.01, LON), "raio_m": 5.0, "tipo": "escada", "nome": "Longe",
+        "descricao": "x", "mapeado_por": "F", "mapeado_em": DATA},))
+    assert any("NADA foi corrigido" in a for a in g.avisos)
+
+
+def test_seed_gerado_traz_a_escadaria_piauí_com_proveniencia_do_relato():
+    # o grafo de teste não passa perto do P08: a correção real avisa e nada muda
+    sql, grafo = osm.gerar(_grafo_t(), DATA)
+    assert any("Escadaria da rua Piauí" in a for a in grafo.avisos)
+    assert "Maurício (relato de campo)" not in sql
