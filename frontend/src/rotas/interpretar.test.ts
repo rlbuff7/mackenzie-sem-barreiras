@@ -13,7 +13,7 @@ import {
   urlDosPontos,
 } from "./interpretar.ts";
 import { buscarPontos, tracarRota } from "./api.ts";
-import { PONTOS_200, ROTA_200 } from "./fixtures.ts";
+import { PONTOS_200, ROTA_200, ROTA_CADEIRANTE_200, SEM_ROTA_404 } from "./fixtures.ts";
 
 test("o pedido tem só os três campos do contrato e vai por POST em JSON", () => {
   const { url, init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "cadeirante" });
@@ -120,4 +120,31 @@ test("tracarRota lê status e JSON da resposta; corpo que não é JSON não queb
   assert.equal(ok.tipo, "ok");
   const html = await tracarRota({ origem_id: 3, destino_id: 7, perfil: "sem_restricao" }, async () => new Response("<html>413</html>", { status: 413 }));
   assert.ok(html.tipo === "erro" && html.motivo === "outro");
+});
+
+test("cadeirante: rota sem escada aparece; sem restrição pode ter escada com aviso", () => {
+  assert.equal(interpretarRespostaDeRota(200, ROTA_CADEIRANTE_200, "cadeirante").tipo, "ok");
+  const livre = interpretarRespostaDeRota(200, ROTA_200, "sem_restricao");
+  assert.ok(livre.tipo === "ok" && livre.rota.avisos.length === 1);
+});
+
+test("cadeirante: 200 com escada (trecho, aviso, instrução ou acessível=false) vira sem_rota e nada é desenhado", () => {
+  const casos = [
+    ROTA_200,
+    { ...ROTA_CADEIRANTE_200, trechos: ROTA_200.trechos },
+    { ...ROTA_CADEIRANTE_200, avisos: ["O caminho tem escada (cerca de 10 metros)."] },
+    { ...ROTA_CADEIRANTE_200, instrucoes: [...ROTA_CADEIRANTE_200.instrucoes.slice(0, 2), { ordem: 3, texto: "Suba a Escada." }] },
+    { ...ROTA_CADEIRANTE_200, acessivel_cadeirante: false },
+  ];
+  for (const corpo of casos) {
+    const r = interpretarRespostaDeRota(200, corpo, "cadeirante");
+    assert.deepEqual(r, { tipo: "erro", motivo: "sem_rota", mensagem: MENSAGEM_SEM_ROTA });
+  }
+  // vale também quando só a resposta diz cadeirante
+  assert.equal(interpretarRespostaDeRota(200, { ...ROTA_200, perfil: "cadeirante" }).tipo, "erro");
+});
+
+test("cadeirante sem alternativa: 404 sem_rota do contrato vira a frase combinada", () => {
+  const r = interpretarRespostaDeRota(404, SEM_ROTA_404, "cadeirante");
+  assert.ok(r.tipo === "erro" && r.mensagem === MENSAGEM_SEM_ROTA && r.motivo === "sem_rota");
 });

@@ -32,7 +32,7 @@ export async function tracarRota(pedido: PedidoDeRota, busca: Busca = fetch.bind
   const { url, init } = montarRequisicaoDeRota(pedido);
   try {
     const resposta = await busca(url, init);
-    return interpretarRespostaDeRota(resposta.status, await corpoJson(resposta));
+    return interpretarRespostaDeRota(resposta.status, await corpoJson(resposta), pedido.perfil);
   } catch {
     return { tipo: "erro", motivo: "rede", mensagem: MENSAGEM_REDE };
   }

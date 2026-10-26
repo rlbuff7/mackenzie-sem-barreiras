@@ -38,6 +38,8 @@ export interface RotaResposta {
   distancia_m: number;
   acessivel_cadeirante: boolean | null;
   avisos: string[];
+  /** Tipo de cada trecho (calcada, escada, rampa...), como a API devolve. */
+  tipos_de_trecho: string[];
   aviso_seguranca: string;
   instrucoes: Instrucao[];
   /** LineString GeoJSON: cada par é [longitude, latitude]. */

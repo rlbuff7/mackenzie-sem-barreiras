@@ -118,6 +118,9 @@ export function lerRota(corpo: unknown): RotaResposta | null {
     distancia_m: corpo.distancia_m,
     acessivel_cadeirante: typeof corpo.acessivel_cadeirante === "boolean" ? corpo.acessivel_cadeirante : null,
     avisos,
+    tipos_de_trecho: Array.isArray(corpo.trechos)
+      ? corpo.trechos.map((t) => (ehDicionario(t) && typeof t.tipo === "string" ? t.tipo : ""))
+      : [],
     aviso_seguranca: corpo.aviso_seguranca,
     instrucoes,
     coordenadas: geometria.coordinates,
@@ -135,11 +138,27 @@ function primeiroErroDe422(corpo: unknown): string | null {
   return typeof corpo.mensagem === "string" ? corpo.mensagem : null;
 }
 
+/**
+ * Defesa extra: no perfil cadeirante, rota com escada nunca é mostrada (o backend já a exclui; se
+ * vier mesmo assim, vale o silêncio). Usa o tipo estruturado dos trechos; os textos só como reforço.
+ */
+export function rotaTemEscada(rota: RotaResposta): boolean {
+  const texto = /escada/i;
+  return (
+    rota.tipos_de_trecho.some((t) => t.toLowerCase() === "escada") ||
+    rota.avisos.some((a) => texto.test(a)) ||
+    rota.instrucoes.some((i) => texto.test(i.texto)) ||
+    rota.acessivel_cadeirante === false
+  );
+}
+
 /** Traduz status + corpo JSON (ou null se não for JSON) de POST /rotas em resultado para a tela. */
-export function interpretarRespostaDeRota(status: number, corpo: unknown): ResultadoRota {
+export function interpretarRespostaDeRota(status: number, corpo: unknown, perfilPedido?: Perfil): ResultadoRota {
   if (status === 200) {
     const rota = lerRota(corpo);
-    return rota ? { tipo: "ok", rota } : erro("sem_rota", MENSAGEM_RESPOSTA_INVALIDA);
+    if (!rota) return erro("sem_rota", MENSAGEM_RESPOSTA_INVALIDA);
+    if ((perfilPedido ?? rota.perfil) === "cadeirante" && rotaTemEscada(rota)) return erro("sem_rota", MENSAGEM_SEM_ROTA);
+    return { tipo: "ok", rota };
   }
   if (status === 404) {
     if (ehDicionario(corpo) && corpo.codigo === "sem_rota") return erro("sem_rota", MENSAGEM_SEM_ROTA);
