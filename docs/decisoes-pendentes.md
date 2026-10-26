@@ -26,6 +26,7 @@ anotada aqui.
 | 6 | **Como identificar caminhos acessíveis** para cada perfil, e quem valida essa classificação | Nenhum | Aberto |
 | 7 | **Contribuição científica:** onde está a novidade (módulo de orientação, metodologia de avaliação ou ambos). Sem isso o TCC II vira "integramos bibliotecas existentes" | Nenhum | Aberto |
 | 8 | **Comitê de Ética (CEP).** Teste com pessoas com deficiência visual envolve população vulnerável: submissão pela Plataforma Brasil é provável e leva de 2 a 4 meses. **Item de maior risco de cronograma**: levantar o prazo já e submeter antes de qualquer recrutamento | Nenhum | Aberto |
+| 9 | **Referência do P01 possivelmente deslocada ~17 m para lés-sudeste.** Na coleta de 26/10/2026, as 4 medições do P01 (céu aberto) ficaram a 14,6–18,9 m da referência, todas entre 105° e 115° e a menos de 3 m umas das outras: viés sistemático, não ruído. Hipóteses: referência estimada por imagem de satélite deslocada; medição feita num ponto físico diferente do ◆; multicaminho (menos provável). Encaminhamento: conferir no local o ponto físico do P01 (banco, poste, tampa) e comparar com a coordenada. **Não alterar `db/seeds/003_pontos_controle.sql` antes de decidir:** mudar a referência recalcula o `erro_m` de todas as medições (`vw_erro_medicoes`). Correção, se houver, vai em migration/seed novo com o motivo registrado. Detalhes em `docs/diario-de-campo.md` | Mantém a referência atual | Aberto (26/10/2026) |
 
 ---
 
