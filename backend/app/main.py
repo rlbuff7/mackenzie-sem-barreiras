@@ -13,7 +13,15 @@ from fastapi.responses import JSONResponse
 
 from app.config import obter_configuracoes
 from app.db import lifespan
-from app.routers import alertas, barreiras, fotos, medicoes, referencia, validacao
+from app.routers import (
+    alertas,
+    barreiras,
+    fotos,
+    medicoes,
+    pontos_interesse,
+    referencia,
+    validacao,
+)
 from app.validacao.mensagens import traduzir_erros_da_requisicao
 
 
@@ -58,6 +66,7 @@ def criar_app(*, expor_docs: bool) -> FastAPI:
     aplicacao.include_router(validacao.router)
     aplicacao.include_router(medicoes.router)
     aplicacao.include_router(fotos.router)
+    aplicacao.include_router(pontos_interesse.router)
     return aplicacao
 
 
