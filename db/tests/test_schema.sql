@@ -43,6 +43,13 @@ BEGIN
     RAISE EXCEPTION 'FALHOU %: o comando deveria ter sido rejeitado', caso;
 END $$;
 
+-- O banco de desenvolvimento já tem o grafo do campus (seed 004). Estes testes criam o
+-- próprio grafo e contam linhas, então começam de tabelas vazias DENTRO da transação
+-- (desfeita no fim). As invariantes do grafo real ficam em test_grafo_campus.sql.
+DELETE FROM arestas;
+DELETE FROM nos;
+DELETE FROM pontos_interesse;
+
 -- Pontos de referência (lon, lat em SRID 4326)
 CREATE TEMP TABLE ref AS SELECT
     ST_SetSRID(ST_MakePoint(-46.6524631, -23.5471938), 4326) AS centro_campus, -- OSM
