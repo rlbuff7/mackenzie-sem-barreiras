@@ -122,19 +122,132 @@
   line-height: 1.35;
 }
 
-/* Ação ainda indisponível: tracejado e texto dizem que não vale hoje (não é só cor). */
-.inicio__destino {
-  min-height: 56px;
-  padding: 0 var(--espaco-5);
+/* Fluxo de rota: De, Para, perfil e Traçar rota. Alvos de 56 a 64 px; nada depende só da cor. */
+.rota { display: flex; flex-direction: column; gap: var(--espaco-4); }
+
+.rota__titulo { font-size: 1.15rem; font-weight: 800; color: var(--primaria-escura); }
+
+.rota__form { display: flex; flex-direction: column; gap: var(--espaco-4); }
+
+.rota__campo { display: flex; flex-direction: column; gap: var(--espaco-2); }
+
+.rota__campo label,
+.rota__perfil legend { font-weight: 700; font-size: 0.95rem; padding: 0; }
+
+.rota__campo select {
   font: inherit;
   font-size: 1rem;
-  font-weight: 700;
-  background: var(--fundo);
-  color: var(--texto-suave);
-  border: var(--linha-controle) dashed var(--borda-controle);
-  border-radius: var(--raio-secao);
-  cursor: not-allowed;
+  min-height: 56px;
+  padding: 0 var(--espaco-4);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+  background: var(--superficie);
+  color: var(--texto);
 }
+
+.rota__perfil { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--espaco-3); }
+
+.rota__opcao {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-4);
+  min-height: var(--alvo-toque);
+  padding: 0 var(--espaco-4);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+  font-size: 1rem;
+}
+
+.rota__opcao input { width: 22px; height: 22px; flex: none; accent-color: var(--primaria); }
+
+/* Marcada: a borda engrossa e o fundo muda; o botão de rádio em si já diz "marcado" sem depender de cor. */
+.rota__opcao:has(input:checked) { border-color: var(--primaria); background: var(--realce); font-weight: 700; }
+
+.rota__botao {
+  min-height: 64px;
+  padding: 0 var(--espaco-5);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  background: var(--primaria);
+  color: var(--sobre-primaria);
+  border: var(--linha-controle) solid var(--primaria-escura);
+  border-radius: var(--raio-secao);
+  cursor: pointer;
+}
+
+.rota__botao:active { background: var(--primaria-escura); }
+
+.rota__botao[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; }
+
+.rota__botao--voz {
+  min-height: 56px;
+  background: var(--superficie);
+  color: var(--primaria-escura);
+  border-color: var(--primaria);
+}
+
+.rota__botao--voz:active { background: var(--realce-ativo); }
+
+@media (hover: hover) and (pointer: fine) {
+  .rota__botao:hover { background: var(--primaria-escura); }
+  .rota__botao--voz:hover { background: var(--realce-ativo); }
+}
+
+.rota__mensagem {
+  margin: 0;
+  padding: var(--espaco-4);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+  font-weight: 600;
+}
+
+.rota__mensagem[hidden],
+.rota__resultado[hidden],
+.rota__avisos[hidden],
+.rota__nota[hidden] { display: none; }
+
+/* Erro: ícone em texto (✕) e borda forte; a frase diz o que aconteceu. */
+.rota__mensagem--erro { border-color: var(--perigo); color: var(--perigo); }
+.rota__mensagem--erro::before { content: "✕ "; font-weight: 800; }
+
+.rota__resultado { display: flex; flex-direction: column; gap: var(--espaco-4); }
+
+.rota__titulo-resultado { font-size: 1.15rem; font-weight: 800; color: var(--primaria-escura); }
+
+.rota__rotulo {
+  margin: 0;
+  padding: var(--espaco-4);
+  border: var(--linha-controle) dashed var(--pendente);
+  border-radius: var(--raio-controle);
+  font-weight: 600;
+}
+
+.rota__selo {
+  display: inline-block;
+  margin-right: var(--espaco-2);
+  padding: 0 var(--espaco-2);
+  border: var(--linha-controle) solid currentColor;
+  border-radius: var(--raio-controle);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.rota__distancia { margin: 0; font-size: 1.1rem; font-weight: 700; }
+
+.rota__avisos { margin: 0; padding-left: 1.2rem; font-weight: 600; }
+
+.rota__instrucoes { margin: 0; padding-left: 1.6rem; display: flex; flex-direction: column; gap: var(--espaco-3); font-size: 1.05rem; line-height: 1.4; }
+
+.rota__nota { margin: 0; font-size: 0.9rem; color: var(--texto-suave); }
+
+/* Linha da rota no mapa (SVG do Leaflet): laranja com contorno branco; sem transição nem animação. */
+.mapa-rota-contorno { stroke: var(--mapa-contorno); stroke-width: calc(var(--linha-rota) + 4px); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.mapa-rota-linha { stroke: var(--mapa-rota); stroke-width: var(--linha-rota); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+/* Rótulo "Partida"/"Chegada" ao lado do marcador: a forma sozinha não diz qual é qual. */
+.mapa-rotulo-ponto { font-weight: 700; }
 
 /* Link grande (componente LinkGrande): a ação principal da página. */
 .inicio__link-grande {
