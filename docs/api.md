@@ -1,6 +1,6 @@
 # Contrato da API — Mackenzie sem Barreiras
 
-> **Escopo antigo (até 08/10/2026): este é o contrato da API de crowdsourcing de barreiras (`/alertas`, `/barreiras`, `/validacao/*`). As rotas do escopo novo (`/pontos-interesse`, `/rotas`, `/orientacoes`) ainda não existem; o plano está no [`CLAUDE.md`](../CLAUDE.md) (§7 e §16). A exceção já implementada é a medição de GPS da equipe (`/medicoes`).**
+> **Escopo antigo (até 08/10/2026): este é o contrato da API de crowdsourcing de barreiras (`/alertas`, `/barreiras`, `/validacao/*`). As rotas do escopo novo `/pontos-interesse` e `/rotas` (protótipo E6) existem e estão documentadas na seção "Escopo novo" no fim deste arquivo; `/orientacoes` ainda não existe (M4; plano no [`CLAUDE.md`](../CLAUDE.md), §7 e §16). A medição de GPS da equipe (`/medicoes`) também está implementada.**
 
 Fonte única para backend e frontend (resumo em [`CLAUDE.md` §7](../CLAUDE.md)).
 
@@ -219,3 +219,101 @@ em `/api/` — R19, `frontend/nginx.conf` — e não precisa de CORS).
 - **Medição de GPS (14/10/2026, implementado):** `POST /medicoes`, `GET /medicoes/resumo`
   (`app/routers/medicoes.py`, `app/schemas/medicao.py`; tabela `medicoes_gps`,
   migration 005). Variável nova: `MEDICAO_CODIGO_EQUIPE` (vazio = desligada).
+
+## Escopo novo: `/pontos-interesse` e `/rotas` (protótipo E6)
+
+Demonstração do protótipo sobre um trecho piloto. **Não é orientação em tempo real** e o
+grafo atual é **PROVISÓRIO**: caminhos importados do OpenStreetMap (© contribuidores do
+OpenStreetMap, licença ODbL), ainda não conferidos a pé, até o mapeamento do campus chegar
+(M2). Toda resposta de rota traz o rótulo de proveniência e o aviso de segurança.
+
+Parâmetros de custo (provisórios, calibração com a orientadora): `PENALIDADE_ESCADA`,
+`PENALIDADE_TRAVESSIA`, `PENALIDADE_TRECHO_NAO_VERIFICADO`,
+`LIMITE_PONTOS_INTERESSE_POR_CONSULTA` (ver `.env.example`).
+
+### `GET /pontos-interesse?bbox=minLon,minLat,maxLon,maxLat[&tipo=entrada,portao]`
+
+`bbox` **obrigatório** (mesmo formato e mesmo 422, `campo: "bbox"`, de `GET /barreiras`).
+`tipo` opcional: lista separada por vírgula de `predio`, `entrada`, `escada`, `rampa`,
+`quadra`, `portao` (valor inválido: 422 com `campo: "tipo"`). Até
+`LIMITE_PONTOS_INTERESSE_POR_CONSULTA` itens, ordenados por `nome`.
+
+200: GeoJSON `FeatureCollection` com membros extras `rotulo` (texto de proveniência, vazio
+se não há pontos) e `atribuicao` (presente quando há dado do OpenStreetMap). Cada Feature:
+`geometry` Point `[longitude, latitude]` e
+`properties: {"id", "tipo", "nome", "descricao", "acessivel", "fonte_verificacao", "tem_no"}`.
+`tem_no = true` quer dizer que o ponto está ligado ao grafo e pode ser origem ou destino.
+`acessivel`: `true`, `false` ou `null` (não verificado).
+
+```bash
+curl 'http://localhost:8000/pontos-interesse?bbox=-46.6622,-23.5575,-46.6422,-23.5375&tipo=entrada'
+```
+
+### `POST /rotas`
+
+Rota pública (sem token); não grava nada, não recebe a posição de ninguém e o corpo não vai
+para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posição do aparelho.
+
+```json
+{"origem_id": 3, "destino_id": 7, "perfil": "sem_restricao"}
+```
+
+- `origem_id`: ponto com nó (entrada ou portão). `destino_id`: **entrada** com nó.
+  Estrito: campo extra, texto no lugar de número ou `origem_id == destino_id` dão 422.
+- `perfil`: `"sem_restricao"` (padrão) ou `"cadeirante"`. `"deficiencia_visual"` ainda não
+  existe: 422 `"Perfil ainda não disponível."`.
+- **Perfil `cadeirante`: a rota NUNCA tem trecho de escada nem trecho marcado como
+  inacessível.** Esses trechos saem do grafo da consulta (não é penalidade). Se não houver
+  caminho sem eles, a resposta é 404 `sem_rota`: silêncio é melhor que palpite.
+- Custo = comprimento × fator (tipo × verificação), com as penalidades do `.env`. As
+  instruções não dizem "esquerda/direita" (rumo é do M4).
+
+200:
+
+```json
+{
+  "rotulo": "PROVISÓRIO: caminhos do mapa aberto (OpenStreetMap), ainda não conferidos a pé. Só para demonstração.",
+  "provisorio": true,
+  "atribuicao": "Dados de mapa © contribuidores do OpenStreetMap (ODbL).",
+  "perfil": "sem_restricao",
+  "origem": {"id": 2, "nome": "Passagem entre os Prédios 6 e 24", "latitude": -23.5469, "longitude": -46.6517},
+  "destino": {"id": 3, "nome": "Entrada do Prédio 29", "latitude": -23.5476, "longitude": -46.6517},
+  "distancia_m": 182.4,
+  "custo": 310.2,
+  "acessivel_cadeirante": false,
+  "avisos": ["O caminho tem escada (cerca de 20 metros).", "Há trecho ainda não conferido a pé."],
+  "aviso_seguranca": "Apoio à orientação. Nunca substitui a bengala, o cão-guia ou as técnicas de mobilidade.",
+  "trechos": [{"ordem": 1, "aresta_id": 18, "tipo": "calcada", "comprimento_m": 13.2,
+               "acessivel_cadeirante": null, "fonte_verificacao": "provisorio"}],
+  "instrucoes": [{"ordem": 1, "texto": "Siga pelo caminho por cerca de 15 metros."}],
+  "geometria": {"type": "LineString", "coordinates": [[-46.65176, -23.54705], [-46.65186, -23.54697]]}
+}
+```
+
+- `distancia_m`: soma dos `comprimento_m` (1 casa). `custo`: informativo.
+- `acessivel_cadeirante`: `true` se todos os trechos são `true`; `false` se algum é `false`
+  ou escada; `null` se algum não foi verificado e nenhum é `false`.
+- `provisorio = true` se algum trecho tem `fonte_verificacao = "provisorio"`; o `rotulo` muda
+  conforme o pior caso (provisório, desenhado sobre mapa, conferido a pé). `atribuicao` só
+  aparece com dado do OpenStreetMap.
+- `geometria`: trechos concatenados no sentido do caminho, sem repetir o vértice de junção;
+  coordenadas `[longitude, latitude]` (Leaflet usa `[latitude, longitude]`).
+- `instrucoes`: tipo de trecho + distância aproximada (múltiplos de 5 m) + até 2 referências
+  por instrução; escada e travessia são anunciadas antes do trecho; a última é sempre a
+  chegada ("Você chegou à entrada do Prédio 31.").
+
+Erros (corpo `{"mensagem": ...}` em português):
+
+| Código | Quando | Corpo |
+|---|---|---|
+| 422 | JSON malformado, campo ausente, tipo errado, campo extra, `perfil` inválido, `origem_id == destino_id` | `{"mensagem": "Pedido de rota inválido.", "erros": [{"campo": "...", "erro": "..."}]}` |
+| 422 | `destino_id` não é entrada; ponto sem nó | `campo: "destino_id"` ("Escolha uma entrada de prédio.") ou `campo` do ponto ("Este ponto ainda não está ligado ao mapa de caminhos.") |
+| 404 | `origem_id` ou `destino_id` não existe | `{"mensagem": "Ponto de interesse não encontrado.", "campo": "destino_id"}` |
+| 404 | nenhum caminho (inclui cadeirante sem caminho sem escada) | `{"mensagem": "Não há caminho mapeado entre esses dois pontos.", "codigo": "sem_rota"}` |
+| 413 | corpo acima de `LIMITE_CORPO_BYTES` | `{"mensagem": "Corpo grande demais: o limite é 16 KiB."}` (pelo nginx, página HTML do nginx) |
+| 503 | tabela `arestas` vazia | `{"mensagem": "O mapa de caminhos do campus ainda não foi carregado."}` |
+
+```bash
+curl -X POST http://localhost:8000/rotas -H 'content-type: application/json' \
+  -d '{"origem_id": 3, "destino_id": 7, "perfil": "cadeirante"}'
+```
