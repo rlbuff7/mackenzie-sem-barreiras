@@ -50,6 +50,14 @@ class Configuracoes(BaseSettings):
     srid_armazenamento: int
     srid_calculo: int
 
+    # --- Roteamento (CLAUDE.md §6) — PROVISÓRIOS, calibrar com a orientadora (§13.5) ---
+    # Fatores que multiplicam o comprimento do trecho no custo da rota (POST /rotas).
+    # Mudar aqui vale na próxima consulta, sem refazer seed (o custo é calculado na hora).
+    penalidade_escada: float = Field(default=4.0, gt=0)
+    penalidade_travessia: float = Field(default=2.0, gt=0)
+    penalidade_trecho_nao_verificado: float = Field(default=1.5, gt=0)
+    limite_pontos_interesse_por_consulta: int = Field(default=500, ge=1)
+
     # --- API ---
     # NoDecode: sem isso, pydantic-settings tentaria decodificar CORS_ORIGENS
     # como JSON antes do validador abaixo rodar, e uma string separada por
