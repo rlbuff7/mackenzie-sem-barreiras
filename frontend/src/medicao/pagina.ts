@@ -20,6 +20,12 @@ import {
   tituloDoPredio,
   type ColecaoCamada,
 } from "./falta-mapear.ts";
+import {
+  deveReenquadrar,
+  mapaSoltoApos,
+  soltarPorGesto,
+  type MotivoEnquadramento,
+} from "./enquadramento.ts";
 import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
@@ -280,7 +286,7 @@ function definirPonto(n: number): void {
   gravarLocal(CHAVE_PONTO, String(n));
   if (mudou) {
     desenharReferencia();
-    enquadrarMapa();
+    enquadrarMapa("ponto");
   }
 }
 
@@ -501,7 +507,7 @@ function irParaEtapa(nova: Etapa, opcoes: { foco?: "titulo" | "nenhum"; anuncio?
   barraConfirmar.hidden = nova !== "resultado";
   if (nova === "medir") {
     mapa?.invalidateSize({ animate: false });
-    enquadrarMapa();
+    enquadrarMapa("etapa");
   }
   if (opcoes.foco !== "nenhum") titulosEtapa[nova].focus();
   if (opcoes.anuncio !== null) anunciar(opcoes.anuncio ?? frasePadraoDaEtapa(nova));
@@ -537,8 +543,22 @@ function desenharReferencia(): void {
   texto(legendaReferencia, `◆ no mapa: referência do ponto. ${textoDistanciaReferencia(distancia_m)}`);
 }
 
-/** Mapa centrado entre a posição (com a precisão) e a referência do ponto, sem animação. */
-function enquadrarMapa(): void {
+/** Move o mapa por código: os eventos de início de zoom/arraste daqui não contam como gesto da pessoa. */
+function moverPorCodigo(mover: () => void): void {
+  movendoPorCodigo = true;
+  try {
+    mover();
+  } finally {
+    movendoPorCodigo = false;
+  }
+}
+
+/**
+ * Mapa centrado entre a posição (com a precisão) e a referência do ponto, sem animação.
+ * O marcador ◆ sempre é atualizado; a vista só se move se `deveReenquadrar` deixar
+ * (a pessoa que arrastou ou deu zoom não é puxada de volta).
+ */
+function enquadrarMapa(motivo: MotivoEnquadramento): void {
   const ref = referenciaAtual();
   if (!mapa || !ref) return;
   if (marcadorReferencia) marcadorReferencia.setLatLng(ref);
@@ -555,11 +575,27 @@ function enquadrarMapa(): void {
       keyboard: false,
     }).addTo(mapa);
   }
+  if (!deveReenquadrar(motivo, mapaSolto)) return;
+  mapaSolto = mapaSoltoApos(motivo, mapaSolto);
   const limites = L.latLngBounds([ref]);
   if (halo) limites.extend(halo.getBounds());
   else if (ultimaPosicao) limites.extend(L.latLng(ultimaPosicao.latitude, ultimaPosicao.longitude));
-  if (limites.getSouthWest().equals(limites.getNorthEast())) mapa.setView(ref, 18, { animate: false });
-  else mapa.fitBounds(limites, { maxZoom: 19, padding: [20, 20], animate: false });
+  const m = mapa;
+  moverPorCodigo(() => {
+    if (limites.getSouthWest().equals(limites.getNorthEast())) m.setView(ref, 18, { animate: false });
+    else m.fitBounds(limites, { maxZoom: 19, padding: [20, 20], animate: false });
+  });
+}
+
+/** "Ver o campus todo": enquadra o limite do campus (camada Falta mapear) e deixa o mapa solto. */
+function verCampusTodo(): void {
+  if (!mapa) return;
+  const linhas = filtrarPorTipo(faltaMapear as unknown as ColecaoCamada, "limite_campus");
+  const limites = L.geoJSON(linhas as never).getBounds();
+  if (!limites.isValid()) return;
+  mapaSolto = mapaSoltoApos("botao_campus", mapaSolto);
+  const m = mapa;
+  moverPorCodigo(() => m.fitBounds(limites, { padding: [20, 20], animate: false }));
 }
 
 /** Camada "Falta mapear": criada antes dos marcadores de posição/◆ (ficam por cima). */
@@ -594,12 +630,15 @@ function desenharFaltaMapear(m: L.Map): void {
   aplicar();
 }
 
+let mapaSolto = false; // a pessoa arrastou ou deu zoom: o GPS não puxa a vista de volta
+let movendoPorCodigo = false;
+
 function iniciarMapa(): void {
   try {
     mapa = L.map(el("mapa-medicao"), {
       center: CENTRO_CAMPUS,
       zoom: 17,
-      minZoom: 15,
+      minZoom: 14,
       maxZoom: 19,
       ...SEM_ANIMACAO,
     });
@@ -609,7 +648,12 @@ function iniciarMapa(): void {
         '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>',
     }).addTo(mapa);
     desenharFaltaMapear(mapa);
-    enquadrarMapa();
+    const soltar = (): void => {
+      mapaSolto = soltarPorGesto(movendoPorCodigo, mapaSolto);
+    };
+    mapa.on("dragstart", soltar);
+    mapa.on("zoomstart", soltar);
+    enquadrarMapa("inicio");
   } catch {
     mapa = null;
     el("mapa-medicao").hidden = true;
@@ -646,7 +690,7 @@ function atualizarMapa(): void {
     marcador = L.marker(ll, { icon: iconePosicao(rumo), interactive: false, keyboard: false }).addTo(mapa);
     rumoDoMarcador = rumo;
     desenharReferencia();
-    enquadrarMapa();
+    enquadrarMapa("primeira_posicao");
     return;
   }
   desenharReferencia();
@@ -657,7 +701,10 @@ function atualizarMapa(): void {
     marcador.setIcon(iconePosicao(rumo));
     rumoDoMarcador = rumo;
   }
-  if (!mapa.getBounds().contains(ll)) mapa.panTo(ll, { animate: false });
+  if (deveReenquadrar("posicao_fora", mapaSolto) && !mapa.getBounds().contains(ll)) {
+    const m = mapa;
+    moverPorCodigo(() => m.panTo(ll, { animate: false }));
+  }
 }
 
 // ---------- posição (uma vigia só, usada pelo painel, pelo mapa e pelo trajeto) ----------
@@ -1376,6 +1423,8 @@ botaoAbrirBussola.addEventListener("click", () => {
   painelBussola.hidden = !abrir;
   botaoAbrirBussola.setAttribute("aria-expanded", String(abrir));
 });
+el<HTMLButtonElement>("botao-centralizar").addEventListener("click", () => enquadrarMapa("botao_centralizar"));
+el<HTMLButtonElement>("botao-ver-campus").addEventListener("click", verCampusTodo);
 botaoTrajeto.addEventListener("click", alternarTrajeto);
 botaoPararTrajeto.addEventListener("click", alternarTrajeto);
 botaoBussola.addEventListener("click", () => void ativarBussola());
