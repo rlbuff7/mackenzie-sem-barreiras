@@ -38,13 +38,16 @@ def _minuscula_inicial(texto: str) -> str:
 
 
 def montar_instrucoes(
-    trechos: list[Trecho], referencias_por_no: dict[int, str], destino_nome: str
+    trechos: list[Trecho],
+    referencias_por_no: dict[int, str],
+    destino_nome: str,
+    perfil: str = "sem_restricao",
 ) -> list[str]:
     """`referencias_por_no`: nome do ponto de interesse (entrada) por id de nó. Só os nós
     do MEIO do caminho são citados (origem e destino não)."""
     instrucoes: list[str] = []
-    for tipo, grupo in groupby(trechos, key=lambda t: t.tipo):
-        trechos_do_grupo = list(grupo)
+    grupos = [(tipo, list(g)) for tipo, g in groupby(trechos, key=lambda t: t.tipo)]
+    for i, (tipo, trechos_do_grupo) in enumerate(grupos):
         metros = arredondar_metros(sum(t.comprimento_m for t in trechos_do_grupo))
         texto = _frase_do_trecho(tipo, metros)
         # nós por onde passa dentro do grupo e na junção com o próximo (não o destino final)
@@ -59,6 +62,9 @@ def montar_instrucoes(
         citadas = nomes[:MAX_REFERENCIAS_POR_INSTRUCAO]
         if citadas:
             texto += f" Você passa por: {' e '.join(citadas)}."
+        # Perfil visual: antecipa a escada no trecho anterior ("Em cerca de N metros, escada.").
+        if perfil == "deficiencia_visual" and i + 1 < len(grupos) and grupos[i + 1][0] == "escada":
+            texto += f" Em cerca de {metros} metros, escada."
         instrucoes.append(texto)
     instrucoes.append(f"Você chegou à {_minuscula_inicial(destino_nome)}.")
     return instrucoes

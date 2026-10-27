@@ -266,10 +266,60 @@ def test_origem_igual_destino_da_422(cliente, losango):
     assert r.json()["mensagem"] == "Pedido de rota inválido."
 
 
-def test_perfil_deficiencia_visual_ainda_nao_existe(cliente, losango):
+def test_perfil_deficiencia_visual_permite_escada_e_avisa_sem_piso_tatil(cliente, losango):
     r = _rota(cliente, losango, "A", "D", "deficiencia_visual")
-    assert r.status_code == 422
-    assert r.json()["erros"][0] == {"campo": "perfil", "erro": "Perfil ainda não disponível."}
+    assert r.status_code == 200
+    corpo = r.json()
+    assert corpo["perfil"] == "deficiencia_visual"
+    assert "Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto." in corpo["avisos"]
+
+
+def test_perfil_deficiencia_visual_com_escada_avisa_e_antecipa(cliente, conexao):
+    g = Grafo(conexao)
+    for nome, x in (("A", 0), ("B", 10), ("C", 20)):
+        g.no(nome, x, ponto=f"Entrada {nome}")
+    g.aresta("A", "B", 20)
+    g.aresta("B", "C", 5, tipo="escada", acessivel=False)
+    r = _rota(cliente, g, "A", "C", "deficiencia_visual")
+    assert r.status_code == 200
+    corpo = r.json()
+    assert any("escada" in a for a in corpo["avisos"])
+    assert any("piso tátil" in a for a in corpo["avisos"])
+    assert corpo["instrucoes"][0]["texto"].endswith("Em cerca de 20 metros, escada.")
+
+
+def test_perfil_sem_restricao_nao_tem_aviso_de_piso_tatil(cliente, losango):
+    corpo = _rota(cliente, losango, "A", "D").json()
+    assert not any("piso tátil" in a for a in corpo["avisos"])
+
+
+def test_seed_do_campus_deficiencia_visual_recebe_rota_com_escada(cliente):
+    pontos = {
+        f["properties"]["nome"]: f["properties"]["id"]
+        for f in cliente.get(
+            "/pontos-interesse", params={"bbox": "-46.6622,-23.5575,-46.6422,-23.5375"}
+        ).json()["features"]
+    }
+    if "Passagem entre os Prédios 6 e 24" not in pontos:
+        pytest.skip("seed provisório do OSM não está carregado")
+    corpo = {
+        "origem_id": pontos["Passagem entre os Prédios 6 e 24"],
+        "destino_id": pontos["Entrada do Prédio 29"],
+        "perfil": "deficiencia_visual",
+    }
+    r = cliente.post("/rotas", json=corpo)
+    assert r.status_code == 200
+    assert any("escada" in a for a in r.json()["avisos"])
+    assert any("piso tátil" in a for a in r.json()["avisos"])
+    outra = cliente.post(
+        "/rotas",
+        json={
+            "origem_id": pontos["Entrada do Prédio 31"],
+            "destino_id": pontos["Entrada da Biblioteca Central"],
+            "perfil": "deficiencia_visual",
+        },
+    )
+    assert outra.status_code == 200
 
 
 @pytest.mark.parametrize(

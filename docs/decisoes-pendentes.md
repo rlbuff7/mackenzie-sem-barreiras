@@ -14,6 +14,13 @@ anotada aqui.
   créditos do Rodrigo; o túnel Cloudflare fica como plano B (R41). A AWS recebe o IP de
   quem usa o protótipo: citar no termo de consentimento.
 
+## Decidido em 27/10/2026
+
+- **Decidido 27/10/2026 (Rodrigo): perfil `deficiencia_visual` incluído na v0.** O público
+  prioritário é a pessoa cega ou com baixa visão; o perfil estava bloqueado por decisão
+  pendente. Incluído provisoriamente (`POST /rotas`, `PENALIDADE_PERFIL_VISUAL=2.0`, aviso de
+  piso tátil ausente, antecipação de escada); **a validar com a orientadora**.
+
 ## Com a orientadora / Prof. Jamilson (escopo novo)
 
 | # | Decisão | Valor provisório | Status |
