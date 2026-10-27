@@ -24,9 +24,15 @@ export interface PontoDaRota {
   longitude: number;
 }
 
+export type CurvaDaInstrucao = "direita" | "esquerda" | "leve_direita" | "leve_esquerda" | "retorno" | "escada";
+
 export interface Instrucao {
   ordem: number;
   texto: string;
+  /** Metros ao longo de `coordenadas` onde a instrução começa (opcional; a 1ª é 0). */
+  inicio_m?: number;
+  /** O que acontece no FIM da instrução (opcional). */
+  curva?: CurvaDaInstrucao | null;
 }
 
 export interface RotaResposta {

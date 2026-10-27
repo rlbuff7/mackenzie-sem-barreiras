@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "verificar": "tsc --noEmit",
-    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts src/medicao/fluxo.test.ts src/medicao/fila.test.ts src/medicao/fotos.test.ts src/medicao/fila-fotos.test.ts src/medicao/etapas-html.test.ts src/medicao/pontos-controle.test.ts src/medicao/falta-mapear.test.ts src/medicao/ja-mapeado.test.ts src/medicao/enquadramento.test.ts src/mapa/rumo.test.ts src/mapa/marcadores.test.ts scripts/gerar-tokens.test.mjs src/design/tema.test.ts src/design/ajustes-html.test.ts src/design/movimento.test.ts src/design/movimento-css.test.ts src/design/mapa-sem-animacao.test.ts src/design/contraste.test.ts src/rotas/interpretar.test.ts src/rotas/resumo.test.ts src/rotas/voz.test.ts src/rotas/rota-html.test.ts",
+    "testar": "node --experimental-strip-types --test src/itens.test.ts src/medicao/medicao.test.ts src/medicao/fluxo.test.ts src/medicao/fila.test.ts src/medicao/fotos.test.ts src/medicao/fila-fotos.test.ts src/medicao/etapas-html.test.ts src/medicao/pontos-controle.test.ts src/medicao/falta-mapear.test.ts src/medicao/ja-mapeado.test.ts src/medicao/enquadramento.test.ts src/mapa/rumo.test.ts src/mapa/marcadores.test.ts scripts/gerar-tokens.test.mjs src/design/tema.test.ts src/design/ajustes-html.test.ts src/design/movimento.test.ts src/design/movimento-css.test.ts src/design/mapa-sem-animacao.test.ts src/design/contraste.test.ts src/rotas/interpretar.test.ts src/rotas/resumo.test.ts src/rotas/voz.test.ts src/rotas/rota-html.test.ts src/rotas/simulacao.test.ts",
     "tokens": "node scripts/gerar-tokens.mjs"
   },
   "dependencies": {

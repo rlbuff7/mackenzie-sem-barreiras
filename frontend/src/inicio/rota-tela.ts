@@ -13,6 +13,7 @@ import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/in
 import { anuncioDaRota, montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
 import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
+import { fatorValido, metrosPorPasso, padraoDeVibracao, pontoNaDistancia, proximaFala, comprimentoTotal_m, VIBRACAO_CHEGADA } from "../rotas/simulacao.ts";
 import {
   TAMANHO_ICONE_LOSANGO_PX,
   TAMANHO_ICONE_PINO_PX,
@@ -49,6 +50,11 @@ export function iniciarRota(mapa: L.Map | null): void {
   const lista = el("instrucoes-rota");
   const botaoVoz = el<HTMLButtonElement>("botao-voz");
   const avisoVoz = el("aviso-voz");
+  const botaoSimular = el<HTMLButtonElement>("botao-simular");
+  const botaoPararSimulacao = el<HTMLButtonElement>("botao-parar-simulacao");
+  const selSimulacao = el<HTMLSelectElement>("seletor-velocidade-simulacao");
+  let timerSimulacao: number | null = null;
+  let bolinha: L.CircleMarker | null = null;
 
   const sintese = sinteseDoNavegador();
   let leitura: LeituraEmCurso | null = null;
@@ -131,6 +137,7 @@ export function iniciarRota(mapa: L.Map | null): void {
   }
 
   function limparResultado(): void {
+    pararSimulacao();
     pararVoz();
     rotaAtual = null;
     camadaRota?.clearLayers();
@@ -139,6 +146,100 @@ export function iniciarRota(mapa: L.Map | null): void {
     esconder(erroEscolha);
     anuncio.textContent = "";
   }
+
+  // ---------- Simular caminhada (demonstração: a posição é imaginária) ----------
+
+  function vibrar(padrao: number[]): void {
+    if (padrao.length === 0) return;
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(padrao);
+    } catch {
+      /* iPhone não vibra: nada a fazer */
+    }
+  }
+
+  function dizer(texto: string): void {
+    leitura = falar([texto], {
+      sintese,
+      criarFala: (t) => new SpeechSynthesisUtterance(t) as unknown as FalaDeVoz,
+      preferencias,
+    });
+  }
+
+  function pararSimulacao(): void {
+    if (timerSimulacao !== null) {
+      window.clearInterval(timerSimulacao);
+      timerSimulacao = null;
+      leitura?.parar();
+      leitura = null;
+      try {
+        sintese?.cancel();
+      } catch {
+        /* nada a fazer */
+      }
+    }
+    bolinha?.remove();
+    bolinha = null;
+    botaoSimular.hidden = false;
+    botaoPararSimulacao.hidden = true;
+    selSimulacao.disabled = false;
+  }
+
+  function iniciarSimulacao(): void {
+    const rota = rotaAtual;
+    if (!rota || rota.coordenadas.length === 0) return;
+    pararSimulacao();
+    pararVoz();
+    const total_m = comprimentoTotal_m(rota.coordenadas);
+    const passo_m = metrosPorPasso(fatorValido(selSimulacao.value));
+    const jaFaladas = new Set<string>();
+    let percorrido_m = 0;
+    botaoSimular.hidden = true;
+    botaoPararSimulacao.hidden = false;
+    selSimulacao.disabled = true;
+    const mover = (): void => {
+      const p = pontoNaDistancia(rota.coordenadas, percorrido_m);
+      if (!p || !mapa) return;
+      try {
+        const ll = L.latLng(p[1], p[0]);
+        if (bolinha) bolinha.setLatLng(ll);
+        else bolinha = L.circleMarker(ll, { radius: 10, color: "#ffffff", weight: 3, fillColor: "#1a5fb4", fillOpacity: 1, interactive: false }).addTo(mapa);
+        mapa.setView(ll, 19, { animate: false });
+      } catch {
+        /* o mapa é só referência */
+      }
+    };
+    const falasDevidas = (): void => {
+      for (let f = proximaFala(rota.instrucoes, percorrido_m, jaFaladas, total_m); f; f = proximaFala(rota.instrucoes, percorrido_m, jaFaladas, total_m)) {
+        jaFaladas.add(f.chave);
+        dizer(f.texto);
+        if (f.curva) vibrar(padraoDeVibracao(f.curva));
+      }
+    };
+    const passar = (): void => {
+      percorrido_m = Math.min(percorrido_m + passo_m, total_m);
+      mover();
+      if (percorrido_m >= total_m) {
+        // Chegada: o texto é a última instrução da API (já falada ao cruzar o inicio_m dela); aqui só vibra e para.
+        if (timerSimulacao !== null) window.clearInterval(timerSimulacao);
+        timerSimulacao = null;
+        vibrar(VIBRACAO_CHEGADA);
+        bolinha?.remove();
+        bolinha = null;
+        botaoSimular.hidden = false;
+        botaoPararSimulacao.hidden = true;
+        selSimulacao.disabled = false;
+        return;
+      }
+      falasDevidas();
+    };
+    mover();
+    falasDevidas();
+    timerSimulacao = window.setInterval(passar, 250);
+  }
+
+  botaoSimular.addEventListener("click", iniciarSimulacao);
+  botaoPararSimulacao.addEventListener("click", pararSimulacao);
 
   // ---------- listas De e Para ----------
 
