@@ -184,3 +184,20 @@ export function falar(textos: readonly string[], opcoes: OpcoesDeFala): LeituraE
     },
   };
 }
+
+/** Fala um texto na fila, SEM cancelar o que já está falando. Devolve false se não deu para falar. */
+export function enfileirarFala(texto: string, opcoes: OpcoesDeFala): boolean {
+  const { sintese, criarFala, preferencias } = opcoes;
+  if (!sintese || texto.trim() === "") return false;
+  try {
+    const fala = criarFala(texto.trim());
+    fala.lang = LINGUA;
+    const voz = resolverVoz(sintese.getVoices(), preferencias?.nomeVoz ?? null);
+    if (voz) fala.voice = voz;
+    if (preferencias) fala.rate = velocidadeValida(preferencias.velocidade);
+    sintese.speak(fala as never);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -12,8 +12,8 @@ import { paraLatLng, pontoParaLatLng } from "../rotas/geometria.ts";
 import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/interpretar.ts";
 import { anuncioDaRota, montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
-import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
-import { fatorValido, metrosPorPasso, padraoDeVibracao, pontoNaDistancia, proximaFala, comprimentoTotal_m, VIBRACAO_CHEGADA } from "../rotas/simulacao.ts";
+import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, enfileirarFala, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
+import { fatorValido, metrosPorPasso, planejarFalas, proximoEvento, pontoNaDistancia, comprimentoTotal_m, VIBRACAO_CHEGADA } from "../rotas/simulacao.ts";
 import {
   TAMANHO_ICONE_LOSANGO_PX,
   TAMANHO_ICONE_PINO_PX,
@@ -158,7 +158,14 @@ export function iniciarRota(mapa: L.Map | null): void {
     }
   }
 
-  function dizer(texto: string): void {
+  function dizer(texto: string, prioritaria: boolean): void {
+    if (!prioritaria && enfileirarFala(texto, { sintese, criarFala: (t) => new SpeechSynthesisUtterance(t) as unknown as FalaDeVoz, preferencias })) return;
+    // Prioritária: cancela antes, para nunca chegar atrasada (falar() também cancela).
+    try {
+      sintese?.cancel();
+    } catch {
+      /* nada a fazer */
+    }
     leitura = falar([texto], {
       sintese,
       criarFala: (t) => new SpeechSynthesisUtterance(t) as unknown as FalaDeVoz,
@@ -191,7 +198,9 @@ export function iniciarRota(mapa: L.Map | null): void {
     pararSimulacao();
     pararVoz();
     const total_m = comprimentoTotal_m(rota.coordenadas);
-    const passo_m = metrosPorPasso(fatorValido(selSimulacao.value));
+    const fator = fatorValido(selSimulacao.value);
+    const passo_m = metrosPorPasso(fator);
+    const eventos = planejarFalas(rota.instrucoes, total_m, fator);
     const jaFaladas = new Set<string>();
     let percorrido_m = 0;
     botaoSimular.hidden = true;
@@ -210,15 +219,16 @@ export function iniciarRota(mapa: L.Map | null): void {
       }
     };
     const falasDevidas = (): void => {
-      for (let f = proximaFala(rota.instrucoes, percorrido_m, jaFaladas, total_m); f; f = proximaFala(rota.instrucoes, percorrido_m, jaFaladas, total_m)) {
+      for (let f = proximoEvento(eventos, percorrido_m, jaFaladas); f; f = proximoEvento(eventos, percorrido_m, jaFaladas)) {
         jaFaladas.add(f.chave);
-        dizer(f.texto);
-        if (f.curva) vibrar(padraoDeVibracao(f.curva));
+        dizer(f.texto, f.prioridade === "alta");
+        vibrar(f.vibrar);
       }
     };
     const passar = (): void => {
       percorrido_m = Math.min(percorrido_m + passo_m, total_m);
       mover();
+      falasDevidas();
       if (percorrido_m >= total_m) {
         // Chegada: o texto é a última instrução da API (já falada ao cruzar o inicio_m dela); aqui só vibra e para.
         if (timerSimulacao !== null) window.clearInterval(timerSimulacao);
@@ -231,7 +241,6 @@ export function iniciarRota(mapa: L.Map | null): void {
         selSimulacao.disabled = false;
         return;
       }
-      falasDevidas();
     };
     mover();
     falasDevidas();

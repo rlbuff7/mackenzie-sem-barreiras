@@ -13,11 +13,14 @@ export interface InstrucaoSimulada {
   curva?: Curva | null;
 }
 
-export const ANTECEDENCIA_CURVA_M = 10;
+export const ANTECEDENCIA_CURVA_S = 3;
+export const ANTECEDENCIA_MINIMA_M = 5;
+export const FOLGA_FALA_INSTRUCAO_S = 4;
+export const CURVA_IMEDIATA_S = 1.5;
 export const VELOCIDADE_BASE_M_POR_S = 1.0;
 export const PASSO_S = 0.25;
-export const FATORES_SIMULACAO = [5, 10] as const;
-export const FATOR_PADRAO = 10;
+export const FATORES_SIMULACAO = [2, 5, 10] as const;
+export const FATOR_PADRAO = 5;
 export const VIBRACAO_CHEGADA = [200, 100, 200];
 export const ROTULO_SIMULACAO = "Simulação: a posição é imaginária, não é o GPS.";
 
@@ -80,17 +83,32 @@ export function normalizarInstrucoes(instrucoes: readonly InstrucaoSimulada[], t
   });
 }
 
-const TEXTO_CURVA: Record<Curva, string> = {
-  direita: "Em 10 metros, vire à direita.",
-  esquerda: "Em 10 metros, vire à esquerda.",
-  leve_direita: "Em 10 metros, vire levemente à direita.",
-  leve_esquerda: "Em 10 metros, vire levemente à esquerda.",
-  retorno: "Em 10 metros, faça o retorno.",
-  escada: "Em 10 metros, há uma escada.",
+const TEXTO_AVISO: Record<Curva, (n: number) => string> = {
+  direita: (n) => `Em ${n} metros, vire à direita.`,
+  esquerda: (n) => `Em ${n} metros, vire à esquerda.`,
+  leve_direita: (n) => `Em ${n} metros, vire levemente à direita.`,
+  leve_esquerda: (n) => `Em ${n} metros, vire levemente à esquerda.`,
+  retorno: (n) => `Em ${n} metros, faça o retorno.`,
+  escada: (n) => `Em ${n} metros, há uma escada.`,
 };
 
-export function textoDaCurva(curva: Curva): string {
-  return TEXTO_CURVA[curva];
+const TEXTO_AGORA: Record<Curva, string> = {
+  direita: "Vire à direita agora.",
+  esquerda: "Vire à esquerda agora.",
+  leve_direita: "Vire levemente à direita agora.",
+  leve_esquerda: "Vire levemente à esquerda agora.",
+  retorno: "Faça o retorno agora.",
+  escada: "Escada agora. Use o corrimão se houver.",
+};
+
+/** Aviso antecipado; `distancia_m` é a distância real restante (arredondada a 5 m, mínimo 5). */
+export function textoDaCurva(curva: Curva, distancia_m = 10): string {
+  const n = Math.max(5, Math.round(distancia_m / 5) * 5);
+  return TEXTO_AVISO[curva](n);
+}
+
+export function textoDaCurvaAgora(curva: Curva): string {
+  return TEXTO_AGORA[curva];
 }
 
 export function padraoDeVibracao(curva: Curva | null | undefined): number[] {
@@ -105,39 +123,67 @@ export function padraoDeVibracao(curva: Curva | null | undefined): number[] {
   }
 }
 
-export interface FalaDevida {
-  /** Chave para marcar como já falada: "i:<índice>" (instrução) ou "c:<índice>" (aviso de curva). */
-  chave: string;
+export interface EventoDeFala {
+  /** Metros percorridos a partir dos quais a fala é devida. */
+  m: number;
   texto: string;
-  /** Só nos avisos de curva. */
-  curva: Curva | null;
+  /** "alta" cancela o que estiver falando (curva agora); "normal" entra na fila. */
+  prioridade: "alta" | "normal";
+  /** Padrão de vibração (vazio = não vibra). Só a fala "agora" vibra. */
+  vibrar: number[];
+  /** Chave única: "i:<n>" instrução, "a:<n>" aviso, "c:<n>" curva agora. */
+  chave: string;
+}
+
+/** Velocidade simulada em m/s para o fator escolhido. */
+export function velocidadeSimulada_m_s(fator: number): number {
+  return VELOCIDADE_BASE_M_POR_S * fator;
+}
+
+function primeiraFrase(texto: string): string {
+  const i = texto.indexOf(".");
+  return (i >= 0 ? texto.slice(0, i + 1) : texto).trim();
 }
 
 /**
- * A próxima fala que já deveria ter acontecido em `metrosPercorridos` e ainda não está em `jaFaladas`
- * (ordem: instrução i, depois aviso da curva de i). Quem chama repete até receber null e adiciona a chave.
+ * Roteiro completo das falas, ordenado por metro. O aviso de curva sai quando faltam <= 3 s de
+ * reprodução (distância <= velocidade_simulada x 3, mínimo 5 m); a fala "agora" sai ao fim da instrução
+ * e tem prioridade. A fala de início da instrução é encurtada (1ª frase) se a curva está a < 4 s,
+ * e pulada se estiver a < 1,5 s.
  */
-export function proximaFala(
-  instrucoes: readonly InstrucaoSimulada[],
-  metrosPercorridos: number,
-  jaFaladas: ReadonlySet<string>,
-  total_m?: number,
-): FalaDevida | null {
-  const lista = normalizarInstrucoes(instrucoes, total_m ?? ultimoInicio(instrucoes));
-  for (let i = 0; i < lista.length; i++) {
-    const it = lista[i]!;
-    if (metrosPercorridos >= it.inicio_m && !jaFaladas.has(`i:${i}`)) return { chave: `i:${i}`, texto: it.texto, curva: null };
+export function planejarFalas(instrucoes: readonly InstrucaoSimulada[], total_m: number, fator: number): EventoDeFala[] {
+  const v = velocidadeSimulada_m_s(fator);
+  const antecedencia_m = Math.max(ANTECEDENCIA_MINIMA_M, v * ANTECEDENCIA_CURVA_S);
+  const lista = normalizarInstrucoes(instrucoes, total_m);
+  const eventos: EventoDeFala[] = [];
+  lista.forEach((it, i) => {
+    let texto: string | null = it.texto;
     if (it.curva) {
-      const ponto = Math.max(it.inicio_m, it.fim_m - ANTECEDENCIA_CURVA_M);
-      if (metrosPercorridos >= ponto && !jaFaladas.has(`c:${i}`)) return { chave: `c:${i}`, texto: textoDaCurva(it.curva), curva: it.curva };
+      const segundos = (it.fim_m - it.inicio_m) / v;
+      if (segundos < CURVA_IMEDIATA_S) texto = null;
+      else if (segundos < FOLGA_FALA_INSTRUCAO_S) texto = primeiraFrase(it.texto);
     }
-  }
-  return null;
+    if (texto) eventos.push({ m: it.inicio_m, texto, prioridade: "normal", vibrar: [], chave: `i:${i}` });
+    if (it.curva) {
+      const m = Math.max(it.inicio_m, it.fim_m - antecedencia_m);
+      eventos.push({ m, texto: textoDaCurva(it.curva, it.fim_m - m), prioridade: "normal", vibrar: [], chave: `a:${i}` });
+      eventos.push({ m: it.fim_m, texto: textoDaCurvaAgora(it.curva), prioridade: "alta", vibrar: padraoDeVibracao(it.curva), chave: `c:${i}` });
+    }
+  });
+  // Estável: no mesmo metro a ordem de inserção (a "agora" da anterior vem antes da instrução seguinte).
+  return eventos
+    .map((e, idx) => ({ e, idx }))
+    .sort((x, y) => x.e.m - y.e.m || x.idx - y.idx)
+    .map((x) => x.e);
 }
 
-function ultimoInicio(instrucoes: readonly InstrucaoSimulada[]): number {
-  const ultimo = instrucoes[instrucoes.length - 1]?.inicio_m;
-  return typeof ultimo === "number" ? ultimo : 0;
+/** Próximo evento já devido em `metrosPercorridos` e ainda não falado; null se não há. */
+export function proximoEvento(eventos: readonly EventoDeFala[], metrosPercorridos: number, jaFaladas: ReadonlySet<string>): EventoDeFala | null {
+  for (const e of eventos) {
+    if (e.m > metrosPercorridos) break;
+    if (!jaFaladas.has(e.chave)) return e;
+  }
+  return null;
 }
 
 export function fatorValido(v: unknown): number {
