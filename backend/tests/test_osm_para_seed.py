@@ -132,13 +132,19 @@ def test_sem_caminhos_no_recorte_falha_com_mensagem():
 
 def test_correcao_de_campo_vira_escada_so_na_aresta_perto_da_referencia():
     # duas vias em linha (10-11 e 11-12); a referência fica no meio da aresta 11-12
-    dados = _dados(_via(1, {"highway": "service"}, [(10, 0, 0), (11, 0, 30)]),
-                   _via(2, {"highway": "service"}, [(11, 0, 30), (12, 0, 60)]))
+    dados = _dados(
+        _via(1, {"highway": "service"}, [(10, 0, 0), (11, 0, 30)]),
+        _via(2, {"highway": "service"}, [(11, 0, 30), (12, 0, 60)]),
+    )
     g = osm.construir_grafo(dados)
     correcao = {
-        "referencia": (LAT + 1 * 9e-6, LON + 45 * 9e-6), "raio_m": 5.0, "tipo": "escada",
-        "nome": "Escadaria de teste", "descricao": "x",
-        "mapeado_por": "Fulano (relato de campo)", "mapeado_em": DATA,
+        "referencia": (LAT + 1 * 9e-6, LON + 45 * 9e-6),
+        "raio_m": 5.0,
+        "tipo": "escada",
+        "nome": "Escadaria de teste",
+        "descricao": "x",
+        "mapeado_por": "Fulano (relato de campo)",
+        "mapeado_em": DATA,
     }
     osm.aplicar_correcoes_de_campo(g, (correcao,))
     tipos = sorted((a["origem"], a["tipo"], a["acessivel_cadeirante"]) for a in g.arestas)
@@ -151,9 +157,20 @@ def test_correcao_de_campo_vira_escada_so_na_aresta_perto_da_referencia():
 
 def test_correcao_sem_aresta_perto_avisa_em_vez_de_corrigir_em_silencio():
     g = osm.construir_grafo(_grafo_t())
-    osm.aplicar_correcoes_de_campo(g, ({
-        "referencia": (LAT + 0.01, LON), "raio_m": 5.0, "tipo": "escada", "nome": "Longe",
-        "descricao": "x", "mapeado_por": "F", "mapeado_em": DATA},))
+    osm.aplicar_correcoes_de_campo(
+        g,
+        (
+            {
+                "referencia": (LAT + 0.01, LON),
+                "raio_m": 5.0,
+                "tipo": "escada",
+                "nome": "Longe",
+                "descricao": "x",
+                "mapeado_por": "F",
+                "mapeado_em": DATA,
+            },
+        ),
+    )
     assert any("NADA foi corrigido" in a for a in g.avisos)
 
 
