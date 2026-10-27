@@ -1,8 +1,8 @@
 /**
  * Página inicial (index.html): mapa do campus como referência visual, com o cartão de entrada.
- * Não chama a API do projeto (as rotas novas ainda não existem) e não depende de
- * nenhum terceiro além dos tiles do OpenStreetMap. Se o mapa falhar, o texto da
- * página continua completo.
+ * Chama só /api/pontos-interesse e /api/rotas (rota-tela.ts) e não depende de nenhum
+ * terceiro além dos tiles do OpenStreetMap. Se o mapa falhar, o texto da página continua
+ * completo e o fluxo de rota funciona só com as listas.
  */
 import "../estilos.css";
 import "./inicio.css";
@@ -11,6 +11,7 @@ import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadore
 import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
+import { iniciarRota } from "./rota-tela.ts";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -29,9 +30,9 @@ const SEM_ANIMACAO = {
   bounceAtZoomLimits: false,
 } as const;
 
-function iniciarMapaCampus(): void {
+function iniciarMapaCampus(): L.Map | null {
   const contêiner = document.getElementById("mapa-campus");
-  if (!contêiner) return;
+  if (!contêiner) return null;
 
   try {
     const mapa = L.map(contêiner, {
@@ -64,14 +65,16 @@ function iniciarMapaCampus(): void {
         iconAnchor: [metade, metade],
       }),
     }).addTo(mapa);
+    return mapa;
   } catch {
     const aviso = document.getElementById("mapa-indisponivel");
     if (aviso) aviso.hidden = false;
     contêiner.hidden = true;
+    return null;
   }
 }
 
 iniciarAjustes();
 iniciarSeletorTema();
 iniciarInterruptorMovimento();
-iniciarMapaCampus();
+iniciarRota(iniciarMapaCampus());

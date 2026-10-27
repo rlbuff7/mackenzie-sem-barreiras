@@ -43,6 +43,13 @@ BEGIN
     RAISE EXCEPTION 'FALHOU %: o comando deveria ter sido rejeitado', caso;
 END $$;
 
+-- O banco de desenvolvimento já tem o grafo do campus (seed 004). Estes testes criam o
+-- próprio grafo e contam linhas, então começam de tabelas vazias DENTRO da transação
+-- (desfeita no fim). As invariantes do grafo real ficam em test_grafo_campus.sql.
+DELETE FROM arestas;
+DELETE FROM nos;
+DELETE FROM pontos_interesse;
+
 -- Pontos de referência (lon, lat em SRID 4326)
 CREATE TEMP TABLE ref AS SELECT
     ST_SetSRID(ST_MakePoint(-46.6524631, -23.5471938), 4326) AS centro_campus, -- OSM
@@ -657,6 +664,51 @@ SELECT pg_temp.deve_rejeitar('foto de ponto 13',
 SELECT pg_temp.deve_rejeitar('foto com aparelho vazio',
     $q$INSERT INTO fotos_pontos (id_cliente, ponto, aparelho, tirada_em, conteudo, tamanho_bytes, sha256)
        VALUES (gen_random_uuid(), 3, '', now(), '\xff'::bytea, 1, repeat('a', 64))$q$, '23514');
+
+-- ---------------------------------------------------------------------------
+-- Proveniência do mapeamento do campus (arestas e pontos_interesse) — migration 009
+-- ---------------------------------------------------------------------------
+
+SELECT pg_temp.afirmar('arestas tem fonte_verificacao, mapeado_por e mapeado_em',
+    (SELECT count(*) = 3 FROM information_schema.columns
+      WHERE table_name = 'arestas' AND column_name IN ('fonte_verificacao', 'mapeado_por', 'mapeado_em')));
+SELECT pg_temp.afirmar('pontos_interesse tem fonte_verificacao, mapeado_por e mapeado_em',
+    (SELECT count(*) = 3 FROM information_schema.columns
+      WHERE table_name = 'pontos_interesse'
+        AND column_name IN ('fonte_verificacao', 'mapeado_por', 'mapeado_em')));
+SELECT pg_temp.afirmar('fonte_verificacao é NOT NULL com DEFAULT imagem (arestas e pontos)',
+    (SELECT count(*) = 2 FROM information_schema.columns
+      WHERE table_name IN ('arestas', 'pontos_interesse') AND column_name = 'fonte_verificacao'
+        AND is_nullable = 'NO' AND column_default LIKE '%imagem%'));
+SELECT pg_temp.afirmar('CHECKs nomeados arestas_fonte_valida e pontos_interesse_fonte_valida existem',
+    (SELECT count(*) = 2 FROM pg_constraint
+      WHERE conname IN ('arestas_fonte_valida', 'pontos_interesse_fonte_valida') AND contype = 'c'));
+
+INSERT INTO pontos_interesse (id, geom, tipo, nome)
+VALUES (990001, ST_SetSRID(ST_MakePoint(-46.65, -23.55), 4326), 'entrada', 'T-proveniencia');
+SELECT pg_temp.afirmar('ponto novo sem fonte informada fica como imagem',
+    (SELECT fonte_verificacao = 'imagem' AND mapeado_por IS NULL AND mapeado_em IS NULL
+       FROM pontos_interesse WHERE id = 990001));
+SELECT pg_temp.deve_rejeitar('ponto com fonte_verificacao inventada',
+    $q$INSERT INTO pontos_interesse (geom, tipo, nome, fonte_verificacao)
+       VALUES (ST_SetSRID(ST_MakePoint(-46.65, -23.55), 4326), 'entrada', 'X', 'x')$q$, '23514');
+INSERT INTO nos (id, geom) VALUES
+    (990001, ST_SetSRID(ST_MakePoint(-46.65, -23.55), 4326)),
+    (990002, ST_SetSRID(ST_MakePoint(-46.6499, -23.55), 4326));
+INSERT INTO arestas (id, geom, origem_id, destino_id, comprimento_m, tipo, custo, custo_inverso)
+VALUES (990001, ST_SetSRID(ST_MakeLine(ST_MakePoint(-46.65, -23.55), ST_MakePoint(-46.6499, -23.55)), 4326),
+        990001, 990002, 10, 'calcada', 10, 10);
+SELECT pg_temp.afirmar('aresta nova sem fonte informada fica como imagem',
+    (SELECT fonte_verificacao = 'imagem' FROM arestas WHERE id = 990001));
+SELECT pg_temp.deve_rejeitar('aresta com fonte_verificacao inventada',
+    $q$INSERT INTO arestas (geom, origem_id, destino_id, comprimento_m, tipo, custo, custo_inverso,
+                            fonte_verificacao)
+       VALUES (ST_SetSRID(ST_MakeLine(ST_MakePoint(-46.65, -23.55), ST_MakePoint(-46.6499, -23.55)), 4326),
+               990001, 990002, 10, 'calcada', 10, 10, 'x')$q$, '23514');
+UPDATE arestas SET fonte_verificacao = 'conferido_a_pe' WHERE id = 990001;
+UPDATE arestas SET fonte_verificacao = 'provisorio' WHERE id = 990001;
+SELECT pg_temp.afirmar('conferido_a_pe e provisorio são aceitos em fonte_verificacao',
+    (SELECT fonte_verificacao = 'provisorio' FROM arestas WHERE id = 990001));
 
 ROLLBACK;
 \echo 'test_schema.sql: todos os testes passaram (transação desfeita, nenhum dado gravado)'
