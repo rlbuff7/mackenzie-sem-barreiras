@@ -175,7 +175,11 @@
             <input type="checkbox" id="mostrar-falta-mapear" checked />
             Mostrar o que falta mapear
           </label>
-          <p id="legenda-falta-mapear" class="medicao__nota medicao__legenda"></p>
+          <label class="medicao__nota medicao__lacuna">
+            <input type="checkbox" id="mostrar-ja-mapeado" checked />
+            Mostrar o que já foi feito
+          </label>
+          <ul id="legenda-falta-mapear" class="medicao__nota medicao__legenda legenda" aria-label="Legenda do mapa"></ul>
           <p id="mapa-indisponivel" class="medicao__nota" role="status" hidden>
             O mapa não pôde ser carregado. As medições continuam valendo.
           </p>

@@ -97,3 +97,24 @@
 .mapa-limite-campus {
   stroke: var(--mapa-posicao);
 }
+
+/* Camada "Já feito". Azul dos caminhos da v0: literal aqui (não há token de azul de caminho; tokens.json fica como está). */
+.mapa-trajeto-equipe { stroke: var(--mapa-posicao); stroke-opacity: 0.55; fill: none; }
+.mapa-trajeto-vivo { stroke: var(--mapa-posicao); stroke-opacity: 0.95; fill: none; }
+.mapa-caminho-calcada { stroke: #1f6fc2; stroke-opacity: 0.6; fill: none; }
+.mapa-caminho-escada { stroke: var(--mapa-rota); stroke-opacity: 0.9; fill: none; }
+.mapa-controle-losango { stroke: var(--mapa-posicao); }
+.mapa-controle {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 3px;
+  border: 2px solid var(--mapa-posicao);
+  background: transparent;
+  transform: rotate(45deg);
+}
+.legenda { list-style: none; padding: 0; display: grid; gap: var(--espaco-2); }
+.legenda__item { display: flex; align-items: center; gap: 0.6rem; }
+.legenda__amostra { flex: none; background: #fff; border: 1px solid var(--borda); }
+.legenda__letra { fill: var(--mapa-posicao); }
+.legenda__referencia { fill: var(--mapa-posicao); }
