@@ -7,6 +7,8 @@ Higienópolis do Mackenzie. Este documento não é código: é o roteiro operaci
 de coleta e o que precisa estar decidido antes dele. Contexto do projeto: [`CLAUDE.md`](../CLAUDE.md);
 pendências formais: [`decisoes-pendentes.md`](decisoes-pendentes.md).
 
+> Coleta real de GPS do escopo novo (pontos de controle P01–P10): ver o [diário de campo](diario-de-campo.md).
+
 Convenção usada abaixo: cada item traz uma marca —
 
 - **[ORIENTADORA]** — depende de decisão da orientadora (`decisoes-pendentes.md` #1–#4, #6 e #7; a #5 já está decidida).
