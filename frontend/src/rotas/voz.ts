@@ -1,6 +1,6 @@
 /**
  * Leitura das instruções em voz (Web Speech API), com o objeto de síntese injetado para poder testar.
- * Nunca fala sozinho: só é chamado dentro do toque no botão (no iPhone, a voz só começa assim).
+ * Só começa dentro de um gesto do usuário (toque no botão ou no "Traçar rota" do perfil cego; no iPhone, a voz só começa assim).
  * Sem `speechSynthesis`, devolve null e a tela mostra o aviso em texto; nada quebra.
  */
 
@@ -27,6 +27,14 @@ export const AVISO_SEM_VOZ = "Seu navegador não lê em voz alta; use a lista.";
 export const AVISO_VOZ_FALHOU = "A voz não conseguiu começar neste aparelho; use a lista.";
 export const AVISO_SEM_VOZ_PORTUGUES =
   "Este aparelho não tem voz em português instalada; a leitura pode sair com sotaque estranho. A lista continua valendo.";
+
+/**
+ * Perfil "pessoa cega ou com baixa visão": a leitura começa sozinha ao receber a rota (o clique em
+ * "Traçar rota" já foi o gesto do usuário que libera a voz). Nos outros perfis só pelo botão.
+ */
+export function deveFalarSozinho(perfil: string): boolean {
+  return perfil === "deficiencia_visual";
+}
 
 /** Prefere pt-BR; aceita outra variante de português; senão null (a fala ainda leva lang = pt-BR). */
 export function escolherVoz<T extends VozDoAparelho>(vozes: readonly T[]): T | null {

@@ -10,10 +10,11 @@ import {
   pontosDeDestino,
   pontosDePartida,
   problemaNaEscolha,
+  rotaTemEscada,
   urlDosPontos,
 } from "./interpretar.ts";
 import { buscarPontos, tracarRota } from "./api.ts";
-import { PONTOS_200, ROTA_200, ROTA_CADEIRANTE_200, SEM_ROTA_404 } from "./fixtures.ts";
+import { PONTOS_200, ROTA_200, ROTA_CADEIRANTE_200, ROTA_VISUAL_200, SEM_ROTA_404 } from "./fixtures.ts";
 
 test("o pedido tem só os três campos do contrato e vai por POST em JSON", () => {
   const { url, init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "cadeirante" });
@@ -147,4 +148,16 @@ test("cadeirante: 200 com escada (trecho, aviso, instrução ou acessível=false
 test("cadeirante sem alternativa: 404 sem_rota do contrato vira a frase combinada", () => {
   const r = interpretarRespostaDeRota(404, SEM_ROTA_404, "cadeirante");
   assert.ok(r.tipo === "erro" && r.mensagem === MENSAGEM_SEM_ROTA && r.motivo === "sem_rota");
+});
+
+test("deficiencia_visual: o pedido leva o perfil e a rota COM escada aparece com os avisos (a defesa é só do cadeirante)", () => {
+  const { init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "deficiencia_visual" });
+  assert.equal(JSON.parse(init.body).perfil, "deficiencia_visual");
+  const r = interpretarRespostaDeRota(200, ROTA_VISUAL_200, "deficiencia_visual");
+  assert.ok(r.tipo === "ok" && r.rota.perfil === "deficiencia_visual" && r.rota.avisos.length === 2);
+  assert.ok(r.tipo === "ok" && r.rota.avisos[0].includes("piso tátil") && rotaTemEscada(r.rota));
+  // sem o perfil pedido, vale o perfil da resposta
+  assert.equal(interpretarRespostaDeRota(200, ROTA_VISUAL_200).tipo, "ok");
+  // o cadeirante continua protegido
+  assert.equal(interpretarRespostaDeRota(200, ROTA_VISUAL_200, "cadeirante").tipo, "erro");
 });

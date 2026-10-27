@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { avisoDeVoz, escolherVoz, falar, type FalaDeVoz, type SinteseDeVoz, type VozDoAparelho } from "./voz.ts";
+import { avisoDeVoz, deveFalarSozinho, escolherVoz, falar, type FalaDeVoz, type SinteseDeVoz, type VozDoAparelho } from "./voz.ts";
 
 function sinteseFalsa(vozes: VozDoAparelho[] = []) {
   const registro = { falas: [] as FalaDeVoz[], textos: [] as string[], cancelamentos: 0 };
@@ -100,4 +100,11 @@ test("speak que lança não quebra: avisa falha e devolve algo que se pode parar
   const leitura = falar(["a"], { sintese: quebrada, criarFala, aoTerminar: (f) => fins.push(f) });
   assert.deepEqual(fins, [true]);
   assert.doesNotThrow(() => leitura?.parar());
+});
+
+test("deveFalarSozinho: só o perfil de pessoa cega ou com baixa visão", () => {
+  assert.equal(deveFalarSozinho("deficiencia_visual"), true);
+  assert.equal(deveFalarSozinho("sem_restricao"), false);
+  assert.equal(deveFalarSozinho("cadeirante"), false);
+  assert.equal(deveFalarSozinho(""), false);
 });

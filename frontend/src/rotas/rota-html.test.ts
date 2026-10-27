@@ -28,9 +28,13 @@ test("De e Para são <select> nativos com <label> ligado pelo for", () => {
   }
 });
 
-test("perfil: dois rádios nativos em fieldset com legend", () => {
+test("perfil: três rádios nativos em fieldset com legend; pessoa cega é o primeiro e o padrão", () => {
   assert.match(html, /<fieldset[^>]*>\s*<legend>Perfil<\/legend>/);
-  assert.match(html, /value="sem_restricao" checked/);
+  const valores = [...html.matchAll(/name="perfil" value="([a-z_]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(valores, ["deficiencia_visual", "sem_restricao", "cadeirante"]);
+  assert.match(html, /value="deficiencia_visual" checked/);
+  assert.ok(!/value="sem_restricao" checked/.test(html));
+  assert.ok(html.includes("Pessoa cega ou com baixa visão"));
   assert.match(html, /value="cadeirante"/);
   assert.ok(html.includes("Sem restrição") && html.includes("Cadeirante (evita escadas)"));
 });
@@ -59,6 +63,7 @@ test("um único anúncio: só uma região aria-live, e o resultado não é live"
 test("tela: não lê a posição do aparelho, não fala sozinha e move o mapa sem animação", () => {
   assert.ok(!/geolocation|watchPosition/.test(tela));
   assert.ok(!/\.speak\(/.test(tela), "speak só dentro de voz.ts");
+  assert.match(tela, /deveFalarSozinho\(rota\.perfil\)/);
   const chamadas = [...tela.matchAll(/\.(setView|flyTo|panTo|fitBounds|invalidateSize)\(([^;]*)\);/g)];
   assert.ok(chamadas.length >= 2);
   for (const [linha] of chamadas) assert.match(linha, /animate:\s*false/);

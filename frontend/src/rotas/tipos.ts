@@ -2,7 +2,7 @@
  * Tipos do contrato de GET /pontos-interesse e POST /rotas (docs/planos/e6-prototipo-banner.md, B2 e B3).
  * Coordenadas do GeoJSON vêm como [longitude, latitude]; unidades no nome (`distancia_m`).
  */
-export type Perfil = "sem_restricao" | "cadeirante";
+export type Perfil = "sem_restricao" | "cadeirante" | "deficiencia_visual";
 
 export interface PontoInteresse {
   id: number;

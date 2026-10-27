@@ -12,7 +12,7 @@ import { paraLatLng, pontoParaLatLng } from "../rotas/geometria.ts";
 import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/interpretar.ts";
 import { anuncioDaRota, montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
-import { AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
+import { AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, deveFalarSozinho, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
 import {
   TAMANHO_ICONE_LOSANGO_PX,
   TAMANHO_ICONE_PINO_PX,
@@ -125,7 +125,7 @@ export function iniciarRota(mapa: L.Map | null): void {
 
   const idEscolhido = (sel: HTMLSelectElement): number | null => (sel.value === "" ? null : Number(sel.value));
   const perfilEscolhido = (): Perfil =>
-    (form.querySelector<HTMLInputElement>('input[name="perfil"]:checked')?.value as Perfil | undefined) ?? "sem_restricao";
+    (form.querySelector<HTMLInputElement>('input[name="perfil"]:checked')?.value as Perfil | undefined) ?? "deficiencia_visual";
 
   // Mudou a escolha: o resultado antigo deixou de valer (não fica rota de outro par de pontos na tela).
   for (const campo of [selDe, selPara, ...form.querySelectorAll<HTMLInputElement>('input[name="perfil"]')]) {
@@ -181,16 +181,14 @@ export function iniciarRota(mapa: L.Map | null): void {
     // Desenha tudo ANTES de mostrar e de anunciar; depois foco no título e uma frase só.
     resultado.hidden = false;
     titulo.focus();
-    anunciar(anuncioDaRota(rota));
+    // Perfil cego: a leitura em voz começa sozinha (veio do clique em "Traçar rota") e já diz tudo; sem voz, o anúncio de texto continua.
+    if (deveFalarSozinho(rota.perfil) && sintese !== null) iniciarLeitura();
+    else anunciar(anuncioDaRota(rota));
   }
 
-  botaoVoz.addEventListener("click", () => {
-    if (leitura) {
-      pararVoz();
-      return;
-    }
+  /** Começa a leitura (avisos antes das instruções, ver montarFalas). Sem await antes: no iPhone a voz só começa dentro do gesto. */
+  function iniciarLeitura(): void {
     if (!rotaAtual) return;
-    // Sem await antes: no iPhone a voz só começa dentro do toque.
     leitura = falar(montarFalas(rotaAtual), {
       sintese,
       criarFala: (texto) => new SpeechSynthesisUtterance(texto) as unknown as FalaDeVoz,
@@ -208,6 +206,14 @@ export function iniciarRota(mapa: L.Map | null): void {
     const aviso = sintese ? avisoDeVoz(sintese.getVoices()) : null;
     if (aviso) mostrar(avisoVoz, aviso);
     else esconder(avisoVoz);
+  }
+
+  botaoVoz.addEventListener("click", () => {
+    if (leitura) {
+      pararVoz();
+      return;
+    }
+    iniciarLeitura();
   });
 
   window.addEventListener("pagehide", () => sintese?.cancel());

@@ -72,3 +72,13 @@ export const PONTOS_200 = {
     },
   ],
 };
+
+/** Perfil pessoa cega ou com baixa visão: escada é permitida (vem avisada) e ainda não há dado de piso tátil. */
+export const ROTA_VISUAL_200 = {
+  ...ROTA_200,
+  perfil: "deficiencia_visual",
+  avisos: [
+    "Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto.",
+    "O caminho tem escada (cerca de 10 metros).",
+  ],
+};
