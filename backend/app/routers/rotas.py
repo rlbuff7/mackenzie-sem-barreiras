@@ -20,7 +20,11 @@ from pydantic import ValidationError
 from app.config import Configuracoes, obter_configuracoes
 from app.db import ConexaoDaRequisicao
 from app.rotas.caminho import calcular_caminho, concatenar_geometria
-from app.rotas.instrucoes import AVISO_ROTA_PROVISORIA, arredondar_metros, montar_instrucoes
+from app.rotas.instrucoes import (
+    AVISO_ROTA_PROVISORIA,
+    arredondar_metros,
+    montar_instrucoes_detalhadas,
+)
 from app.rotas.rotulos import ATRIBUICAO_OSM, rotulo_das_fontes
 from app.routers.alertas import _ler_corpo_limitado, _mensagem_corpo_grande
 from app.schemas.rota import RotaEntrada
@@ -143,9 +147,10 @@ def _montar_rota(
             for i, t in enumerate(trechos, start=1)
         ],
         "instrucoes": [
-            {"ordem": i, "texto": texto}
-            for i, texto in enumerate(
-                montar_instrucoes(trechos, referencias, destino[2], origem[2]), start=1
+            {"ordem": i, **instrucao}
+            for i, instrucao in enumerate(
+                montar_instrucoes_detalhadas(trechos, referencias, destino[2], origem[2]),
+                start=1,
             )
         ],
         "geometria": {"type": "LineString", "coordinates": concatenar_geometria(trechos)},

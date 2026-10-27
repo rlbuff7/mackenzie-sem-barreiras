@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from app.rotas.instrucoes import arredondar_metros, montar_instrucoes
+from app.rotas.instrucoes import arredondar_metros, montar_instrucoes, montar_instrucoes_detalhadas
 from app.rotas.modelos import Trecho
 
 LON0, LAT0 = -46.652, -23.547
@@ -270,3 +270,47 @@ def test_entrada_aproximada_e_falada_como_lateral_sem_mudar_o_nome():
     textos = montar_instrucoes(trechos3, refs, "Entrada B", "Entrada A")
     assert "Você passa pela lateral da Escola de Engenharia Mackenzie." in " ".join(textos)
     assert nome == "Entrada aproximada: Escola de Engenharia Mackenzie"
+
+
+def test_inicio_m_crescente_ultimo_e_distancia_total_e_curva_coerente_com_o_texto():
+    trechos = [
+        _t(1, "calcada", [(0, 0), (0, 40)], 1, 2),
+        _t(2, "calcada", [(0, 40), (30, 40)], 2, 3),  # direita (90°)
+        _t(3, "calcada", [(30, 40), (30, 0)], 3, 4),  # direita (90°)
+        _t(4, "escada", [(30, 0), (30, -10)], 4, 5),
+    ]
+    itens = montar_instrucoes_detalhadas(trechos, {}, "Entrada B", "Entrada A")
+    inicios = [i["inicio_m"] for i in itens]
+    assert inicios[0] == 0
+    assert inicios == sorted(inicios) and len(set(inicios)) == len(inicios)
+    assert abs(inicios[-1] - sum(t.comprimento_m for t in trechos)) <= 1.0
+    for item in itens:
+        texto, curva = item["texto"], item["curva"]
+        if curva in ("direita", "esquerda"):
+            assert f"Depois, vire à {curva}." in texto
+        elif curva in ("leve_direita", "leve_esquerda"):
+            assert f"Depois, vire levemente à {curva.removeprefix('leve_')}." in texto
+        elif curva == "retorno":
+            assert "Depois, faça o retorno." in texto
+        elif curva == "escada":
+            assert "escada" in texto and "Depois, vire" not in texto
+        else:
+            assert "Depois, vire" not in texto and "retorno" not in texto
+    assert itens[0]["curva"] == "direita"
+    assert itens[-1]["curva"] is None
+
+
+def test_curva_escada_quando_a_proxima_perna_e_escada_sem_curva():
+    trechos = [
+        _t(1, "calcada", [(0, 0), (0, 40)], 1, 2),
+        _t(2, "escada", [(0, 40), (0, 50)], 2, 3),
+    ]
+    itens = montar_instrucoes_detalhadas(trechos, {}, "B", "A")
+    assert [i["curva"] for i in itens] == ["escada", None, None]
+
+
+def test_curva_leve_e_retorno():
+    leve = [_t(1, "calcada", [(0, 0), (0, 40)], 1, 2), _t(2, "calcada", [(0, 40), (-30, 60)], 2, 3)]
+    assert montar_instrucoes_detalhadas(leve, {}, "B", "A")[0]["curva"] == "leve_esquerda"
+    volta = [_t(1, "calcada", [(0, 0), (0, 40)], 1, 2), _t(2, "calcada", [(0, 40), (2, 0)], 2, 3)]
+    assert montar_instrucoes_detalhadas(volta, {}, "B", "A")[0]["curva"] == "retorno"
