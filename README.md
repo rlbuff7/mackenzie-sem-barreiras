@@ -210,3 +210,7 @@ do Git. A coleta em campo (M6 antigo) nunca foi realizada.
   [`docs/orientadora/pauta-reuniao.md`](docs/orientadora/pauta-reuniao.md),
   [`docs/texto-tcc/`](docs/texto-tcc/)
 - [`docs/academico/`](docs/academico/): pôster e artigo do TCC I
+
+## Licença
+
+Código sob a licença MIT (veja [LICENSE](LICENSE)). Os dados do mapa vêm do OpenStreetMap e seguem a licença ODbL (© colaboradores do OpenStreetMap).
