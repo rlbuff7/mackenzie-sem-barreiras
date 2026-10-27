@@ -222,8 +222,10 @@ def _leve(delta: float | None) -> bool:
 def _juntar_curvas_leves_seguidas(pernas: list[_Perna]) -> list[_Perna]:
     """Duas curvas leves a menos de 25 m uma da outra viram uma só, pela soma dos ângulos.
 
-    A perna do meio (curta) é juntada à seguinte; se a soma ficar abaixo de 25° não há
-    curva e as três pernas viram um "siga em frente"."""
+    A perna do meio (curta) é dividida ao meio entre a anterior e a seguinte: o ponto da
+    curva (fim de uma, início da outra) fica no PONTO MÉDIO entre o primeiro e o último
+    vértice juntados, que é onde a linha termina de virar. Se a soma ficar abaixo de 25°
+    não há curva e as três pernas viram um "siga em frente"."""
     i = 0
     while i + 2 < len(pernas):
         a, meio, c = pernas[i], pernas[i + 1], pernas[i + 2]
@@ -240,7 +242,10 @@ def _juntar_curvas_leves_seguidas(pernas: list[_Perna]) -> list[_Perna]:
                 a.curva_graus = c.curva_graus
                 del pernas[i + 1 : i + 3]
             else:
-                c.comprimento_m += meio.comprimento_m
+                metade = meio.comprimento_m / 2
+                a.comprimento_m += metade
+                a.fim_acumulado_m += metade
+                c.comprimento_m += metade
                 a.curva_graus = soma
                 del pernas[i + 1]
             continue

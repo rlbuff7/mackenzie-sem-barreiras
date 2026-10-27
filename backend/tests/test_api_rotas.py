@@ -486,3 +486,17 @@ def test_seed_do_campus_escada_so_para_sem_restricao(cliente):
     assert any(t["tipo"] == "escada" for t in livre.json()["trechos"])
     cad = cliente.post("/rotas", json={**corpo, "perfil": "cadeirante"})
     assert cad.status_code == 404 and cad.json()["codigo"] == "sem_rota"
+
+
+def test_seed_do_campus_curva_juntada_4_para_6_fica_no_meio_dos_vertices(cliente):
+    pontos = _pontos_do_seed(cliente)
+    if "Entrada do Prédio 31" not in pontos:
+        pytest.skip("seed provisório do OSM não está carregado")
+    r = cliente.post("/rotas", json={"origem_id": 4, "destino_id": 6, "perfil": "sem_restricao"})
+    if r.status_code != 200:
+        pytest.skip("sem rota 4 -> 6 neste seed")
+    itens = r.json()["instrucoes"]
+    print([(i["inicio_m"], i["curva"]) for i in itens])
+    # vértices 143,8 e 151,9 juntados: o ponto da curva fica entre 145 e 151 (~147,9)
+    assert any(145 <= i["inicio_m"] <= 151 for i in itens)
+    assert not any(143.7 <= i["inicio_m"] <= 143.9 or 151.8 <= i["inicio_m"] <= 152 for i in itens)

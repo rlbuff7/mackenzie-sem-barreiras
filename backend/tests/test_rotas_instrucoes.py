@@ -237,7 +237,7 @@ def test_duas_curvas_leves_a_menos_de_25m_viram_uma_pela_soma():
     assert len(textos) == 3
     assert "Depois, vire à direita." in textos[0]
     assert "levemente" not in " ".join(textos)
-    assert "cerca de 40 metros" in textos[1]  # o pedaço do meio foi para a perna seguinte
+    assert "cerca de 35 metros" in textos[1]  # o pedaço do meio é dividido ao meio entre as pernas
 
 
 def test_duas_curvas_leves_que_se_anulam_viram_siga_em_frente():
@@ -314,3 +314,16 @@ def test_curva_leve_e_retorno():
     assert montar_instrucoes_detalhadas(leve, {}, "B", "A")[0]["curva"] == "leve_esquerda"
     volta = [_t(1, "calcada", [(0, 0), (0, 40)], 1, 2), _t(2, "calcada", [(0, 40), (2, 0)], 2, 3)]
     assert montar_instrucoes_detalhadas(volta, {}, "B", "A")[0]["curva"] == "retorno"
+
+
+def test_curvas_leves_juntadas_ficam_no_ponto_medio_entre_os_dois_vertices():
+    p0 = (0.0, 0.0)
+    p1 = _ponto(p0, 0, 30)  # 1º vértice (30 m)
+    p2 = _ponto(p1, 40, 8)  # 2º vértice (38 m), 8 m depois
+    p3 = _ponto(p2, 80, 30)
+    trechos = [_t(1, "calcada", [p0, p1, p2, p3], 1, 2)]
+    det = montar_instrucoes_detalhadas(trechos, {}, "Entrada B", "Entrada A")
+    assert [i["inicio_m"] for i in det] == [0.0, 34.0, 68.0]
+    assert det[0]["curva"] == "direita"
+    assert "cerca de 35 metros" in det[0]["texto"]  # 34 m arredonda para 35
+    assert "cerca de 35 metros" in det[1]["texto"]  # 34 m
