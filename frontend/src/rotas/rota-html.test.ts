@@ -87,3 +87,12 @@ test("leitor de tela: foco no título, avisos antes da <ol> de instruções e re
   assert.match(tela, /titulo\.focus\(\)/);
   assert.match(tela, /anunciar\(anuncioDaRota\(rota\)\)/);
 });
+
+test("Ajustes: voz do app (select, velocidade, testar) com rótulo visível, dentro do painel, e tela usa as chaves novas", () => {
+  const painel = /<div[^>]*id="painel-ajustes"[\s\S]*?<p id="nota-voz"[^>]*>/.exec(html)?.[0] ?? "";
+  for (const id of ["seletor-voz", "seletor-velocidade", "botao-testar-voz"]) assert.ok(painel.includes(`id="${id}"`), id);
+  assert.match(html, /<label for="seletor-voz">Voz do app<\/label>/);
+  assert.match(html, /<label for="seletor-velocidade">/);
+  assert.match(html, /Automática \(melhor disponível\)/);
+  assert.match(tela, /voiceschanged|onvoiceschanged/);
+});

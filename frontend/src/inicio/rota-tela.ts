@@ -12,7 +12,7 @@ import { paraLatLng, pontoParaLatLng } from "../rotas/geometria.ts";
 import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/interpretar.ts";
 import { anuncioDaRota, montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
-import { AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
+import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
 import {
   TAMANHO_ICONE_LOSANGO_PX,
   TAMANHO_ICONE_PINO_PX,
@@ -50,9 +50,57 @@ export function iniciarRota(mapa: L.Map | null): void {
   const botaoVoz = el<HTMLButtonElement>("botao-voz");
   const avisoVoz = el("aviso-voz");
 
-  const camadaRota = mapa ? L.layerGroup().addTo(mapa) : null;
   const sintese = sinteseDoNavegador();
   let leitura: LeituraEmCurso | null = null;
+  const selVoz = el<HTMLSelectElement>("seletor-voz");
+  const selVelocidade = el<HTMLSelectElement>("seletor-velocidade");
+  const botaoTestarVoz = el<HTMLButtonElement>("botao-testar-voz");
+  const armazem = ((): Storage | null => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  })();
+  let preferencias = lerPreferenciasDeVoz(armazem);
+
+  /** Lista as vozes pt do aparelho; no Chrome Android ela chega vazia e é recalculada em 'voiceschanged'. */
+  function montarListaDeVozes(): void {
+    const nomes = sintese ? vozesPortuguesas(sintese.getVoices()).map((v) => v.name ?? "") : [];
+    const opcoes = nomes.filter((n) => n !== "");
+    selVoz.replaceChildren(new Option("Automática (melhor disponível)", ""));
+    for (const nome of opcoes) selVoz.append(new Option(nome, nome));
+    selVoz.value = preferencias.nomeVoz && opcoes.includes(preferencias.nomeVoz) ? preferencias.nomeVoz : "";
+  }
+  selVelocidade.value = String(preferencias.velocidade);
+  montarListaDeVozes();
+  if (sintese) {
+    if (typeof sintese.addEventListener === "function") sintese.addEventListener("voiceschanged", montarListaDeVozes);
+    else sintese.onvoiceschanged = montarListaDeVozes;
+  } else {
+    botaoTestarVoz.hidden = true;
+    selVoz.disabled = true;
+    selVelocidade.disabled = true;
+  }
+  const aoMudarPreferencia = (): void => {
+    preferencias = { nomeVoz: selVoz.value === "" ? null : selVoz.value, velocidade: velocidadeValida(selVelocidade.value) };
+    guardarPreferenciasDeVoz(armazem, preferencias);
+  };
+  selVoz.addEventListener("change", aoMudarPreferencia);
+  selVelocidade.addEventListener("change", aoMudarPreferencia);
+  botaoTestarVoz.addEventListener("click", () => {
+    leitura?.parar();
+    leitura = falar(["Esta é a voz do app."], {
+      sintese,
+      criarFala: (texto) => new SpeechSynthesisUtterance(texto) as unknown as FalaDeVoz,
+      preferencias,
+      aoTerminar: () => {
+        leitura = null;
+      },
+    });
+  });
+
+  const camadaRota = mapa ? L.layerGroup().addTo(mapa) : null;
   let rotaAtual: RotaResposta | null = null;
   let ocupado = false;
   let anuncioPendente: number | null = null;
@@ -191,6 +239,7 @@ export function iniciarRota(mapa: L.Map | null): void {
     leitura = falar(montarFalas(rotaAtual), {
       sintese,
       criarFala: (texto) => new SpeechSynthesisUtterance(texto) as unknown as FalaDeVoz,
+      preferencias,
       aoTerminar: (falhou) => {
         leitura = null;
         botaoVoz.textContent = "Ouvir com a voz do app";

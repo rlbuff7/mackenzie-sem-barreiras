@@ -101,3 +101,62 @@ test("speak que lança não quebra: avisa falha e devolve algo que se pode parar
   assert.deepEqual(fins, [true]);
   assert.doesNotThrow(() => leitura?.parar());
 });
+
+import { escolherMelhorVoz, guardarPreferenciasDeVoz, lerPreferenciasDeVoz, resolverVoz } from "./voz.ts";
+
+test("escolherMelhorVoz: pontua Natural/Neural, Google, nomes conhecidos e voz local", () => {
+  const vozes = [
+    { lang: "pt-BR", name: "Voz comum" },
+    { lang: "pt-BR", name: "Google português do Brasil" },
+    { lang: "pt-BR", name: "Microsoft Francisca Online (Natural)" },
+    { lang: "en-US", name: "Google US English Neural" },
+  ];
+  assert.equal(escolherMelhorVoz(vozes)?.name, "Microsoft Francisca Online (Natural)");
+});
+
+test("escolherMelhorVoz: local soma 1; empate fica com a primeira; aceita pt_BR", () => {
+  const a = { lang: "pt_BR", name: "A", localService: false };
+  const b = { lang: "pt-BR", name: "B", localService: true };
+  assert.equal(escolherMelhorVoz([a, b]), b);
+  assert.equal(escolherMelhorVoz([{ lang: "pt-BR", name: "X" }, { lang: "pt-BR", name: "Y" }])?.name, "X");
+});
+
+test("escolherMelhorVoz: pt-BR tem prioridade sobre pt-PT mesmo mais pontuada; sem pt-BR usa pt-PT; sem português, null", () => {
+  assert.equal(escolherMelhorVoz([{ lang: "pt-PT", name: "Neural Google" }, { lang: "pt-BR", name: "simples" }])?.name, "simples");
+  assert.equal(escolherMelhorVoz([{ lang: "en-US", name: "a" }, { lang: "pt-PT", name: "Joana" }])?.name, "Joana");
+  assert.equal(escolherMelhorVoz([{ lang: "pt", name: "Genérica" }])?.name, "Genérica");
+  assert.equal(escolherMelhorVoz([{ lang: "en-US", name: "a" }]), null);
+  assert.equal(escolherMelhorVoz([]), null);
+});
+
+test("resolverVoz: nome guardado vence; nome que sumiu volta para a automática", () => {
+  const vozes = [{ lang: "pt-BR", name: "Luciana" }, { lang: "pt-BR", name: "Outra" }];
+  assert.equal(resolverVoz(vozes, "Outra")?.name, "Outra");
+  assert.equal(resolverVoz(vozes, "Sumiu")?.name, "Luciana");
+  assert.equal(resolverVoz(vozes, null)?.name, "Luciana");
+});
+
+test("preferências: leitura/gravação em localStorage, velocidade inválida vira 1, falha de storage não quebra", () => {
+  const dados = new Map<string, string>();
+  const armazem = {
+    getItem: (c: string) => dados.get(c) ?? null,
+    setItem: (c: string, v: string) => void dados.set(c, v),
+    removeItem: (c: string) => void dados.delete(c),
+  };
+  guardarPreferenciasDeVoz(armazem, { nomeVoz: "Luciana", velocidade: 1.2 });
+  assert.equal(dados.get("msb-voz"), "Luciana");
+  assert.equal(dados.get("msb-voz-velocidade"), "1.2");
+  assert.deepEqual(lerPreferenciasDeVoz(armazem), { nomeVoz: "Luciana", velocidade: 1.2 });
+  dados.set("msb-voz-velocidade", "9");
+  assert.equal(lerPreferenciasDeVoz(armazem).velocidade, 1);
+  const quebrado = { getItem() { throw new Error("x"); }, setItem() { throw new Error("x"); }, removeItem() { throw new Error("x"); } };
+  assert.deepEqual(lerPreferenciasDeVoz(quebrado), { nomeVoz: null, velocidade: 1 });
+  guardarPreferenciasDeVoz(quebrado, { nomeVoz: null, velocidade: 1 });
+});
+
+test("falar usa a voz escolhida e a velocidade", () => {
+  const { sintese, criarFala, registro } = sinteseFalsa([{ lang: "pt-BR", name: "Luciana" }, { lang: "pt-BR", name: "Outra" }]);
+  falar(["oi"], { sintese, criarFala, preferencias: { nomeVoz: "Outra", velocidade: 0.8 } });
+  assert.equal((registro.falas[0].voice as VozDoAparelho).name, "Outra");
+  assert.equal(registro.falas[0].rate, 0.8);
+});

@@ -65,6 +65,22 @@
                 <label for="interruptor-movimento">Reduzir animações</label>
               </div>
               <p id="nota-movimento" class="ajuda" hidden>Ligado pelo seu aparelho.</p>
+              <div class="seletor-tema">
+                <label for="seletor-voz">Voz do app</label>
+                <select id="seletor-voz">
+                  <option value="">Automática (melhor disponível)</option>
+                </select>
+              </div>
+              <div class="seletor-tema">
+                <label for="seletor-velocidade">Velocidade da voz do app</label>
+                <select id="seletor-velocidade">
+                  <option value="0.8">0,8× (mais devagar)</option>
+                  <option value="1" selected>1× (normal)</option>
+                  <option value="1.2">1,2× (mais rápido)</option>
+                </select>
+              </div>
+              <button type="button" id="botao-testar-voz" class="botao botao--secundaria">Testar voz</button>
+              <p id="nota-voz" class="ajuda">Vale só para o botão "Ouvir com a voz do app". O leitor de tela usa a voz do aparelho.</p>
             </div>
           </div>
         </div>
