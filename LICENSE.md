@@ -1,4 +1,4 @@
-MIT License
+# MIT License
 
 Copyright (c) 2026 Rodrigo Lucas, Maurício Custódio Vicentini e Victor
 

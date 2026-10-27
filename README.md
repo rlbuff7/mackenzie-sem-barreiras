@@ -213,4 +213,4 @@ do Git. A coleta em campo (M6 antigo) nunca foi realizada.
 
 ## Licença
 
-Código sob a licença MIT (veja [LICENSE](LICENSE)). Os dados do mapa vêm do OpenStreetMap e seguem a licença ODbL (© colaboradores do OpenStreetMap).
+Código sob a licença MIT (veja [LICENSE.md](LICENSE.md)). Os dados do mapa vêm do OpenStreetMap e seguem a licença ODbL (© colaboradores do OpenStreetMap).
