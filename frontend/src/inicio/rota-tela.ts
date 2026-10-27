@@ -220,10 +220,9 @@ export function iniciarRota(mapa: L.Map | null): void {
       percorrido_m = Math.min(percorrido_m + passo_m, total_m);
       mover();
       if (percorrido_m >= total_m) {
-        // Chegada: o texto de chegada, a vibração e o fim da simulação.
+        // Chegada: o texto é a última instrução da API (já falada ao cruzar o inicio_m dela); aqui só vibra e para.
         if (timerSimulacao !== null) window.clearInterval(timerSimulacao);
         timerSimulacao = null;
-        dizer(`Você chegou: ${rota.destino.nome}.`);
         vibrar(VIBRACAO_CHEGADA);
         bolinha?.remove();
         bolinha = null;
