@@ -99,7 +99,8 @@
             </div>
             <fieldset class="rota__perfil">
               <legend>Perfil</legend>
-              <label class="rota__opcao"><input type="radio" name="perfil" value="sem_restricao" checked /> Sem restrição</label>
+              <label class="rota__opcao"><input type="radio" name="perfil" value="deficiencia_visual" checked /> Pessoa cega ou com baixa visão (leitura em voz automática)</label>
+              <label class="rota__opcao"><input type="radio" name="perfil" value="sem_restricao" /> Sem restrição</label>
               <label class="rota__opcao"><input type="radio" name="perfil" value="cadeirante" /> Cadeirante (evita escadas)</label>
             </fieldset>
             <p id="erro-pontos" class="rota__mensagem" hidden></p>
@@ -116,7 +117,7 @@
             <p id="distancia-rota" class="rota__distancia"></p>
             <ul id="avisos-rota" class="rota__avisos" hidden></ul>
             <ol id="instrucoes-rota" class="rota__instrucoes"></ol>
-            <button type="button" id="botao-voz" class="rota__botao rota__botao--voz">Ouvir instruções</button>
+            <button type="button" id="botao-voz" class="rota__botao rota__botao--voz">Ouvir com a voz do app</button>
             <p id="aviso-voz" class="rota__nota" hidden></p>
             <p class="rota__nota">Demonstração do protótipo: o caminho é um apoio e pode estar incompleto. Não é orientação em tempo real.</p>
           </div>

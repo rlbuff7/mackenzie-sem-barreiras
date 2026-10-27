@@ -28,9 +28,13 @@ test("De e Para são <select> nativos com <label> ligado pelo for", () => {
   }
 });
 
-test("perfil: dois rádios nativos em fieldset com legend", () => {
+test("perfil: três rádios nativos em fieldset com legend; pessoa cega é o primeiro e o padrão", () => {
   assert.match(html, /<fieldset[^>]*>\s*<legend>Perfil<\/legend>/);
-  assert.match(html, /value="sem_restricao" checked/);
+  const valores = [...html.matchAll(/name="perfil" value="([a-z_]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(valores, ["deficiencia_visual", "sem_restricao", "cadeirante"]);
+  assert.match(html, /value="deficiencia_visual" checked/);
+  assert.ok(!/value="sem_restricao" checked/.test(html));
+  assert.ok(html.includes("Pessoa cega ou com baixa visão"));
   assert.match(html, /value="cadeirante"/);
   assert.ok(html.includes("Sem restrição") && html.includes("Cadeirante (evita escadas)"));
 });
@@ -44,7 +48,7 @@ test("resultado: título focável, lista ordenada <ol>, rótulo, distância e bo
   assert.match(html, /<h3 id="titulo-resultado"[^>]*tabindex="-1"/);
   assert.match(html, /<ol id="instrucoes-rota"/);
   assert.ok(html.includes('id="rotulo-rota"') && html.includes('id="distancia-rota"'));
-  assert.match(html, /<button type="button" id="botao-voz"[^>]*>Ouvir instruções<\/button>/);
+  assert.match(html, /<button type="button" id="botao-voz"[^>]*>Ouvir com a voz do app<\/button>/);
 });
 
 test("um único anúncio: só uma região aria-live, e o resultado não é live", () => {
@@ -59,6 +63,7 @@ test("um único anúncio: só uma região aria-live, e o resultado não é live"
 test("tela: não lê a posição do aparelho, não fala sozinha e move o mapa sem animação", () => {
   assert.ok(!/geolocation|watchPosition/.test(tela));
   assert.ok(!/\.speak\(/.test(tela), "speak só dentro de voz.ts");
+  assert.ok(!/deveFalarSozinho/.test(tela), "nenhum perfil fala sozinho: quem lê é o leitor de tela");
   const chamadas = [...tela.matchAll(/\.(setView|flyTo|panTo|fitBounds|invalidateSize)\(([^;]*)\);/g)];
   assert.ok(chamadas.length >= 2);
   for (const [linha] of chamadas) assert.match(linha, /animate:\s*false/);
@@ -74,4 +79,11 @@ test("a rota é desenhada com as cores do DS (mapa-rota, contorno branco) e sem 
 test("os erros do contrato viram palavra: 'Não encontrei um caminho seguro' é a frase do 404", async () => {
   const { MENSAGEM_SEM_ROTA } = await import("./interpretar.ts");
   assert.equal(MENSAGEM_SEM_ROTA, "Não encontrei um caminho seguro entre esses pontos.");
+});
+
+test("leitor de tela: foco no título, avisos antes da <ol> de instruções e resumo curto na região live", () => {
+  const i = (s: string): number => html.indexOf(s);
+  assert.ok(i('id="titulo-resultado"') < i('id="avisos-rota"') && i('id="avisos-rota"') < i('id="instrucoes-rota"'));
+  assert.match(tela, /titulo\.focus\(\)/);
+  assert.match(tela, /anunciar\(anuncioDaRota\(rota\)\)/);
 });

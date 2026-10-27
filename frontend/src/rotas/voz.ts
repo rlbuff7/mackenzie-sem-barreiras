@@ -1,6 +1,6 @@
 /**
  * Leitura das instruções em voz (Web Speech API), com o objeto de síntese injetado para poder testar.
- * Nunca fala sozinho: só é chamado dentro do toque no botão (no iPhone, a voz só começa assim).
+ * Nunca fala sozinho, em nenhum perfil: só pelo botão "Ouvir com a voz do app" (opcional). A pessoa cega usa o leitor de tela dela (TalkBack/VoiceOver), com a voz e a velocidade dela.
  * Sem `speechSynthesis`, devolve null e a tela mostra o aviso em texto; nada quebra.
  */
 
