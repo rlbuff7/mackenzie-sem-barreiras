@@ -126,7 +126,7 @@ def test_escada_a_seguir_e_anunciada_no_fim_da_instrucao_anterior():
     ]
     textos = montar_instrucoes(trechos, {}, "Entrada B", "Entrada A")
     assert textos[0].endswith("Em cerca de 20 metros, escada.")
-    assert textos[1] == "Escada, cerca de 5 metros. Use o corrimão se houver."
+    assert textos[1] == "Escada, cerca de 5 metros (uns 10 segundos). Use o corrimão se houver."
     assert textos[2] == "Siga em frente por cerca de 20 metros (uns 20 segundos)."
     assert "tem corrimão" not in " ".join(textos)
 
@@ -205,3 +205,68 @@ def test_texto_nao_afirma_piso_corrimao_ou_posicao():
         montar_instrucoes([_t(1, "calcada", [(0, 0), (0, 40), (30, 40)], 1, 2)], {}, "B", "A")
     ).lower()
     assert "à sua frente" not in texto
+
+
+def test_escada_fala_metros_e_tempo_a_meio_metro_por_segundo():
+    trechos = [
+        _t(1, "calcada", [(0, 0), (0, 20)], 1, 2),
+        _t(2, "escada", [(0, 20), (0, 40)], 2, 3),
+        _t(3, "calcada", [(0, 40), (0, 60)], 3, 4),
+    ]
+    textos = montar_instrucoes(trechos, {}, "Entrada B", "Entrada A")
+    assert textos[1] == "Escada, cerca de 20 metros (uns 40 segundos). Use o corrimão se houver."
+
+
+def _graus(rumo_graus, metros):
+    r = math.radians(rumo_graus)
+    return metros * math.sin(r), metros * math.cos(r)
+
+
+def _ponto(origem, rumo, metros):
+    dx, dy = _graus(rumo, metros)
+    return (origem[0] + dx, origem[1] + dy)
+
+
+def test_duas_curvas_leves_a_menos_de_25m_viram_uma_pela_soma():
+    p0 = (0.0, 0.0)
+    p1 = _ponto(p0, 0, 30)
+    p2 = _ponto(p1, 40, 10)  # leve à direita (40°), perna curta de 10 m
+    p3 = _ponto(p2, 80, 30)  # mais 40°: soma 80° -> curva normal
+    trechos = [_t(1, "calcada", [p0, p1, p2, p3], 1, 2)]
+    textos = montar_instrucoes(trechos, {}, "Entrada B", "Entrada A")
+    assert len(textos) == 3
+    assert "Depois, vire à direita." in textos[0]
+    assert "levemente" not in " ".join(textos)
+    assert "cerca de 40 metros" in textos[1]  # o pedaço do meio foi para a perna seguinte
+
+
+def test_duas_curvas_leves_que_se_anulam_viram_siga_em_frente():
+    p0 = (0.0, 0.0)
+    p1 = _ponto(p0, 0, 30)
+    p2 = _ponto(p1, 40, 10)
+    p3 = _ponto(p2, 0, 30)  # volta ao rumo original: soma 0
+    trechos = [_t(1, "calcada", [p0, p1, p2, p3], 1, 2)]
+    textos = montar_instrucoes(trechos, {}, "Entrada B", "Entrada A")
+    assert len(textos) == 2
+    assert "Depois" not in textos[0]
+
+
+def test_entrada_aproximada_e_falada_como_lateral_sem_mudar_o_nome():
+    trechos = [
+        _t(1, "calcada", [(0, 0), (0, 40)], 1, 2),
+        _t(2, "calcada", [(0, 40), (0, 80)], 2, 3),
+    ]
+    nome = "Entrada aproximada: Escola de Engenharia Mackenzie"
+    refs = {2: nome, 3: "Entrada B"}
+    textos = montar_instrucoes(trechos, refs, "Entrada B", "Entrada A")
+    assert "em direção à lateral da Escola de Engenharia Mackenzie" in textos[0]
+    refs = {2: "Prédio 19", 3: "Entrada B"}
+    trechos3 = [
+        _t(1, "calcada", [(0, 0), (0, 40)], 1, 2),
+        _t(2, "calcada", [(0, 40), (30, 40)], 2, 3),
+        _t(3, "calcada", [(30, 40), (30, 80)], 3, 4),
+    ]
+    refs = {2: "Prédio 19", 3: nome}
+    textos = montar_instrucoes(trechos3, refs, "Entrada B", "Entrada A")
+    assert "Você passa pela lateral da Escola de Engenharia Mackenzie." in " ".join(textos)
+    assert nome == "Entrada aproximada: Escola de Engenharia Mackenzie"

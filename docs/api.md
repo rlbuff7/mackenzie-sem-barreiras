@@ -310,7 +310,7 @@ para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posiç�
   levemente à direita/esquerda.", 60 a 135° "Depois, vire à direita/esquerda.", acima de 135°
   "Depois, faça o retorno.". O primeiro passo não diz direita/esquerda ("Saindo de <origem>,
   siga pelo caminho em direção a <próxima referência>, por ..."). Escada: a instrução anterior
-  termina com "Em cerca de N metros, escada." e o trecho vira "Escada, cerca de N metros. Use o
+  termina com "Em cerca de N metros, escada." e o trecho vira "Escada, cerca de N metros (uns T segundos, a 0,5 m/s). Use o
   corrimão se houver."; travessia: "Atenção: travessia." antes. Pontos de interesse do meio do
   caminho são citados ("Você passa pela entrada do Prédio 29."), no máximo 2 por instrução. A
   última é sempre a chegada ("Você chegou à entrada do Prédio 31."). Vale para os 3 perfis.

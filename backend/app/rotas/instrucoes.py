@@ -32,6 +32,7 @@ LIMITE_CURVA_FORTE_GRAUS = 60.0
 LIMITE_RETORNO_GRAUS = 135.0
 ZIGUE_ZAGUE_METROS = 8.0
 VELOCIDADE_METROS_POR_SEGUNDO = 1.0
+VELOCIDADE_ESCADA_METROS_POR_SEGUNDO = 0.5
 LIMITE_SEGUNDOS_PARA_MINUTOS = 90
 
 # Metros por grau perto de São Paulo (lat -23,5): suficiente para rumo e comprimento relativo.
@@ -48,8 +49,8 @@ def arredondar_metros(metros: float) -> int:
     return max(5, int(metros / 5 + 0.5) * 5)
 
 
-def _duracao_em_texto(metros: int) -> str:
-    segundos = arredondar_metros(metros / VELOCIDADE_METROS_POR_SEGUNDO)
+def _duracao_em_texto(metros: int, velocidade: float = VELOCIDADE_METROS_POR_SEGUNDO) -> str:
+    segundos = arredondar_metros(metros / velocidade)
     if segundos <= LIMITE_SEGUNDOS_PARA_MINUTOS:
         return f"uns {segundos} segundos"
     minutos = round(segundos / 60 * 2) / 2
@@ -79,8 +80,20 @@ def _frase_da_curva(delta: float) -> str:
     return f"vire à {lado}"
 
 
+PREFIXO_ENTRADA_APROXIMADA = "Entrada aproximada:"
+LIMITE_CURVAS_SEGUIDAS_METROS = 25.0
+
+
 def _artigo(preposicao: str, nome: str) -> str:
-    """'de'/'a'/'por' + nome com o artigo certo, por heurística (feminino termina em 'a')."""
+    """'de'/'a'/'por' + nome com o artigo certo, por heurística (feminino termina em 'a').
+
+    Só no texto falado: "Entrada aproximada: X" vira "a lateral da X" (o nome no banco
+    e em GET /pontos-interesse não muda)."""
+    if nome.startswith(PREFIXO_ENTRADA_APROXIMADA):
+        resto = nome[len(PREFIXO_ENTRADA_APROXIMADA) :].strip()
+        lateral = {"de": "da", "a": "à", "por": "pela"}[preposicao]
+        artigo_de = "da" if resto.split(" ", 1)[0].lower().endswith("a") else "do"
+        return f"{lateral} lateral {artigo_de} {resto}"
     nome = nome[:1].lower() + nome[1:]
     primeira = nome.split(" ", 1)[0].lower()
     feminino = primeira.endswith("a")
@@ -190,6 +203,39 @@ def _pernas_da_rota(pedacos: list[_Pedaco]) -> list[_Perna]:
         delta = _diferenca_de_rumo(proxima.rumo_inicial, antigo)
         if abs(delta) >= LIMITE_CURVA_GRAUS:
             perna.curva_graus = delta
+    return _juntar_curvas_leves_seguidas(pernas)
+
+
+def _leve(delta: float | None) -> bool:
+    return delta is not None and LIMITE_CURVA_GRAUS <= abs(delta) < LIMITE_CURVA_FORTE_GRAUS
+
+
+def _juntar_curvas_leves_seguidas(pernas: list[_Perna]) -> list[_Perna]:
+    """Duas curvas leves a menos de 25 m uma da outra viram uma só, pela soma dos ângulos.
+
+    A perna do meio (curta) é juntada à seguinte; se a soma ficar abaixo de 25° não há
+    curva e as três pernas viram um "siga em frente"."""
+    i = 0
+    while i + 2 < len(pernas):
+        a, meio, c = pernas[i], pernas[i + 1], pernas[i + 2]
+        if (
+            a.categoria == meio.categoria == c.categoria == "andar"
+            and _leve(a.curva_graus)
+            and _leve(meio.curva_graus)
+            and meio.comprimento_m < LIMITE_CURVAS_SEGUIDAS_METROS
+        ):
+            soma = (a.curva_graus or 0.0) + (meio.curva_graus or 0.0)
+            if abs(soma) < LIMITE_CURVA_GRAUS:
+                a.comprimento_m += meio.comprimento_m + c.comprimento_m
+                a.fim_acumulado_m = c.fim_acumulado_m
+                a.curva_graus = c.curva_graus
+                del pernas[i + 1 : i + 3]
+            else:
+                c.comprimento_m += meio.comprimento_m
+                a.curva_graus = soma
+                del pernas[i + 1]
+            continue
+        i += 1
     return pernas
 
 
@@ -237,7 +283,8 @@ def montar_instrucoes(
         metros = arredondar_metros(perna.comprimento_m)
         distancia = _distancia_em_texto(perna.comprimento_m)
         if perna.categoria == "escada":
-            texto = f"Escada, cerca de {metros} metros. Use o corrimão se houver."
+            tempo = _duracao_em_texto(metros, VELOCIDADE_ESCADA_METROS_POR_SEGUNDO)
+            texto = f"Escada, cerca de {metros} metros ({tempo}). Use o corrimão se houver."
         elif i == 0:
             saindo = f"Saindo {_artigo('de', origem_nome)}, siga" if origem_nome else "Siga"
             texto = f"{saindo} pelo caminho em direção {_artigo('a', proxima_referencia)}"

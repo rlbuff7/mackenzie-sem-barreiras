@@ -409,7 +409,7 @@ def test_instrucoes_anunciam_escada_antes_do_trecho(cliente, conexao):
     g.aresta("B", "C", 12, tipo="escada", acessivel=False)
     textos = [i["texto"] for i in _rota(cliente, g, "A", "C").json()["instrucoes"]]
     assert textos[0].endswith("Em cerca de 20 metros, escada.")
-    assert textos[1] == "Escada, cerca de 10 metros. Use o corrimão se houver."
+    assert textos[1] == "Escada, cerca de 10 metros (uns 20 segundos). Use o corrimão se houver."
 
 
 def test_trecho_nao_conferido_a_pe_traz_um_unico_aviso_de_rota_provisoria(cliente, conexao):
