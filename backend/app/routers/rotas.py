@@ -107,6 +107,8 @@ def _montar_rota(
         avisos.append("O caminho atravessa uma rua.")
     if fontes - {"conferido_a_pe"}:
         avisos.append("Há trecho ainda não conferido a pé.")
+    if entrada.perfil == "deficiencia_visual":
+        avisos.append("Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto.")
 
     resposta: dict[str, Any] = {
         "rotulo": rotulo_das_fontes(fontes),
@@ -142,7 +144,9 @@ def _montar_rota(
         ],
         "instrucoes": [
             {"ordem": i, "texto": texto}
-            for i, texto in enumerate(montar_instrucoes(trechos, referencias, destino[2]), start=1)
+            for i, texto in enumerate(
+                montar_instrucoes(trechos, referencias, destino[2], entrada.perfil), start=1
+            )
         ],
         "geometria": {"type": "LineString", "coordinates": concatenar_geometria(trechos)},
     }

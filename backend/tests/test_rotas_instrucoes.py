@@ -79,3 +79,11 @@ def test_nunca_diz_esquerda_direita_nem_a_frente():
 def test_travessia_e_anunciada_com_atencao():
     textos = montar_instrucoes([_t(1, "travessia", 8, 1, 2)], {}, "Entrada B")
     assert textos[0].startswith("Atenção: você atravessa")
+
+
+def test_perfil_visual_antecipa_a_escada_no_trecho_anterior():
+    trechos = [_t(1, "calcada", 20, 1, 2), _t(2, "escada", 5, 2, 3)]
+    textos = montar_instrucoes(trechos, {}, "Entrada X", perfil="deficiencia_visual")
+    assert textos[0].endswith("Em cerca de 20 metros, escada.")
+    sem = montar_instrucoes(trechos, {}, "Entrada X")
+    assert "Em cerca de" not in sem[0]

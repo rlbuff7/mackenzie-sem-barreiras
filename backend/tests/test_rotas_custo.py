@@ -10,7 +10,10 @@ from app.rotas.custo import fator_do_trecho, trecho_proibido
 @pytest.fixture
 def config() -> Configuracoes:
     return Configuracoes(
-        penalidade_escada=4.0, penalidade_travessia=2.0, penalidade_trecho_nao_verificado=1.5
+        penalidade_escada=4.0,
+        penalidade_travessia=2.0,
+        penalidade_trecho_nao_verificado=1.5,
+        penalidade_perfil_visual=2.0,
     )
 
 
@@ -78,3 +81,40 @@ def test_penalidade_menor_ou_igual_a_zero_e_recusada(monkeypatch, variavel, valo
 
 def test_limite_de_pontos_de_interesse_tem_padrao_500():
     assert Configuracoes.model_fields["limite_pontos_interesse_por_consulta"].default == 500
+
+
+def test_visual_escada_pesa_escada_vezes_verificacao_vezes_perfil(config):
+    f = _fator(
+        config,
+        tipo="escada",
+        acessivel_cadeirante=False,
+        fonte_verificacao="provisorio",
+        perfil="deficiencia_visual",
+    )
+    esperado = (
+        config.penalidade_escada
+        * config.penalidade_trecho_nao_verificado
+        * config.penalidade_perfil_visual
+    )
+    assert f == esperado
+
+
+def test_visual_calcada_conferida_a_pe_pesa_1(config):
+    assert _fator(config, perfil="deficiencia_visual") == 1.0
+
+
+def test_visual_travessia_e_trecho_nao_conferido_levam_a_penalidade_do_perfil(config):
+    assert (
+        _fator(config, tipo="travessia", perfil="deficiencia_visual")
+        == config.penalidade_travessia * config.penalidade_perfil_visual
+    )
+    assert (
+        _fator(config, fonte_verificacao="imagem", perfil="deficiencia_visual")
+        == config.penalidade_trecho_nao_verificado * config.penalidade_perfil_visual
+    )
+
+
+def test_visual_nao_proibe_escada_nem_trecho_inacessivel():
+    assert not trecho_proibido(
+        tipo="escada", acessivel_cadeirante=False, perfil="deficiencia_visual"
+    )
