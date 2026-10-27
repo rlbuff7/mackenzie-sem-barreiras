@@ -11,6 +11,15 @@ import "./medicao.css";
 import "../mapa/marcadores.css";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import faltaMapear from "./falta-mapear.json";
+import {
+  estiloDaFeicao,
+  filtrarPorTipo,
+  htmlLetraPredio,
+  TEXTO_LEGENDA_FALTA_MAPEAR,
+  tituloDoPredio,
+  type ColecaoCamada,
+} from "./falta-mapear.ts";
 import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
@@ -553,6 +562,38 @@ function enquadrarMapa(): void {
   else mapa.fitBounds(limites, { maxZoom: 19, padding: [20, 20], animate: false });
 }
 
+/** Camada "Falta mapear": criada antes dos marcadores de posição/◆ (ficam por cima). */
+function desenharFaltaMapear(m: L.Map): void {
+  const dados = faltaMapear as unknown as ColecaoCamada;
+  m.createPane("falta-mapear").style.zIndex = "350"; // acima dos tiles (200), abaixo das sobreposições
+  const grupo = L.layerGroup();
+  for (const tipo of ["falta_mapear", "limite_campus"] as const) {
+    L.geoJSON(filtrarPorTipo(dados, tipo) as never, {
+      pane: "falta-mapear",
+      style: (f) => estiloDaFeicao(f?.properties?.tipo),
+    }).addTo(grupo);
+  }
+  for (const f of filtrarPorTipo(dados, "predio_sem_entrada")) {
+    const [lng, lat] = f.geometry.coordinates as [number, number];
+    const letra = f.properties.letra ?? "";
+    L.marker([lat, lng], {
+      icon: L.divIcon({ className: "", html: htmlLetraPredio(letra), iconSize: [20, 20], iconAnchor: [10, 10] }),
+      title: tituloDoPredio(letra, f.properties.nome),
+      zIndexOffset: -1000,
+      interactive: false,
+      keyboard: false,
+    }).addTo(grupo);
+  }
+  const caixa = el("mostrar-falta-mapear") as HTMLInputElement;
+  texto(el("legenda-falta-mapear"), TEXTO_LEGENDA_FALTA_MAPEAR);
+  const aplicar = (): void => {
+    if (caixa.checked) grupo.addTo(m);
+    else grupo.remove();
+  };
+  caixa.addEventListener("change", aplicar);
+  aplicar();
+}
+
 function iniciarMapa(): void {
   try {
     mapa = L.map(el("mapa-medicao"), {
@@ -567,6 +608,7 @@ function iniciarMapa(): void {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>',
     }).addTo(mapa);
+    desenharFaltaMapear(mapa);
     enquadrarMapa();
   } catch {
     mapa = null;
