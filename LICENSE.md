@@ -1,6 +1,6 @@
 # MIT License
 
-Copyright (c) 2026 Rodrigo Lucas, Maurício Custódio Vicentini e Victor
+Copyright (c) 2026 Rodrigo Lucas, Maurício Custódio Vicentini e Victor Hong
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
