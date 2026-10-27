@@ -481,3 +481,12 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
   height: 24px;
   flex: none;
 }
+
+/* Botões logo abaixo do mapa: centralizar em mim / ver o campus todo (alvo >= 44 px). */
+.medicao__acoes-mapa {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--espaco-3);
+  margin: var(--espaco-3) 0;
+}
+.medicao__acoes-mapa .botao { min-height: 48px; }
