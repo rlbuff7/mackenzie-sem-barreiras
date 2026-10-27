@@ -26,6 +26,7 @@
   --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
   --mapa-acessivel: #2f6e4f;
   --mapa-atencao: #8c6b28;
+  --mapa-lacuna: rgba(232, 160, 0, 0.38);
   /* spacing */
   --espaco-1: 0.25rem;
   --espaco-2: 0.35rem;
@@ -89,6 +90,7 @@
     --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
     --mapa-acessivel: #2f6e4f;
     --mapa-atencao: #8c6b28;
+    --mapa-lacuna: rgba(232, 160, 0, 0.38);
   }
 }
 
@@ -116,6 +118,7 @@
     --mapa-posicao-halo: rgba(27, 75, 107, 0.25);
     --mapa-acessivel: #2f6e4f;
     --mapa-atencao: #8c6b28;
+    --mapa-lacuna: rgba(232, 160, 0, 0.5);
   }
 }
 
@@ -143,6 +146,7 @@
   --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
   --mapa-acessivel: #2f6e4f;
   --mapa-atencao: #8c6b28;
+  --mapa-lacuna: rgba(232, 160, 0, 0.38);
 }
 
 :root[data-tema="escuro"] {
@@ -168,6 +172,7 @@
   --mapa-posicao-halo: rgba(27, 75, 107, 0.18);
   --mapa-acessivel: #2f6e4f;
   --mapa-atencao: #8c6b28;
+  --mapa-lacuna: rgba(232, 160, 0, 0.38);
 }
 
 :root[data-tema="alto-contraste"] {
@@ -193,4 +198,5 @@
   --mapa-posicao-halo: rgba(27, 75, 107, 0.25);
   --mapa-acessivel: #2f6e4f;
   --mapa-atencao: #8c6b28;
+  --mapa-lacuna: rgba(232, 160, 0, 0.5);
 }

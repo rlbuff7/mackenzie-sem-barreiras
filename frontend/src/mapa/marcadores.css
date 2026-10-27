@@ -73,3 +73,27 @@
   stroke: var(--mapa-posicao);
   stroke-width: var(--linha-controle);
 }
+
+/* Camada "Falta mapear": letra do prédio sem entrada mapeada (referência visual, aria-hidden). */
+.mapa-letra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--raio-circulo);
+  background: var(--mapa-posicao);
+  border: 2px solid var(--mapa-contorno);
+  color: var(--mapa-contorno);
+  font: 700 12px/1 var(--font-texto);
+}
+
+/* Áreas sem caminho mapeado: cor só pelo token (translúcido, sem borda); limite do campus tracejado fino. */
+.mapa-lacuna-area {
+  fill: var(--mapa-lacuna);
+  stroke: none;
+}
+.mapa-limite-campus {
+  stroke: var(--mapa-posicao);
+}

@@ -468,3 +468,16 @@ html:has(.medicao) { scroll-padding-top: 5rem; scroll-padding-bottom: 11rem; }
 .medicao__foto-item p { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--primaria-escura); }
 .medicao__foto-item[data-estado="fila"] p { color: var(--pendente); }
 .medicao__foto-item[data-estado="recusada"] p { color: var(--perigo); }
+
+/* Controle da camada "Falta mapear": alvo de toque de 44 px. */
+.medicao__lacuna {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+.medicao__lacuna input {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
