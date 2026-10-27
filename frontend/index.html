@@ -135,6 +135,16 @@
             <ol id="instrucoes-rota" class="rota__instrucoes"></ol>
             <button type="button" id="botao-voz" class="rota__botao rota__botao--voz">Ouvir com a voz do app</button>
             <p id="aviso-voz" class="rota__nota" hidden></p>
+            <div class="rota__simulacao">
+              <p id="aviso-simulacao" class="rota__nota"><strong>Simulação: a posição é imaginária, não é o GPS.</strong></p>
+              <label for="seletor-velocidade-simulacao">Velocidade da simulação</label>
+              <select id="seletor-velocidade-simulacao">
+                <option value="5">5×</option>
+                <option value="10" selected>10×</option>
+              </select>
+              <button type="button" id="botao-simular" class="rota__botao rota__botao--voz">Simular caminhada</button>
+              <button type="button" id="botao-parar-simulacao" class="rota__botao rota__botao--voz" hidden>Parar simulação</button>
+            </div>
             <p class="rota__nota">Demonstração do protótipo: o caminho é um apoio e pode estar incompleto. Não é orientação em tempo real.</p>
           </div>
         </section>

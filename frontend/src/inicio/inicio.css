@@ -294,3 +294,8 @@
     overflow-y: auto;
   }
 }
+
+.rota__simulacao { display: grid; gap: var(--espaco-3); }
+.rota__simulacao select { min-height: 48px; font: inherit; }
+.rota__simulacao .rota__botao { min-height: 56px; }
+.rota__simulacao .rota__botao[hidden] { display: none; }
