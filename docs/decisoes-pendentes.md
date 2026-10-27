@@ -20,6 +20,13 @@ anotada aqui.
   prioritário é a pessoa cega ou com baixa visão; o perfil estava bloqueado por decisão
   pendente. Incluído provisoriamente (`POST /rotas`, `PENALIDADE_PERFIL_VISUAL=2.0`, aviso de
   piso tátil ausente, antecipação de escada); **a validar com a orientadora**.
+- **Decidido 27/10/2026 (Rodrigo): instruções curva a curva na v0.** `POST /rotas` passa a dar
+  "Siga em frente por cerca de 40 metros (uns 40 segundos). Depois, vire à direita." para os 3
+  perfis. A regra antiga "trecho não conferido a pé não gera instrução de direção" fica
+  **SUSPENSA na v0**; em troca, aviso "Rota provisória: direções calculadas pelo mapa aberto.
+  Confira com a bengala." Limiares provisórios: curva a partir de 25°, "levemente" até 60°,
+  retorno acima de 135°, zigue-zague < 8 m ignorado, 1,0 m/s. **A validar com a orientadora**
+  (risco: direção errada sem conferência a pé).
 
 ## Com a orientadora / Prof. Jamilson (escopo novo)
 

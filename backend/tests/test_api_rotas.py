@@ -408,7 +408,55 @@ def test_instrucoes_anunciam_escada_antes_do_trecho(cliente, conexao):
     g.aresta("A", "B", 20)
     g.aresta("B", "C", 12, tipo="escada", acessivel=False)
     textos = [i["texto"] for i in _rota(cliente, g, "A", "C").json()["instrucoes"]]
-    assert textos[1].startswith("Atenção: há uma escada")
+    assert textos[0].endswith("Em cerca de 20 metros, escada.")
+    assert textos[1] == "Escada, cerca de 10 metros. Use o corrimão se houver."
+
+
+def test_trecho_nao_conferido_a_pe_traz_um_unico_aviso_de_rota_provisoria(cliente, conexao):
+    g = Grafo(conexao)
+    g.no("A", 0, ponto="Entrada A")
+    g.no("B", 10, ponto="Entrada B")
+    g.aresta("A", "B", 20, fonte="provisorio")
+    avisos = _rota(cliente, g, "A", "B").json()["avisos"]
+    provisorio = "Rota provisória: direções calculadas pelo mapa aberto. Confira com a bengala."
+    assert avisos.count(provisorio) == 1
+    assert not any("ainda não conferido" in a for a in avisos)
+    g2 = Grafo(conexao, deslocamento=0.01)
+    g2.no("A", 0, ponto="Entrada A")
+    g2.no("B", 10, ponto="Entrada B")
+    g2.aresta("A", "B", 20, fonte="conferido_a_pe")
+    assert provisorio not in _rota(cliente, g2, "A", "B").json()["avisos"]
+
+
+def _pontos_do_seed(cliente):
+    return {
+        f["properties"]["nome"]: f["properties"]["id"]
+        for f in cliente.get(
+            "/pontos-interesse", params={"bbox": "-46.6622,-23.5575,-46.6422,-23.5375"}
+        ).json()["features"]
+    }
+
+
+@pytest.mark.parametrize("perfil", ["sem_restricao", "cadeirante", "deficiencia_visual"])
+def test_seed_do_campus_instrucoes_do_predio_31_a_biblioteca_tem_curva(cliente, perfil):
+    pontos = _pontos_do_seed(cliente)
+    if "Entrada do Prédio 31" not in pontos:
+        pytest.skip("seed provisório do OSM não está carregado")
+    r = cliente.post(
+        "/rotas",
+        json={
+            "origem_id": pontos["Entrada do Prédio 31"],
+            "destino_id": pontos["Entrada da Biblioteca Central"],
+            "perfil": perfil,
+        },
+    )
+    if r.status_code == 404:  # cadeirante pode não ter rota sem degraus
+        pytest.skip("sem rota para este perfil no seed")
+    textos = [i["texto"] for i in r.json()["instrucoes"]]
+    assert len(textos) >= 3
+    assert any("vire" in t or "retorno" in t for t in textos)
+    assert textos[0].startswith("Saindo da entrada do Prédio 31, siga pelo caminho em direção")
+    assert textos[-1].startswith("Você chegou")
 
 
 def test_seed_do_campus_escada_so_para_sem_restricao(cliente):

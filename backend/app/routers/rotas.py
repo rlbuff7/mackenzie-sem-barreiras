@@ -20,7 +20,7 @@ from pydantic import ValidationError
 from app.config import Configuracoes, obter_configuracoes
 from app.db import ConexaoDaRequisicao
 from app.rotas.caminho import calcular_caminho, concatenar_geometria
-from app.rotas.instrucoes import arredondar_metros, montar_instrucoes
+from app.rotas.instrucoes import AVISO_ROTA_PROVISORIA, arredondar_metros, montar_instrucoes
 from app.rotas.rotulos import ATRIBUICAO_OSM, rotulo_das_fontes
 from app.routers.alertas import _ler_corpo_limitado, _mensagem_corpo_grande
 from app.schemas.rota import RotaEntrada
@@ -106,7 +106,7 @@ def _montar_rota(
     if any(t.tipo == "travessia" for t in trechos):
         avisos.append("O caminho atravessa uma rua.")
     if fontes - {"conferido_a_pe"}:
-        avisos.append("Há trecho ainda não conferido a pé.")
+        avisos.append(AVISO_ROTA_PROVISORIA)
     if entrada.perfil == "deficiencia_visual":
         avisos.append("Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto.")
 
@@ -145,7 +145,7 @@ def _montar_rota(
         "instrucoes": [
             {"ordem": i, "texto": texto}
             for i, texto in enumerate(
-                montar_instrucoes(trechos, referencias, destino[2], entrada.perfil), start=1
+                montar_instrucoes(trechos, referencias, destino[2], origem[2]), start=1
             )
         ],
         "geometria": {"type": "LineString", "coordinates": concatenar_geometria(trechos)},

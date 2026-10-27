@@ -286,11 +286,11 @@ para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posiç�
   "distancia_m": 182.4,
   "custo": 310.2,
   "acessivel_cadeirante": false,
-  "avisos": ["O caminho tem escada (cerca de 20 metros).", "Há trecho ainda não conferido a pé."],
+  "avisos": ["O caminho tem escada (cerca de 20 metros).", "Rota provisória: direções calculadas pelo mapa aberto. Confira com a bengala."],
   "aviso_seguranca": "Apoio à orientação. Nunca substitui a bengala, o cão-guia ou as técnicas de mobilidade.",
   "trechos": [{"ordem": 1, "aresta_id": 18, "tipo": "calcada", "comprimento_m": 13.2,
                "acessivel_cadeirante": null, "fonte_verificacao": "provisorio"}],
-  "instrucoes": [{"ordem": 1, "texto": "Siga pelo caminho por cerca de 15 metros."}],
+  "instrucoes": [{"ordem": 1, "texto": "Saindo da entrada do Prédio 31, siga pelo caminho em direção à entrada do Prédio 29, por cerca de 125 metros (cerca de 2 minutos). Depois, vire à direita."}, {"ordem": 2, "texto": "Você chegou à entrada do Prédio 29."}],
   "geometria": {"type": "LineString", "coordinates": [[-46.65176, -23.54705], [-46.65186, -23.54697]]}
 }
 ```
@@ -303,9 +303,20 @@ para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posiç�
   aparece com dado do OpenStreetMap.
 - `geometria`: trechos concatenados no sentido do caminho, sem repetir o vértice de junção;
   coordenadas `[longitude, latitude]` (Leaflet usa `[latitude, longitude]`).
-- `instrucoes`: tipo de trecho + distância aproximada (múltiplos de 5 m) + até 2 referências
-  por instrução; escada e travessia são anunciadas antes do trecho; a última é sempre a
-  chegada ("Você chegou à entrada do Prédio 31.").
+- `instrucoes`: curva a curva (decisão do Rodrigo, 27/10/2026; provisória). A polilinha da
+  rota é percorrida em metros; pedaços com mudança de rumo < 25° viram um "Siga em frente por
+  cerca de N metros (uns T segundos)" (N em múltiplos de 5 m; T a 1,0 m/s, em minutos acima de
+  90 s); zigue-zague < 8 m é ignorado. A curva vem no fim da instrução: 25 a 60° "Depois, vire
+  levemente à direita/esquerda.", 60 a 135° "Depois, vire à direita/esquerda.", acima de 135°
+  "Depois, faça o retorno.". O primeiro passo não diz direita/esquerda ("Saindo de <origem>,
+  siga pelo caminho em direção a <próxima referência>, por ..."). Escada: a instrução anterior
+  termina com "Em cerca de N metros, escada." e o trecho vira "Escada, cerca de N metros. Use o
+  corrimão se houver."; travessia: "Atenção: travessia." antes. Pontos de interesse do meio do
+  caminho são citados ("Você passa pela entrada do Prédio 29."), no máximo 2 por instrução. A
+  última é sempre a chegada ("Você chegou à entrada do Prédio 31."). Vale para os 3 perfis.
+  A regra antiga "trecho não conferido a pé não gera direção" está suspensa na v0; por isso
+  `avisos` traz "Rota provisória: direções calculadas pelo mapa aberto. Confira com a
+  bengala." sempre que algum trecho não foi conferido a pé (texto único, sem duplicar).
 
 Erros (corpo `{"mensagem": ...}` em português):
 
