@@ -12,11 +12,19 @@ import "../mapa/marcadores.css";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import faltaMapear from "./falta-mapear.json";
+import jaMapeado from "./ja-mapeado.json";
+import {
+  ESTILO_TRAJETO_AO_VIVO,
+  estiloJaMapeado,
+  filtrarJaMapeado,
+  htmlLegenda,
+  tituloPontoControle,
+  type ColecaoJaMapeado,
+} from "./ja-mapeado.ts";
 import {
   estiloDaFeicao,
   filtrarPorTipo,
   htmlLetraPredio,
-  TEXTO_LEGENDA_FALTA_MAPEAR,
   tituloDoPredio,
   type ColecaoCamada,
 } from "./falta-mapear.ts";
@@ -621,13 +629,58 @@ function desenharFaltaMapear(m: L.Map): void {
     }).addTo(grupo);
   }
   const caixa = el("mostrar-falta-mapear") as HTMLInputElement;
-  texto(el("legenda-falta-mapear"), TEXTO_LEGENDA_FALTA_MAPEAR);
   const aplicar = (): void => {
     if (caixa.checked) grupo.addTo(m);
     else grupo.remove();
   };
   caixa.addEventListener("change", aplicar);
   aplicar();
+}
+
+/** Camada "Já feito": trajeto da equipe, caminhos da v0 e pontos de controle. Fica abaixo dos marcadores de posição. */
+function desenharJaMapeado(m: L.Map): void {
+  const dados = jaMapeado as unknown as ColecaoJaMapeado;
+  m.createPane("ja-mapeado").style.zIndex = "360"; // acima da Falta mapear (350), abaixo dos marcadores (600)
+  const grupo = L.layerGroup();
+  for (const tipo of ["trajeto_equipe", "caminho_v0"] as const) {
+    L.geoJSON(filtrarJaMapeado(dados, tipo) as never, {
+      pane: "ja-mapeado",
+      style: (f) => estiloJaMapeado(f?.properties?.tipo, f?.properties?.subtipo),
+    }).addTo(grupo);
+  }
+  for (const f of filtrarJaMapeado(dados, "ponto_controle")) {
+    const [lng, lat] = f.geometry.coordinates as [number, number];
+    L.marker([lat, lng], {
+      pane: "ja-mapeado",
+      icon: L.divIcon({ className: "", html: '<div class="mapa-controle" aria-hidden="true"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }),
+      title: tituloPontoControle(f.properties.codigo ?? "", f.properties.nome, f.properties.medicoes ?? 0),
+      interactive: false,
+      keyboard: false,
+    }).addTo(grupo);
+  }
+  const caixa = el("mostrar-ja-mapeado") as HTMLInputElement;
+  const aplicar = (): void => {
+    if (caixa.checked) grupo.addTo(m);
+    else grupo.remove();
+  };
+  caixa.addEventListener("change", aplicar);
+  aplicar();
+  el("legenda-falta-mapear").innerHTML = htmlLegenda(); // HTML estático do módulo, sem dado de usuário
+}
+
+/** Trajeto deste aparelho nesta sessão: só na memória, some ao parar o trajeto. */
+let trajetoVivo: L.Polyline | null = null;
+
+function limparTrajetoVivo(): void {
+  trajetoVivo?.remove();
+  trajetoVivo = null;
+}
+
+function acrescentarTrajetoVivo(p: PosicaoMedida): void {
+  if (!mapa) return;
+  const ponto = L.latLng(p.latitude, p.longitude);
+  if (!trajetoVivo) trajetoVivo = L.polyline([ponto], { ...ESTILO_TRAJETO_AO_VIVO, pane: "ja-mapeado" }).addTo(mapa);
+  else trajetoVivo.addLatLng(ponto);
 }
 
 let mapaSolto = false; // a pessoa arrastou ou deu zoom: o GPS não puxa a vista de volta
@@ -648,6 +701,7 @@ function iniciarMapa(): void {
         '&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>',
     }).addTo(mapa);
     desenharFaltaMapear(mapa);
+    desenharJaMapeado(mapa);
     const soltar = (): void => {
       mapaSolto = soltarPorGesto(movendoPorCodigo, mapaSolto);
     };
@@ -942,6 +996,7 @@ function gravarTrajeto(p: PosicaoMedida): void {
   if (!podeGravarTrajeto(ultimoTrajeto_ms, agora_ms)) return;
   ultimoTrajeto_ms = agora_ms;
   gravadosNoTrajeto += 1;
+  acrescentarTrajetoVivo(p);
   fila.adicionar(
     montarRegistroPosicao({
       tipo: "trajeto",
@@ -965,6 +1020,7 @@ function alternarTrajeto(): void {
     botaoTrajeto.setAttribute("aria-pressed", "false");
     mostrarTrajeto(`Trajeto parado. ${textoPosicoes(gravadosNoTrajeto)} gravadas.`, true);
     faixaTrajeto.hidden = true;
+    limparTrajetoVivo();
     enviarAgora();
     return;
   }
@@ -978,6 +1034,7 @@ function alternarTrajeto(): void {
   }
   gravadosNoTrajeto = 0;
   ultimoTrajeto_ms = null;
+  limparTrajetoVivo();
   trajetoLigado = true;
   texto(botaoTrajeto, "Parar trajeto");
   botaoTrajeto.setAttribute("aria-pressed", "true");
@@ -1181,6 +1238,7 @@ function recomecar(): void {
     texto(botaoTrajeto, "Iniciar trajeto");
     botaoTrajeto.setAttribute("aria-pressed", "false");
     faixaTrajeto.hidden = true;
+    limparTrajetoVivo();
   }
   const esperando = fila.contagem().na_fila;
   fila.limparEnviados();
