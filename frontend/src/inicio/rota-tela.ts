@@ -12,7 +12,7 @@ import { paraLatLng, pontoParaLatLng } from "../rotas/geometria.ts";
 import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/interpretar.ts";
 import { anuncioDaRota, montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
-import { AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, deveFalarSozinho, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
+import { AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
 import {
   TAMANHO_ICONE_LOSANGO_PX,
   TAMANHO_ICONE_PINO_PX,
@@ -79,7 +79,7 @@ export function iniciarRota(mapa: L.Map | null): void {
   function pararVoz(): void {
     leitura?.parar();
     leitura = null;
-    botaoVoz.textContent = "Ouvir instruções";
+    botaoVoz.textContent = "Ouvir com a voz do app";
   }
 
   function limparResultado(): void {
@@ -174,16 +174,15 @@ export function iniciarRota(mapa: L.Map | null): void {
     avisos.hidden = rota.avisos.length === 0;
     lista.replaceChildren(...rota.instrucoes.map((i) => Object.assign(document.createElement("li"), { textContent: i.texto })));
     botaoVoz.hidden = sintese === null;
-    botaoVoz.textContent = "Ouvir instruções";
+    botaoVoz.textContent = "Ouvir com a voz do app";
     if (sintese === null) mostrar(avisoVoz, AVISO_SEM_VOZ);
     else esconder(avisoVoz);
     desenharNoMapa(rota);
     // Desenha tudo ANTES de mostrar e de anunciar; depois foco no título e uma frase só.
     resultado.hidden = false;
     titulo.focus();
-    // Perfil cego: a leitura em voz começa sozinha (veio do clique em "Traçar rota") e já diz tudo; sem voz, o anúncio de texto continua.
-    if (deveFalarSozinho(rota.perfil) && sintese !== null) iniciarLeitura();
-    else anunciar(anuncioDaRota(rota));
+    // Quem lê é o leitor de tela da pessoa: foco no título, depois avisos e <ol> na ordem do HTML; a região live só resume.
+    anunciar(anuncioDaRota(rota));
   }
 
   /** Começa a leitura (avisos antes das instruções, ver montarFalas). Sem await antes: no iPhone a voz só começa dentro do gesto. */
@@ -194,7 +193,7 @@ export function iniciarRota(mapa: L.Map | null): void {
       criarFala: (texto) => new SpeechSynthesisUtterance(texto) as unknown as FalaDeVoz,
       aoTerminar: (falhou) => {
         leitura = null;
-        botaoVoz.textContent = "Ouvir instruções";
+        botaoVoz.textContent = "Ouvir com a voz do app";
         if (falhou) mostrar(avisoVoz, AVISO_VOZ_FALHOU);
       },
     });

@@ -19,11 +19,14 @@ export function tituloDoResultado(rota: Pick<RotaResposta, "origem" | "destino">
   return `Rota de ${rota.origem.nome} até ${rota.destino.nome}`;
 }
 
-/** Frase única que a região de aviso lê quando a rota aparece (o foco vai para o título). */
+/**
+ * Resumo curto que a região aria-live lê quando a rota aparece (o foco vai para o título e o leitor
+ * de tela da pessoa lê avisos e instruções na ordem do HTML; aqui não se repete o texto todo).
+ */
 export function anuncioDaRota(rota: RotaResposta): string {
-  const n = rota.instrucoes.length;
-  const passos = n === 1 ? "1 instrução" : `${n} instruções`;
-  return `Rota encontrada. ${textoDistancia(rota.distancia_m)}, ${passos}.`;
+  const n = rota.avisos.length;
+  const avisos = n === 0 ? "sem avisos" : n === 1 ? "1 aviso" : `${n} avisos`;
+  return `Rota traçada: cerca de ${textoDistancia(rota.distancia_m)}, ${avisos}. As instruções vêm a seguir.`;
 }
 
 const ABERTURA_PROVISORIA = "Trecho provisório de demonstração.";
