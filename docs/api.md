@@ -290,7 +290,7 @@ para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posiç�
   "aviso_seguranca": "Apoio à orientação. Nunca substitui a bengala, o cão-guia ou as técnicas de mobilidade.",
   "trechos": [{"ordem": 1, "aresta_id": 18, "tipo": "calcada", "comprimento_m": 13.2,
                "acessivel_cadeirante": null, "fonte_verificacao": "provisorio"}],
-  "instrucoes": [{"ordem": 1, "texto": "Saindo da entrada do Prédio 31, siga pelo caminho em direção à entrada do Prédio 29, por cerca de 125 metros (cerca de 2 minutos). Depois, vire à direita."}, {"ordem": 2, "texto": "Você chegou à entrada do Prédio 29."}],
+  "instrucoes": [{"ordem": 1, "texto": "Saindo da entrada do Prédio 31, siga pelo caminho em direção à entrada do Prédio 29, por cerca de 125 metros (cerca de 2 minutos). Depois, vire à direita.", "inicio_m": 0.0, "curva": "direita"}, {"ordem": 2, "texto": "Você chegou à entrada do Prédio 29.", "inicio_m": 125.0, "curva": null}],
   "geometria": {"type": "LineString", "coordinates": [[-46.65176, -23.54705], [-46.65186, -23.54697]]}
 }
 ```
@@ -303,6 +303,12 @@ para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posiç�
   aparece com dado do OpenStreetMap.
 - `geometria`: trechos concatenados no sentido do caminho, sem repetir o vértice de junção;
   coordenadas `[longitude, latitude]` (Leaflet usa `[latitude, longitude]`).
+- `instrucoes[].inicio_m` (número, 1 casa): metros, ao longo da `geometria`, onde a instrução
+  começa (a 1ª = 0; a de chegada = distância total; soma dos comprimentos das pernas).
+  `instrucoes[].curva`: o que acontece no FIM da instrução (o "Depois, vire..."):
+  `"direita"`, `"esquerda"`, `"leve_direita"`, `"leve_esquerda"`, `"retorno"`, `"escada"`
+  (sem curva e a próxima perna é escada) ou `null` (chegada ou sem curva). Havendo curva e
+  escada em seguida, vale a curva. Campos aditivos; `ordem` e `texto` não mudam.
 - `instrucoes`: curva a curva (decisão do Rodrigo, 27/10/2026; provisória). A polilinha da
   rota é percorrida em metros; pedaços com mudança de rumo < 25° viram um "Siga em frente por
   cerca de N metros (uns T segundos)" (N em múltiplos de 5 m; T a 1,0 m/s, em minutos acima de

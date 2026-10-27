@@ -452,9 +452,17 @@ def test_seed_do_campus_instrucoes_do_predio_31_a_biblioteca_tem_curva(cliente, 
     )
     if r.status_code == 404:  # cadeirante pode não ter rota sem degraus
         pytest.skip("sem rota para este perfil no seed")
-    textos = [i["texto"] for i in r.json()["instrucoes"]]
+    itens = r.json()["instrucoes"]
+    textos = [i["texto"] for i in itens]
     assert len(textos) >= 3
     assert any("vire" in t or "retorno" in t for t in textos)
+    assert itens[0]["inicio_m"] == 0
+    inicios = [i["inicio_m"] for i in itens]
+    assert inicios == sorted(inicios)
+    assert abs(inicios[-1] - r.json()["distancia_m"]) <= 1.0
+    assert all("curva" in i for i in itens) and itens[-1]["curva"] is None
+    if perfil == "deficiencia_visual":
+        assert any(i["curva"] == "direita" for i in itens)
     assert textos[0].startswith("Saindo da entrada do Prédio 31, siga pelo caminho em direção")
     assert textos[-1].startswith("Você chegou")
 

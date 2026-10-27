@@ -70,6 +70,15 @@ def _diferenca_de_rumo(novo: float, antigo: float) -> float:
     return 180.0 if delta == -180.0 else delta
 
 
+def _codigo_da_curva(delta: float) -> str:
+    """Código da curva para o app (mesmos limiares do texto)."""
+    modulo = abs(delta)
+    if modulo > LIMITE_RETORNO_GRAUS:
+        return "retorno"
+    lado = "direita" if delta > 0 else "esquerda"
+    return f"leve_{lado}" if modulo < LIMITE_CURVA_FORTE_GRAUS else lado
+
+
 def _frase_da_curva(delta: float) -> str:
     lado = "direita" if delta > 0 else "esquerda"
     modulo = abs(delta)
@@ -270,14 +279,38 @@ def montar_instrucoes(
     destino_nome: str,
     origem_nome: str = "",
 ) -> list[str]:
-    """`referencias_por_no`: nome do ponto de interesse (entrada) por id de nó. Só os nós
+    """Só os textos (ver `montar_instrucoes_detalhadas`)."""
+    return [
+        i["texto"]
+        for i in montar_instrucoes_detalhadas(
+            trechos, referencias_por_no, destino_nome, origem_nome
+        )
+    ]
+
+
+def montar_instrucoes_detalhadas(
+    trechos: list[Trecho],
+    referencias_por_no: dict[int, str],
+    destino_nome: str,
+    origem_nome: str = "",
+) -> list[dict]:
+    """Cada instrução como {texto, inicio_m, curva}.
+
+    `inicio_m`: metros ao longo da geometria da rota onde a instrução começa (1ª = 0,
+    chegada = distância total; soma dos comprimentos das pernas, 1 casa). `curva`: o que
+    acontece no FIM da instrução: direita|esquerda|leve_direita|leve_esquerda|retorno
+    (a curva do "Depois, vire..."), "escada" se não há curva e a próxima perna é escada,
+    None na chegada ou sem curva.
+
+    `referencias_por_no`: nome do ponto de interesse (entrada) por id de nó. Só os nós
     do MEIO do caminho são citados (origem e destino não)."""
     pernas = _pernas_da_rota(_pedacos_da_rota(trechos))
     mencoes = _referencias_por_perna(trechos, pernas, referencias_por_no)
     todas = [n for lista in mencoes for n in lista]
     proxima_referencia = todas[0] if todas else destino_nome
 
-    instrucoes: list[str] = []
+    instrucoes: list[dict] = []
+    inicio_m = 0.0
     for i, perna in enumerate(pernas):
         seguinte = pernas[i + 1] if i + 1 < len(pernas) else None
         metros = arredondar_metros(perna.comprimento_m)
@@ -306,6 +339,19 @@ def montar_instrucoes(
                 texto += f" Em cerca de {metros} metros, escada."
         elif seguinte is not None and seguinte.categoria == "travessia":
             texto += " Atenção: travessia."
-        instrucoes.append(texto)
-    instrucoes.append(f"Você chegou {_artigo('a', destino_nome)}.")
+        if perna.curva_graus is not None:
+            curva: str | None = _codigo_da_curva(perna.curva_graus)
+        elif seguinte is not None and seguinte.categoria == "escada":
+            curva = "escada"
+        else:
+            curva = None
+        instrucoes.append({"texto": texto, "inicio_m": round(inicio_m, 1), "curva": curva})
+        inicio_m += perna.comprimento_m
+    instrucoes.append(
+        {
+            "texto": f"Você chegou {_artigo('a', destino_nome)}.",
+            "inicio_m": round(inicio_m, 1),
+            "curva": None,
+        }
+    )
     return instrucoes
