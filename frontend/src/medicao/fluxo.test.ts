@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { tituloDaPagina } from "../a11y/orientacao.ts";
 import {
   anuncioDaEtapa,
+  descricaoDoPonto,
+  nomeDaTela,
+  telaDaEtapa,
   anuncioRecomecou,
   classificarPrecisao,
   descreverEnvio,
@@ -171,14 +175,39 @@ test("etapaInicial: sem aparelho ou sem código começa em Preparar; com os dois
   assert.equal(etapaInicial({ temAparelho: true, temCodigo: true }), "medir");
 });
 
-test("anuncioDaEtapa: uma frase por etapa, sem repetir o título (o foco já lê o título)", () => {
-  assert.equal(anuncioDaEtapa("medir", 3, 2), "Ponto 3 de 10, medição 2 de 3.");
-  assert.equal(anuncioDaEtapa("medir", 5, 4), "Ponto 5 de 10, medição extra (4).");
-  assert.equal(anuncioDaEtapa("resultado", 3, 2), "Ponto 3 registrado, medição 2 de 3.");
-  assert.match(anuncioDaEtapa("preparar", 1, 1), /aparelho/);
+test("nomeDaTela: 'Etapa X de Y: título', o que vai no título da página", () => {
+  assert.equal(nomeDaTela("preparar"), "Etapa 1 de 3: Preparar");
+  assert.equal(nomeDaTela("medir"), "Etapa 2 de 3: Medir o ponto");
+  assert.equal(nomeDaTela("resultado"), "Etapa 3 de 3: Resultado do ponto");
+});
+
+test("título da página por etapa: '<Tela> · Navegação Acessível no Campus'", () => {
+  assert.equal(tituloDaPagina(nomeDaTela("medir")), "Etapa 2 de 3: Medir o ponto · Navegação Acessível no Campus");
+  const titulos = ETAPAS.map((e) => tituloDaPagina(nomeDaTela(e.id)));
+  assert.equal(new Set(titulos).size, 3, "cada etapa tem o seu título");
+  for (const t of titulos) assert.ok(t.endsWith(" · Navegação Acessível no Campus"));
+});
+
+test("anuncioDaEtapa: 'Você está em: <etapa>. <próxima ação>', curto", () => {
+  assert.equal(
+    anuncioDaEtapa("medir", 3, 2),
+    "Você está em: Etapa 2 de 3: Medir o ponto. Ponto 3 de 10, medição 2 de 3. Pare em cima do ponto e registre.",
+  );
+  assert.match(anuncioDaEtapa("medir", 5, 4), /^Você está em: Etapa 2 de 3: Medir o ponto\. Ponto 5 de 10, medição extra \(4\)\./);
+  assert.match(anuncioDaEtapa("resultado", 3, 2), /^Você está em: Etapa 3 de 3: Resultado do ponto\. Ponto 3 registrado, medição 2 de 3\./);
+  assert.match(anuncioDaEtapa("preparar", 1, 1), /^Você está em: Etapa 1 de 3: Preparar\. .*aparelho/);
   for (const e of ETAPAS) {
-    assert.ok(!anuncioDaEtapa(e.id, 1, 1).includes(e.titulo), `o anúncio de ${e.id} repete o título`);
+    const frase = anuncioDaEtapa(e.id, 1, 1);
+    assert.ok(frase.startsWith("Você está em: "), e.id);
+    assert.ok(frase.length <= 140, `o anúncio de ${e.id} tem ${frase.length} caracteres (texto curto)`);
   }
+});
+
+test("telaDaEtapa: ação própria (ex.: depois de Recomeçar) troca só a próxima ação", () => {
+  const t = telaDaEtapa("preparar", 1, 1, "Recomeçado.");
+  assert.deepEqual(t, { nome: "Etapa 1 de 3: Preparar", acao: "Recomeçado." });
+  assert.equal(telaDaEtapa("medir", 2, 1).acao, "Ponto 2 de 10, medição 1 de 3. Pare em cima do ponto e registre.");
+  assert.equal(descricaoDoPonto(2, 1), "Ponto 2 de 10, medição 1 de 3.");
 });
 
 test("textoConfirmarRecomecar com pendentes: diz quantos esperam internet, que CONTINUAM e saem sozinhos", () => {

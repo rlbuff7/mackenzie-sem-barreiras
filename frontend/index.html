@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
-    <title>Navegação Acessível no Campus Mackenzie</title>
+    <title>Escolher destino · Navegação Acessível no Campus</title>
     <meta
       name="description"
       content="Protótipo em construção: rota acessível e orientação falada nas áreas externas do campus Mackenzie Higienópolis, com prioridade para pessoas com deficiência visual."
@@ -27,7 +27,12 @@
     </script>
   </head>
   <body class="inicio">
-    <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo principal</a>
+    <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo</a>
+
+    <header class="barra-voz">
+      <button type="button" id="botao-voz-tela" class="botao botao--secundaria botao-voz" aria-pressed="false" aria-describedby="nota-voz-tela">Ativar voz</button>
+      <p id="nota-voz-tela" class="barra-voz__nota">Para quem não usa leitor de tela: toque para o app falar onde você está a cada tela.</p>
+    </header>
 
     <div class="inicio__tela">
       <div class="inicio__area-mapa">
@@ -35,7 +40,7 @@
           id="mapa-campus"
           class="inicio__mapa"
           role="region"
-          aria-label="Mapa do campus Mackenzie Higienópolis (referência visual)"
+          aria-label="Mapa do campus Mackenzie Higienópolis, referência visual. Tudo o que importa está no texto da página."
           aria-describedby="descricao-mapa"
         ></div>
         <p id="descricao-mapa" class="oculto-visualmente">
@@ -86,7 +91,8 @@
         </div>
       </div>
 
-      <main id="conteudo-principal" class="inicio__cartao">
+      <div class="inicio__cartao">
+      <main id="conteudo-principal" class="inicio__principal" tabindex="-1">
         <div class="inicio__titulos">
           <p class="inicio__etiqueta">TCC · FCI/Mackenzie · protótipo em construção</p>
           <h1>Navegação Acessível no Campus Mackenzie</h1>
@@ -129,7 +135,7 @@
           <p id="erro-rota" class="rota__mensagem rota__mensagem--erro" tabindex="-1" hidden></p>
 
           <div id="resultado-rota" class="rota__resultado" hidden>
-            <h3 id="titulo-resultado" class="rota__titulo-resultado" tabindex="-1"></h3>
+            <h2 id="titulo-resultado" class="rota__titulo-resultado" tabindex="-1"></h2>
             <p class="rota__rotulo"><span class="rota__selo" aria-hidden="true">ORIGEM DOS DADOS</span> <span id="rotulo-rota"></span></p>
             <p id="distancia-rota" class="rota__distancia"></p>
             <ul id="avisos-rota" class="rota__avisos" hidden></ul>
@@ -151,11 +157,17 @@
           </div>
         </section>
 
-        <a class="inicio__link-grande" href="/medicao.html">
-          <span>Medição de GPS (equipe)</span>
-          <span aria-hidden="true">→</span>
-        </a>
       </main>
+
+      <footer class="inicio__rodape">
+        <nav aria-label="Outras páginas">
+          <a class="inicio__link-grande" href="/medicao.html">
+            <span>Medição de GPS (equipe)</span>
+            <span aria-hidden="true">→</span>
+          </a>
+        </nav>
+      </footer>
+      </div>
     </div>
 
     <script type="module" src="/src/inicio/pagina.ts"></script>

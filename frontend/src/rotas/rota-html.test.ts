@@ -47,7 +47,7 @@ test("Traçar rota é o botão de envio do formulário, com 64 px no CSS", () =>
 });
 
 test("resultado: título focável, lista ordenada <ol>, rótulo, distância e botão de voz", () => {
-  assert.match(html, /<h3 id="titulo-resultado"[^>]*tabindex="-1"/);
+  assert.match(html, /<h2 id="titulo-resultado"[^>]*tabindex="-1"/);
   assert.match(html, /<ol id="instrucoes-rota"/);
   assert.ok(html.includes('id="rotulo-rota"') && html.includes('id="distancia-rota"'));
   assert.match(html, /<button type="button" id="botao-voz"[^>]*>Ouvir com a voz do app<\/button>/);
@@ -83,11 +83,11 @@ test("os erros do contrato viram palavra: 'Não encontrei um caminho seguro' é 
   assert.equal(MENSAGEM_SEM_ROTA, "Não encontrei um caminho seguro entre esses pontos.");
 });
 
-test("leitor de tela: foco no título, avisos antes da <ol> de instruções e resumo curto na região live", () => {
+test("leitor de tela: foco no título, avisos antes da <ol> de instruções e 'Você está em' curto na região live", () => {
   const i = (s: string): number => html.indexOf(s);
   assert.ok(i('id="titulo-resultado"') < i('id="avisos-rota"') && i('id="avisos-rota"') < i('id="instrucoes-rota"'));
   assert.match(tela, /titulo\.focus\(\)/);
-  assert.match(tela, /anunciar\(anuncioDaRota\(rota\)\)/);
+  assert.match(tela, /orientacao\.mudarDeTela\(telaDaRota\(rota\)\)/);
 });
 
 test("Ajustes: voz do app (select, velocidade, testar) com rótulo visível, dentro do painel, e tela usa as chaves novas", () => {

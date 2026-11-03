@@ -2,7 +2,10 @@
  * Textos da rota, escritos para serem lidos em voz: "metros" por extenso, sem símbolo, sem coordenada.
  * Nada aqui inventa orientação: as instruções vêm prontas da API.
  */
+import { anuncioDeLocalizacao } from "../a11y/orientacao.ts";
 import type { RotaResposta } from "./tipos.ts";
+
+export const NOME_TELA_ROTA = "Rota traçada";
 
 /** "182 metros", "1 metro", "menos de 1 metro". Sem separador de milhar, para a voz não ler "ponto". */
 export function textoDistancia(distancia_m: number): string {
@@ -19,14 +22,16 @@ export function tituloDoResultado(rota: Pick<RotaResposta, "origem" | "destino">
   return `Rota de ${rota.origem.nome} até ${rota.destino.nome}`;
 }
 
-/**
- * Resumo curto que a região aria-live lê quando a rota aparece (o foco vai para o título e o leitor
- * de tela da pessoa lê avisos e instruções na ordem do HTML; aqui não se repete o texto todo).
- */
-export function anuncioDaRota(rota: RotaResposta): string {
+/** Frase curta da próxima ação na tela "Rota traçada" (o foco vai para o título; avisos e instruções vêm na ordem do HTML). */
+export function resumoDaRota(rota: Pick<RotaResposta, "avisos" | "distancia_m">): string {
   const n = rota.avisos.length;
   const avisos = n === 0 ? "sem avisos" : n === 1 ? "1 aviso" : `${n} avisos`;
-  return `Rota traçada: cerca de ${textoDistancia(rota.distancia_m)}, ${avisos}. As instruções vêm a seguir.`;
+  return `Cerca de ${textoDistancia(rota.distancia_m)}, ${avisos}. As instruções vêm a seguir.`;
+}
+
+/** O que a região aria-live (ou a voz do app) diz quando a rota aparece: "Você está em: Rota traçada. Cerca de ...". */
+export function anuncioDaRota(rota: Pick<RotaResposta, "avisos" | "distancia_m">): string {
+  return anuncioDeLocalizacao(NOME_TELA_ROTA, resumoDaRota(rota));
 }
 
 const ABERTURA_PROVISORIA = "Trecho provisório de demonstração.";

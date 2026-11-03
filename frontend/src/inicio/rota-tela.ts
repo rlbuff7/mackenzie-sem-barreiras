@@ -10,7 +10,9 @@ import L from "leaflet";
 import { buscarPontos, tracarRota } from "../rotas/api.ts";
 import { paraLatLng, pontoParaLatLng } from "../rotas/geometria.ts";
 import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/interpretar.ts";
-import { anuncioDaRota, montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
+import { montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
+import type { Orientacao } from "../a11y/localizacao.ts";
+import { TELA_ESCOLHER, TELA_SEM_ROTA, telaDaRota } from "./telas.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
 import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, enfileirarFala, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
 import { fatorValido, metrosPorPasso, planejarFalas, proximoEvento, pontoNaDistancia, comprimentoTotal_m, VIBRACAO_CHEGADA } from "../rotas/simulacao.ts";
@@ -33,7 +35,7 @@ function sinteseDoNavegador(): SinteseDeVoz | null {
     : null;
 }
 
-export function iniciarRota(mapa: L.Map | null): void {
+export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
   const selDe = el<HTMLSelectElement>("rota-de");
   const selPara = el<HTMLSelectElement>("rota-para");
   const form = el<HTMLFormElement>("form-rota");
@@ -41,7 +43,6 @@ export function iniciarRota(mapa: L.Map | null): void {
   const erroPontos = el("erro-pontos");
   const erroEscolha = el("erro-escolha");
   const erroRota = el("erro-rota");
-  const anuncio = el("anuncio-rota");
   const resultado = el("resultado-rota");
   const titulo = el("titulo-resultado");
   const rotulo = el("rotulo-rota");
@@ -109,7 +110,6 @@ export function iniciarRota(mapa: L.Map | null): void {
   const camadaRota = mapa ? L.layerGroup().addTo(mapa) : null;
   let rotaAtual: RotaResposta | null = null;
   let ocupado = false;
-  let anuncioPendente: number | null = null;
 
   const mostrar = (e: HTMLElement, texto: string): void => {
     e.textContent = texto;
@@ -119,16 +119,6 @@ export function iniciarRota(mapa: L.Map | null): void {
     e.textContent = "";
     e.hidden = true;
   };
-
-  /** Fala uma frase só, uma vez: limpa a região e escreve no quadro seguinte (repetir a mesma frase também é lido). */
-  function anunciar(frase: string): void {
-    if (anuncioPendente !== null) window.clearTimeout(anuncioPendente);
-    anuncio.textContent = "";
-    anuncioPendente = window.setTimeout(() => {
-      anuncio.textContent = frase;
-      anuncioPendente = null;
-    }, 60);
-  }
 
   function pararVoz(): void {
     leitura?.parar();
@@ -144,7 +134,8 @@ export function iniciarRota(mapa: L.Map | null): void {
     resultado.hidden = true;
     esconder(erroRota);
     esconder(erroEscolha);
-    anuncio.textContent = "";
+    // De volta à tela de escolha: só o título muda (sem anúncio nem foco; a pessoa está nos campos).
+    orientacao.definirTela(TELA_ESCOLHER);
   }
 
   // ---------- Simular caminhada (demonstração: a posição é imaginária) ----------
@@ -339,8 +330,9 @@ export function iniciarRota(mapa: L.Map | null): void {
     // Desenha tudo ANTES de mostrar e de anunciar; depois foco no título e uma frase só.
     resultado.hidden = false;
     titulo.focus();
-    // Quem lê é o leitor de tela da pessoa: foco no título, depois avisos e <ol> na ordem do HTML; a região live só resume.
-    anunciar(anuncioDaRota(rota));
+    // Quem lê é o leitor de tela da pessoa: foco no título, depois avisos e <ol> na ordem do HTML; a região live só diz
+    // onde a pessoa está e resume (com a voz do app ligada, é o app que fala essa frase).
+    orientacao.mudarDeTela(telaDaRota(rota));
   }
 
   /** Começa a leitura (avisos antes das instruções, ver montarFalas). Sem await antes: no iPhone a voz só começa dentro do gesto. */
@@ -403,6 +395,7 @@ export function iniciarRota(mapa: L.Map | null): void {
       // Silêncio é melhor que palpite: nada no mapa. A frase recebe o foco e é lida por isso.
       mostrar(erroRota, r.mensagem);
       erroRota.focus();
+      orientacao.mudarDeTela(TELA_SEM_ROTA);
     }
   });
 }

@@ -30,7 +30,7 @@ test("nenhum texto de voz usa 'm' solto ou símbolo de unidade", () => {
 
 test("título e anúncio único da rota", () => {
   assert.equal(tituloDoResultado(rota), "Rota de Portão da rua Piauí até Entrada do Prédio 31");
-  assert.equal(anuncioDaRota(rota), "Rota traçada: cerca de 182 metros, 1 aviso. As instruções vêm a seguir.");
+  assert.equal(anuncioDaRota(rota), "Você está em: Rota traçada. Cerca de 182 metros, 1 aviso. As instruções vêm a seguir.");
 });
 
 test("falas: começam pelo aviso de segurança e terminam na chegada", () => {

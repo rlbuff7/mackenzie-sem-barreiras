@@ -24,7 +24,7 @@
     </script>
   </head>
   <body class="medicao">
-    <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo principal</a>
+    <a class="pular-conteudo" href="#conteudo-principal">Pular para o conteúdo</a>
 
     <div class="medicao__tela">
       <div class="medicao__avisos">
@@ -37,8 +37,13 @@
       </div>
 
       <header class="medicao__topo">
+        <div class="barra-voz barra-voz--medicao">
+          <button type="button" id="botao-voz-tela" class="botao botao--secundaria botao-voz" aria-pressed="false" aria-describedby="nota-voz-tela">Ativar voz</button>
+          <p id="nota-voz-tela" class="barra-voz__nota">Para quem não usa leitor de tela: toque para o app falar onde você está a cada tela.</p>
+        </div>
+
         <div class="medicao__linha">
-          <a class="medicao__voltar" href="/">← Início</a>
+          <nav aria-label="Voltar ao início"><a class="medicao__voltar" href="/">← Início</a></nav>
           <button type="button" id="botao-ajustes" class="botao botao--secundaria" aria-expanded="false" aria-controls="painel-ajustes">Ajustes</button>
           <button type="button" id="botao-recomecar" class="botao botao--secundaria" aria-expanded="false" aria-controls="confirmar-recomecar">Recomeçar</button>
         </div>
@@ -103,7 +108,7 @@
         </div>
       </header>
 
-      <main id="conteudo-principal" class="medicao__principal">
+      <main id="conteudo-principal" class="medicao__principal" tabindex="-1">
         <!-- Um único anúncio por troca de etapa; o foco vai para o título da etapa. -->
         <p id="anuncio-etapa" class="oculto-visualmente" role="status" aria-live="polite"></p>
 
@@ -274,19 +279,19 @@
         </section>
       </main>
 
-      <div class="medicao__barra" id="barra-medir" hidden>
+      <footer class="medicao__barra" id="barra-medir" aria-label="Ações da medição" hidden>
         <button type="button" id="botao-registrar" class="medicao__registrar">Registrar agora</button>
         <div class="medicao__barra-linha">
           <button type="button" id="botao-abrir-bussola" class="botao botao--secundaria" aria-expanded="false" aria-controls="painel-bussola">Bússola</button>
           <button type="button" id="botao-pular" class="botao botao--secundaria">Pular ponto</button>
         </div>
         <p id="status-ponto" class="medicao__status" role="status" aria-live="polite"></p>
-      </div>
+      </footer>
 
-      <div class="medicao__barra medicao__barra--linha" id="barra-confirmar" hidden>
+      <footer class="medicao__barra medicao__barra--linha" id="barra-confirmar" aria-label="Ações do resultado" hidden>
         <button type="button" id="botao-trajeto" class="botao botao--secundaria" aria-pressed="false">Iniciar trajeto</button>
         <button type="button" id="botao-exportar" class="botao botao--secundaria">Exportar CSV</button>
-      </div>
+      </footer>
     </div>
 
     <script type="module" src="/src/medicao/pagina.ts"></script>
