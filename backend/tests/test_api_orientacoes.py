@@ -72,6 +72,7 @@ def test_longe_da_rota_manda_parar_sem_direcao(cliente, rota_4_6):
     assert c["estado"] == "fora_da_rota"
     assert c["confianca"] == "baixa"
     assert c["direcao"] is None
+    assert c["progresso_m"] is None and c["distancia_restante_m"] is None
     assert c["mensagem"]["texto"] == "Você saiu da rota. Pare e aguarde."
     assert c["mensagem"]["chave"] == "fora_da_rota"
     assert c["mensagem"]["prioridade"] == "alta"

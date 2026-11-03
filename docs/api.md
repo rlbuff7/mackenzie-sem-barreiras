@@ -393,7 +393,7 @@ Resposta 200:
 - `estado`: `na_rota`, `fora_da_rota`, `precisao_insuficiente` ou `chegou`. `confianca`:
   `alta`, `media` ou `baixa`. Regras em `docs/planos/m4-orientacao-ao-vivo.md` §4.
 - `progresso_m` e `distancia_restante_m`: ao longo da rota (1 casa); `null` com
-  `precisao_insuficiente` (sem projeção, silêncio).
+  `precisao_insuficiente` ou `fora_da_rota` (sem progresso confiável, silêncio).
 - `direcao`: `frente`, `direita`, `esquerda` ou `atras`: onde o ponto da rota
   `ALVO_A_FRENTE_METROS` à frente fica em relação ao rumo da bússola. **`null`** (silêncio)
   se parado (`velocidade_ms` < `VELOCIDADE_PARADO_MS` ou ausente), sem bússola, bússola

@@ -83,6 +83,7 @@ def _orientar(
         recentes=[Recente(r.chave, r.ha_segundos) for r in entrada.recentes],
         parametros=ParametrosMensagens.de_configuracoes(config),
     )
+    mostrar = projecao is not None and avaliacao.estado != "fora_da_rota"
     return {
         "estado": avaliacao.estado,
         "confianca": avaliacao.confianca,
@@ -91,8 +92,9 @@ def _orientar(
             if mensagem
             else None
         ),
-        "distancia_restante_m": round(projecao.distancia_restante_m, 1) if projecao else None,
-        "progresso_m": round(projecao.distancia_percorrida_m, 1) if projecao else None,
+        # Sem projeção (precisão ruim) ou fora da rota, o progresso seria palpite: null.
+        "distancia_restante_m": round(projecao.distancia_restante_m, 1) if mostrar else None,
+        "progresso_m": round(projecao.distancia_percorrida_m, 1) if mostrar else None,
         "direcao": direcao,
     }
 
