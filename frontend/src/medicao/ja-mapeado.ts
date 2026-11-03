@@ -69,7 +69,7 @@ export const ITENS_LEGENDA: ItemLegenda[] = [
 ];
 
 const SVG_AMOSTRA: Record<string, string> = {
-  area: '<rect x="2" y="4" width="26" height="12" class="mapa-lacuna-area"/>',
+  area: '<rect x="2" y="4" width="26" height="12" class="mapa-lacuna-area" stroke-width="2" stroke-dasharray="6 4"/>',
   letra: '<text x="15" y="15" text-anchor="middle" font-size="13" font-weight="700" class="legenda__letra">A</text>',
   limite: '<line x1="2" y1="10" x2="28" y2="10" class="mapa-limite-campus" stroke-width="1.5" stroke-dasharray="6 6"/>',
   equipe: '<line x1="2" y1="10" x2="28" y2="10" class="mapa-trajeto-equipe" stroke-width="2"/>',
