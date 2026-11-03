@@ -266,21 +266,29 @@ def test_origem_igual_destino_da_422(cliente, losango):
     assert r.json()["mensagem"] == "Pedido de rota inválido."
 
 
-def test_perfil_deficiencia_visual_permite_escada_e_avisa_sem_piso_tatil(cliente, losango):
+def test_perfil_sinonimo_deficiencia_visual_vira_cegueira(cliente, losango):
     r = _rota(cliente, losango, "A", "D", "deficiencia_visual")
     assert r.status_code == 200
     corpo = r.json()
-    assert corpo["perfil"] == "deficiencia_visual"
+    assert corpo["perfil"] == "cegueira"
+    assert any("piso tátil" in a for a in corpo["avisos"])
+
+
+def test_perfil_cegueira_permite_escada_e_avisa_sem_piso_tatil(cliente, losango):
+    r = _rota(cliente, losango, "A", "D", "cegueira")
+    assert r.status_code == 200
+    corpo = r.json()
+    assert corpo["perfil"] == "cegueira"
     assert "Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto." in corpo["avisos"]
 
 
-def test_perfil_deficiencia_visual_com_escada_avisa_e_antecipa(cliente, conexao):
+def test_perfil_cegueira_com_escada_avisa_e_antecipa(cliente, conexao):
     g = Grafo(conexao)
     for nome, x in (("A", 0), ("B", 10), ("C", 20)):
         g.no(nome, x, ponto=f"Entrada {nome}")
     g.aresta("A", "B", 20)
     g.aresta("B", "C", 5, tipo="escada", acessivel=False)
-    r = _rota(cliente, g, "A", "C", "deficiencia_visual")
+    r = _rota(cliente, g, "A", "C", "cegueira")
     assert r.status_code == 200
     corpo = r.json()
     assert any("escada" in a for a in corpo["avisos"])
@@ -288,12 +296,37 @@ def test_perfil_deficiencia_visual_com_escada_avisa_e_antecipa(cliente, conexao)
     assert corpo["instrucoes"][0]["texto"].endswith("Em cerca de 20 metros, escada.")
 
 
+def test_perfil_baixa_visao_avisa_escada_sem_piso_tatil(cliente, conexao):
+    g = Grafo(conexao)
+    for nome, x in (("A", 0), ("B", 10), ("C", 20)):
+        g.no(nome, x, ponto=f"Entrada {nome}")
+    g.aresta("A", "B", 20)
+    g.aresta("B", "C", 5, tipo="escada", acessivel=False)
+    r = _rota(cliente, g, "A", "C", "baixa_visao")
+    assert r.status_code == 200
+    corpo = r.json()
+    assert corpo["perfil"] == "baixa_visao"
+    assert any("escada" in a for a in corpo["avisos"])
+    assert not any("piso tátil" in a for a in corpo["avisos"])
+    assert corpo["instrucoes"][0]["texto"].endswith("Em cerca de 20 metros, escada.")
+
+
+def test_perfil_baixa_visao_custa_no_maximo_o_da_cegueira(cliente, losango):
+    cega = _rota(cliente, losango, "A", "D", "cegueira").json()
+    baixa = _rota(cliente, losango, "A", "D", "baixa_visao").json()
+    assert baixa["custo"] <= cega["custo"]
+
+
+def test_perfil_invalido_da_422(cliente, losango):
+    assert _rota(cliente, losango, "A", "D", "surdez").status_code == 422
+
+
 def test_perfil_sem_restricao_nao_tem_aviso_de_piso_tatil(cliente, losango):
     corpo = _rota(cliente, losango, "A", "D").json()
     assert not any("piso tátil" in a for a in corpo["avisos"])
 
 
-def test_seed_do_campus_deficiencia_visual_recebe_rota_com_escada(cliente):
+def test_seed_do_campus_cegueira_recebe_rota_com_escada(cliente):
     pontos = {
         f["properties"]["nome"]: f["properties"]["id"]
         for f in cliente.get(
@@ -305,7 +338,7 @@ def test_seed_do_campus_deficiencia_visual_recebe_rota_com_escada(cliente):
     corpo = {
         "origem_id": pontos["Passagem entre os Prédios 6 e 24"],
         "destino_id": pontos["Entrada do Prédio 29"],
-        "perfil": "deficiencia_visual",
+        "perfil": "cegueira",
     }
     r = cliente.post("/rotas", json=corpo)
     assert r.status_code == 200
@@ -316,10 +349,18 @@ def test_seed_do_campus_deficiencia_visual_recebe_rota_com_escada(cliente):
         json={
             "origem_id": pontos["Entrada do Prédio 31"],
             "destino_id": pontos["Entrada da Biblioteca Central"],
-            "perfil": "deficiencia_visual",
+            "perfil": "cegueira",
         },
     )
     assert outra.status_code == 200
+    sinonimo = cliente.post("/rotas", json={**corpo, "perfil": "deficiencia_visual"})
+    assert sinonimo.status_code == 200
+    assert sinonimo.json()["perfil"] == "cegueira"
+    baixa = cliente.post("/rotas", json={**corpo, "perfil": "baixa_visao"})
+    assert baixa.status_code == 200
+    assert baixa.json()["perfil"] == "baixa_visao"
+    assert any("escada" in a for a in baixa.json()["avisos"])
+    assert not any("piso tátil" in a for a in baixa.json()["avisos"])
 
 
 @pytest.mark.parametrize(
@@ -437,7 +478,7 @@ def _pontos_do_seed(cliente):
     }
 
 
-@pytest.mark.parametrize("perfil", ["sem_restricao", "cadeirante", "deficiencia_visual"])
+@pytest.mark.parametrize("perfil", ["sem_restricao", "cadeirante", "cegueira", "baixa_visao"])
 def test_seed_do_campus_instrucoes_do_predio_31_a_biblioteca_tem_curva(cliente, perfil):
     pontos = _pontos_do_seed(cliente)
     if "Entrada do Prédio 31" not in pontos:
@@ -461,7 +502,7 @@ def test_seed_do_campus_instrucoes_do_predio_31_a_biblioteca_tem_curva(cliente, 
     assert inicios == sorted(inicios)
     assert abs(inicios[-1] - r.json()["distancia_m"]) <= 1.0
     assert all("curva" in i for i in itens) and itens[-1]["curva"] is None
-    if perfil == "deficiencia_visual":
+    if perfil == "cegueira":
         assert any(i["curva"] == "direita" for i in itens)
     assert textos[0].startswith("Saindo da entrada do Prédio 31, siga pelo caminho em direção")
     assert textos[-1].startswith("Você chegou")

@@ -260,13 +260,18 @@ para log. A origem é um ponto escolhido na lista (`origem_id`), nunca a posiç�
 
 - `origem_id`: ponto com nó (entrada ou portão). `destino_id`: **entrada** com nó.
   Estrito: campo extra, texto no lugar de número ou `origem_id == destino_id` dão 422.
-- `perfil`: `"sem_restricao"` (padrão), `"cadeirante"` ou `"deficiencia_visual"` (incluído
-  provisoriamente na v0 em 27/10/2026, a validar com a orientadora). Outro valor: 422.
-- **Perfil `deficiencia_visual`:** escada e trecho inacessível a cadeirante NÃO são proibidos,
+- `perfil`: `"sem_restricao"` (padrão), `"cadeirante"`, `"cegueira"` ou `"baixa_visao"`
+  (decisão da orientadora de 27/10/2026; as regras de cegueira e baixa visão são
+  provisórias, a validar). `"deficiencia_visual"` continua aceito como sinônimo de
+  `"cegueira"` (compatibilidade) e a resposta ecoa `"cegueira"`. Outro valor: 422.
+- **Perfil `cegueira`:** escada e trecho inacessível a cadeirante NÃO são proibidos,
   mas o custo do trecho (escada, travessia ou não conferido a pé) é multiplicado por
   `PENALIDADE_PERFIL_VISUAL` (padrão 2.0, provisório). `avisos` sempre inclui
   `"Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto."`, e a instrução do
   trecho anterior a uma escada termina com `"Em cerca de N metros, escada."`.
+- **Perfil `baixa_visao` (PROVISÓRIO):** mesmas regras de custo da cegueira, com penalidade
+  própria `PENALIDADE_PERFIL_BAIXA_VISAO` (padrão 1.5). Avisos: escada e rota provisória
+  (como em todos os perfis); NÃO inclui o aviso de piso tátil (não se aplica).
 - **Perfil `cadeirante`: a rota NUNCA tem trecho de escada nem trecho marcado como
   inacessível.** Esses trechos saem do grafo da consulta (não é penalidade). Se não houver
   caminho sem eles, a resposta é 404 `sem_rota`: silêncio é melhor que palpite.

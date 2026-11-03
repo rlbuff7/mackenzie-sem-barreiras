@@ -10,10 +10,15 @@ class RotaEntrada(BaseModel):
 
     origem_id: StrictInt
     destino_id: StrictInt
-    perfil: Literal["sem_restricao", "cadeirante", "deficiencia_visual"] = "sem_restricao"
+    # "deficiencia_visual" e sinonimo antigo de "cegueira" (compatibilidade): vira "cegueira".
+    perfil: Literal[
+        "sem_restricao", "cadeirante", "cegueira", "baixa_visao", "deficiencia_visual"
+    ] = "sem_restricao"
 
     @model_validator(mode="after")
     def _origem_diferente_de_destino(self) -> "RotaEntrada":
         if self.origem_id == self.destino_id:
             raise ValueError("Origem e destino devem ser pontos diferentes.")
+        if self.perfil == "deficiencia_visual":
+            self.perfil = "cegueira"
         return self

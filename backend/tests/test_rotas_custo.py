@@ -14,6 +14,7 @@ def config() -> Configuracoes:
         penalidade_travessia=2.0,
         penalidade_trecho_nao_verificado=1.5,
         penalidade_perfil_visual=2.0,
+        penalidade_perfil_baixa_visao=1.5,
     )
 
 
@@ -89,7 +90,7 @@ def test_visual_escada_pesa_escada_vezes_verificacao_vezes_perfil(config):
         tipo="escada",
         acessivel_cadeirante=False,
         fonte_verificacao="provisorio",
-        perfil="deficiencia_visual",
+        perfil="cegueira",
     )
     esperado = (
         config.penalidade_escada
@@ -100,21 +101,34 @@ def test_visual_escada_pesa_escada_vezes_verificacao_vezes_perfil(config):
 
 
 def test_visual_calcada_conferida_a_pe_pesa_1(config):
-    assert _fator(config, perfil="deficiencia_visual") == 1.0
+    assert _fator(config, perfil="cegueira") == 1.0
 
 
 def test_visual_travessia_e_trecho_nao_conferido_levam_a_penalidade_do_perfil(config):
     assert (
-        _fator(config, tipo="travessia", perfil="deficiencia_visual")
+        _fator(config, tipo="travessia", perfil="cegueira")
         == config.penalidade_travessia * config.penalidade_perfil_visual
     )
     assert (
-        _fator(config, fonte_verificacao="imagem", perfil="deficiencia_visual")
+        _fator(config, fonte_verificacao="imagem", perfil="cegueira")
         == config.penalidade_trecho_nao_verificado * config.penalidade_perfil_visual
     )
 
 
 def test_visual_nao_proibe_escada_nem_trecho_inacessivel():
-    assert not trecho_proibido(
-        tipo="escada", acessivel_cadeirante=False, perfil="deficiencia_visual"
+    assert not trecho_proibido(tipo="escada", acessivel_cadeirante=False, perfil="cegueira")
+
+
+def test_baixa_visao_usa_penalidade_propria_com_as_mesmas_regras_da_cegueira(config):
+    esc = _fator(config, tipo="escada", perfil="baixa_visao")
+    assert esc == config.penalidade_escada * config.penalidade_perfil_baixa_visao
+    assert _fator(config, perfil="baixa_visao") == 1.0
+    assert (
+        _fator(config, tipo="travessia", perfil="baixa_visao")
+        == config.penalidade_travessia * config.penalidade_perfil_baixa_visao
     )
+    assert (
+        _fator(config, fonte_verificacao="imagem", perfil="baixa_visao")
+        == config.penalidade_trecho_nao_verificado * config.penalidade_perfil_baixa_visao
+    )
+    assert not trecho_proibido(tipo="escada", acessivel_cadeirante=False, perfil="baixa_visao")

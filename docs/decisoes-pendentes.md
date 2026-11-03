@@ -16,6 +16,12 @@ anotada aqui.
 
 ## Decidido em 27/10/2026
 
+- **Decidido 27/10/2026 (orientadora, reunião): os perfis do aplicativo são `cegueira`,
+  `baixa_visao`, `cadeirante` e `sem_restricao`.** `deficiencia_visual` vira sinônimo de
+  `cegueira` na API (compatibilidade). **Baixa visão tem regras PROVISÓRIAS, a validar com a
+  orientadora:** mesmas regras de custo da cegueira, com `PENALIDADE_PERFIL_BAIXA_VISAO=1.5`
+  (cegueira: `PENALIDADE_PERFIL_VISUAL=2.0`); avisos de escada e de rota provisória, sem o
+  aviso de piso tátil.
 - **Decidido 27/10/2026 (Rodrigo): perfil `deficiencia_visual` incluído na v0.** O público
   prioritário é a pessoa cega ou com baixa visão; o perfil estava bloqueado por decisão
   pendente. Incluído provisoriamente (`POST /rotas`, `PENALIDADE_PERFIL_VISUAL=2.0`, aviso de
