@@ -121,6 +121,7 @@ real, tamanho de alvo, rótulos, ordem de foco, leitor de tela.
 | 27/10/2026 | Rodrigo | **Voz do app escolhível** (voz e velocidade). |
 | 27/10/2026 | Rodrigo | Rótulo do perfil: **"Cadeirante (evita escadas)"**; escada excluída da rota. |
 | 03/11/2026 | Documentação | Sem áudio automático: bloqueio do navegador e WCAG 1.4.2 (seção 3). |
+| 03/11/2026 | Rodrigo | Tela "Orientação ao vivo": estado em texto grande com palavra e símbolo (✓ Na rota, ✕ Você saiu da rota, ◆ Sem GPS confiável, ★ Você chegou); prioridade perigo/alta em região `aria-live` assertive dedicada (`#alerta-orientacao`), o resto na polite; aviso de segurança permanente; botão Parar sempre visível. Detalhes em `docs/planos/m4-orientacao-ao-vivo.md` §7c. |
 
 ## 6. O que ainda falta testar em aparelho real
 
@@ -131,4 +132,5 @@ real, tamanho de alvo, rótulos, ordem de foco, leitor de tela.
 - Alvos de toque (>= 44 px) e zoom de 200% sem rolagem horizontal.
 - Vibração (o iOS não suporta `navigator.vibrate()`, pendência #2).
 - Teste com pessoas cegas e de baixa visão só depois do CEP (pendência #8).
+- Orientação ao vivo (GPS, bússola, Wake Lock, vibração, voz + aria-live juntos) no campus, com TalkBack e VoiceOver.
 - axe-core no CI ainda não existe.
