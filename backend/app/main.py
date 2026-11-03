@@ -18,6 +18,7 @@ from app.routers import (
     barreiras,
     fotos,
     medicoes,
+    orientacoes,
     pontos_interesse,
     referencia,
     rotas,
@@ -69,6 +70,7 @@ def criar_app(*, expor_docs: bool) -> FastAPI:
     aplicacao.include_router(fotos.router)
     aplicacao.include_router(pontos_interesse.router)
     aplicacao.include_router(rotas.router)
+    aplicacao.include_router(orientacoes.router)
     return aplicacao
 
 
