@@ -110,5 +110,5 @@ Fonte: `vw_erro_medicoes` e o diário (`docs/diario-de-campo.md`). Cuidados já 
 - **Privacidade:** posição, trilha e recentes só na memória; `encerrarRecursos()` apaga tudo ao parar ou sair da página; `orientacao-html.test.ts` varre os módulos atrás de `localStorage`, `sessionStorage`, IndexedDB, cookie, `console`, beacon etc. e confere que o único `fetch` é o de `/api/orientacoes`.
 - **Silêncio:** o app só mostra e fala o `mensagem.texto` da API; o campo `direcao` não é lido; resposta torta vira "orientação pausada".
 - **Decisão do app (a confirmar):** o mapa só acompanha a pessoa dentro do campus (`dentroDoCampus`), porque os blocos de mapa pedidos ao OpenStreetMap revelam a região mostrada; fora do campus não há marcador nem o mapa se move.
-- Voz: com "Voz do site" ligada a mensagem é falada E vai para a região aria-live (pedido do Rodrigo); pode haver fala dupla com leitor de tela ligado. Testar em aparelho.
+- Voz (decisão de 03/11): com "Voz do site" ligada a mensagem é só falada (região aria-live vazia; se a fala falhar, cai na região); desligada, só as regiões (assertive para alta).
 

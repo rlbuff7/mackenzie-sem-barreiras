@@ -165,3 +165,13 @@ test("SILÊNCIO: a fala vem de `textoParaDizer` (mensagem da API); o campo `dire
   assert.doesNotMatch(tela, /\.direcao\b/);
   assert.doesNotMatch(codigo.get("../orientacao/apresentacao.ts")!, /corpo\.direcao|\.direcao\b/);
 });
+
+test("voz ligada: fala e NÃO escreve nas regiões aria-live (só cai na região se a fala falhar); voz desligada: só as regiões", () => {
+  const tela = readFileSync(new URL("../inicio/orientacao-tela.ts", import.meta.url), "utf8");
+  const dizer = tela.slice(tela.indexOf("function dizer"), tela.indexOf("// ---------- ciclo de envio"));
+  assert.match(dizer, /if \(sintese && orientacao\.vozAtiva\(\)\) \{\s*regiaoUrgente\.textContent = "";\s*regiaoPolida\.textContent = "";/);
+  assert.match(dizer, /if \(falhou\) naRegiao\(\)/);
+  assert.match(dizer, /if \(!falou\) naRegiao\(\)/);
+  assert.match(dizer, /\} else \{\s*naRegiao\(\);/);
+  assert.equal((dizer.match(/anunciarUrgente\(|anunciarPolido\(/g) ?? []).length, 2, "só dentro de naRegiao");
+});

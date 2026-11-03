@@ -151,20 +151,32 @@ export function iniciarOrientacaoAoVivo(deps: DependenciasAoVivo): void {
     if (a?.mensagem) ultimaMensagem.textContent = a.mensagem.texto;
   }
 
-  /** Mensagem da API: região aria-live (assertive se urgente, polite nas outras), voz do site se ligada, vibração. */
+  /**
+   * Mensagem da API. Voz do site LIGADA: fala pela voz e NÃO escreve nas regiões aria-live (leitor de tela e voz
+   * não se atropelam); se a fala falhar ou o navegador a bloquear, cai para a região. Voz DESLIGADA: só as regiões
+   * (assertive se urgente, polite nas outras). A vibração vale nos dois casos.
+   */
   function dizer(a: Apresentacao): void {
     const texto = a.textoParaDizer;
     if (texto === "") return;
-    if (a.urgente) anunciarUrgente(texto);
-    else anunciarPolido(texto);
+    const naRegiao = (): void => {
+      if (a.urgente) anunciarUrgente(texto);
+      else anunciarPolido(texto);
+    };
     if (sintese && orientacao.vozAtiva()) {
-      const opcoes = { sintese, criarFala, preferencias: deps.preferencias() };
-      if (a.urgente || a.chegou) {
+      regiaoUrgente.textContent = "";
+      regiaoPolida.textContent = "";
+      const opcoes = { sintese, criarFala, preferencias: deps.preferencias(), aoTerminar: (falhou: boolean) => { if (falhou) naRegiao(); } };
+      let falou = false;
+      if (!a.urgente && !a.chegou && enfileirarFala(texto, opcoes)) falou = true;
+      else {
         // Urgente cancela a fala anterior (falar() cancela antes de falar).
         leitura = falar([texto], opcoes);
-      } else if (!enfileirarFala(texto, opcoes)) {
-        leitura = falar([texto], opcoes);
+        falou = leitura !== null;
       }
+      if (!falou) naRegiao();
+    } else {
+      naRegiao();
     }
     vibrar(a.vibrar);
   }
