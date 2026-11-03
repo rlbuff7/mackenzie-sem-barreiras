@@ -57,6 +57,7 @@ class Configuracoes(BaseSettings):
     penalidade_travessia: float = Field(default=2.0, gt=0)
     penalidade_trecho_nao_verificado: float = Field(default=1.5, gt=0)
     penalidade_perfil_visual: float = Field(default=2.0, gt=0)
+    penalidade_perfil_baixa_visao: float = Field(default=1.5, gt=0)
     limite_pontos_interesse_por_consulta: int = Field(default=500, ge=1)
 
     # --- API ---

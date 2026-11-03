@@ -111,7 +111,7 @@ def _montar_rota(
         avisos.append("O caminho atravessa uma rua.")
     if fontes - {"conferido_a_pe"}:
         avisos.append(AVISO_ROTA_PROVISORIA)
-    if entrada.perfil == "deficiencia_visual":
+    if entrada.perfil == "cegueira":
         avisos.append("Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto.")
 
     resposta: dict[str, Any] = {
