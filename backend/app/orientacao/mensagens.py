@@ -13,8 +13,10 @@ resultado é silêncio, nunca uma mensagem de menor prioridade por cima):
      direção para voltar (a confiança é sempre baixa nesses estados).
   3. curva iminente ("media"), sem confiança baixa.
   4. chegada ("media").
-  5. confirmação periódica "Siga em frente." ("baixa"): só com direção "frente" e
-     confiança não baixa, isto é, quando a bússola confirma que a pessoa está alinhada.
+  5. direção ("O caminho está à sua direita/esquerda/frente." / "atrás de você."), com
+     chave por setor (`direcao_<setor>`) e o intervalo normal de repetição: só com direção
+     conhecida e confiança não baixa. Desalinhada (direita/esquerda/atrás) é "media", entre a
+     curva e a chegada na ordem de decisão; alinhada (frente) é a confirmação "baixa".
 
 Nenhuma frase manda ir para a via, para escada não anunciada ou para fora do grafo: só
 avisa, manda parar ou descreve a própria rota. Textos curtos, metros sempre com unidade.
@@ -33,7 +35,12 @@ Prioridade = Literal["perigo", "alta", "media", "baixa"]
 
 TEXTO_FORA_DA_ROTA = "Você saiu da rota. Pare e aguarde."
 TEXTO_SEM_POSICAO = "Não sei onde você está agora. Fique parado por alguns segundos."
-TEXTO_CONFIRMACAO = "Siga em frente."
+TEXTO_DA_DIRECAO = {
+    "frente": "O caminho está à sua frente.",
+    "direita": "O caminho está à sua direita.",
+    "esquerda": "O caminho está à sua esquerda.",
+    "atras": "O caminho está atrás de você.",
+}
 
 _FRASE_DA_CURVA = {
     "direita": "vire à direita",
@@ -167,8 +174,12 @@ def _candidata(
     curva = _curva_iminente(instrucoes, progresso, parametros)
     if curva is not None:
         return curva
-    if direcao == "frente":
-        return Mensagem("siga_em_frente", TEXTO_CONFIRMACAO, "baixa")
+    if direcao is not None:
+        return Mensagem(
+            f"direcao_{direcao}",
+            TEXTO_DA_DIRECAO[direcao],
+            "baixa" if direcao == "frente" else "media",
+        )
     return None
 
 

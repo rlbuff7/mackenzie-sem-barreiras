@@ -504,10 +504,22 @@ def _verificar_orientacoes(
     total = float(rota["distancia_m"])
     base = {"origem_id": origem_id, "destino_id": destino_id}
 
-    def orientar(metros: float, precisao_m: float = 5.0, lat_extra: float = 0.0) -> httpx.Response:
+    def orientar(
+        metros: float,
+        precisao_m: float = 5.0,
+        lat_extra: float = 0.0,
+        trilha: list[dict[str, float]] | None = None,
+    ) -> httpx.Response:
         lat, lon = _ponto_a(coordenadas, metros)
         posicao = {"lat": lat + lat_extra, "lon": lon, "precisao_m": precisao_m}
-        return pedir(frontend, "POST", "/api/orientacoes", json={**base, "posicao": posicao})
+        corpo: dict[str, Any] = {**base, "posicao": posicao}
+        if trilha is not None:
+            corpo["trilha"] = trilha
+        return pedir(frontend, "POST", "/api/orientacoes", json=corpo)
+
+    def ponto_da_trilha(metros: float, ha_segundos: float) -> dict[str, float]:
+        lat, lon = _ponto_a(coordenadas, metros)
+        return {"lat": lat, "lon": lon, "precisao_m": 0.5, "ha_segundos": ha_segundos}
 
     resposta = orientar(min(3.0, total / 2))
     corpo = json_seguro(resposta)
@@ -519,6 +531,24 @@ def _verificar_orientacoes(
         and corpo.get("direcao") is None,
         f"HTTP {resposta.status_code}: {resposta.text[:200]}",
     )
+    v.checar(
+        "rota do E2E longa o bastante (>= 20 m) para a trilha de 9 m",
+        total >= 20.0,
+        f"distancia_m={total}",
+    )
+    if total >= 20.0:
+        meio = total / 2
+        for nome, atras, esperado in (
+            ("andando ao longo da rota", [meio - 9.5, meio - 9.2], "frente"),
+            ("andando na contramão", [meio + 9.5, meio + 9.2], "atras"),
+        ):
+            trilha = [ponto_da_trilha(atras[0], 14.0), ponto_da_trilha(atras[1], 10.0)]
+            corpo = json_seguro(orientar(meio, precisao_m=0.5, trilha=trilha))
+            v.checar(
+                f"POST /api/orientacoes com trilha {nome}: direção {esperado!r}",
+                corpo.get("direcao") == esperado,
+                f"direcao={corpo.get('direcao')!r}",
+            )
     resposta = orientar(total / 2, lat_extra=0.0008)  # ~88 m ao norte
     corpo = json_seguro(resposta)
     v.checar(

@@ -71,10 +71,16 @@ class Configuracoes(BaseSettings):
     # Rumo e mensagens (M4, PROVISÓRIOS). O alvo da direção é o ponto da rota este tanto de
     # metros à frente da posição projetada.
     alvo_a_frente_metros: float = Field(default=8.0, gt=0)
-    # Velocidade abaixo disto (ou ausente) = parado: nenhuma direção é dada.
+    # Velocidade média do deslocamento (da trilha) abaixo disto = parado: nenhuma direção.
     velocidade_parado_ms: float = Field(default=0.3, ge=0)
-    # Oscilação da bússola acima disto (graus) = bússola instável: nenhuma direção.
+    # Oscilação da bússola acima disto (graus) = instável: parado sem direção.
     rumo_oscilacao_maxima_graus: float = Field(default=30.0, gt=0)
+    # Rumo híbrido: andando pelo movimento, parado pela bússola (decisão de 03/11/2026, a
+    # validar com a orientadora; PROVISÓRIOS):
+    # deslocamento mínimo, em metros, entre um ponto da trilha e a posição atual; abaixo
+    # disto não há rumo. E janela da trilha: pontos mais antigos que isto (s) são ignorados.
+    deslocamento_minimo_rumo_metros: float = Field(default=8.0, gt=0)
+    janela_trilha_segundos: float = Field(default=15.0, gt=0)
     # Setores do alvo em relação ao rumo: frente = até este ângulo para cada lado; atrás =
     # acima do segundo; direita/esquerda = entre os dois.
     setor_frente_graus: float = Field(default=30.0, gt=0, lt=180)

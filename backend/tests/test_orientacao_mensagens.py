@@ -142,13 +142,40 @@ def test_chegada_usa_a_frase_da_ultima_instrucao() -> None:
     assert m.chave == "chegada"
 
 
-def test_confirmacao_periodica_so_com_direcao_frente_e_confianca() -> None:
+@pytest.mark.parametrize(
+    ("direcao", "texto", "prioridade"),
+    [
+        ("frente", "O caminho está à sua frente.", "baixa"),
+        ("direita", "O caminho está à sua direita.", "media"),
+        ("esquerda", "O caminho está à sua esquerda.", "media"),
+        ("atras", "O caminho está atrás de você.", "media"),
+    ],
+)
+def test_frase_de_cada_direcao_com_chave_por_setor(direcao, texto, prioridade) -> None:
+    m = _decidir(_aval(percorrida=10.0), direcao=direcao, obstaculos=[])
+    assert m is not None
+    assert (m.texto, m.prioridade, m.chave) == (texto, prioridade, f"direcao_{direcao}")
+
+
+def test_direcao_so_com_direcao_conhecida_e_confianca() -> None:
     aval = _aval(percorrida=10.0)
-    m = _decidir(aval, direcao="frente", obstaculos=[])
-    assert m is not None and m.texto == "Siga em frente." and m.prioridade == "baixa"
     assert _decidir(aval, direcao=None, obstaculos=[]) is None
-    assert _decidir(aval, direcao="direita", obstaculos=[]) is None
     assert _decidir(_aval(confianca="baixa", percorrida=10.0), "frente", obstaculos=[]) is None
+    assert _decidir(_aval(confianca="baixa", percorrida=10.0), "atras", obstaculos=[]) is None
+
+
+def test_direcao_fica_abaixo_da_curva_iminente_e_do_perigo() -> None:
+    assert _decidir(_aval(percorrida=31.0), direcao="direita").chave == "curva_0"
+    assert _decidir(_aval(percorrida=60.0), direcao="direita").prioridade == "perigo"
+
+
+def test_anti_repeticao_da_direcao_e_por_setor() -> None:
+    aval = _aval(percorrida=10.0)
+    r = [Recente("direcao_direita", 5.0)]
+    assert _decidir(aval, direcao="direita", recentes=r, obstaculos=[]) is None
+    assert _decidir(aval, direcao="esquerda", recentes=r, obstaculos=[]) is not None
+    r = [Recente("direcao_direita", 20.0)]
+    assert _decidir(aval, direcao="direita", recentes=r, obstaculos=[]) is not None
 
 
 def test_precisao_insuficiente_so_a_mensagem_de_silencio() -> None:
@@ -167,11 +194,11 @@ def test_anti_repeticao_mesma_chave_dentro_do_intervalo_fica_em_silencio() -> No
 
 
 def test_anti_repeticao_outra_chave_nao_bloqueia() -> None:
-    assert _decidir(_aval(percorrida=31.0), recentes=[Recente("siga_em_frente", 1.0)]) is not None
+    assert _decidir(_aval(percorrida=31.0), recentes=[Recente("direcao_frente", 1.0)]) is not None
 
 
 def test_anti_repeticao_nao_cai_para_mensagem_de_menor_prioridade() -> None:
-    # O perigo foi dito há 2 s: silêncio, e não "Siga em frente." por cima.
+    # O perigo foi dito há 2 s: silêncio, e não a frase de direção por cima.
     aval = _aval(percorrida=60.0)
     primeira = _decidir(aval, direcao="frente")
     assert primeira is not None
