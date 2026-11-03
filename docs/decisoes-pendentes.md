@@ -28,6 +28,16 @@ anotada aqui.
   retorno acima de 135°, zigue-zague < 8 m ignorado, 1,0 m/s. **A validar com a orientadora**
   (risco: direção errada sem conferência a pé).
 
+- **Decidido 27/10/2026 (orientadora, reunião):** seguir WCAG no mínimo AA (contraste 4,5:1
+  para texto comum); pesquisar ferramentas de contraste; perfis cegueira, baixa visão,
+  cadeirante e sem restrição, mantendo o padrão visual; compatibilidade com TalkBack e
+  VoiceOver (anunciar mudança de tela e onde o usuário está); documentar tudo em
+  `docs/acessibilidade.md`. Regras de rota de cegueira e baixa visão seguem **provisórias**;
+  se as duas têm regras distintas fica **a validar com a orientadora**.
+- **Decidido 27/10/2026 (Rodrigo):** a leitura das instruções é pelo leitor de tela da pessoa
+  (a voz do app é opcional e escolhível); simulação de caminhada para demonstração; rótulo
+  "Cadeirante (evita escadas)" com escada excluída da rota.
+
 ## Com a orientadora / Prof. Jamilson (escopo novo)
 
 | # | Decisão | Valor provisório | Status |
