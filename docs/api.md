@@ -349,10 +349,10 @@ curl -X POST http://localhost:8000/rotas -H 'content-type: application/json' \
 
 O que falar agora a quem está navegando por uma rota. Sem token (como `/rotas`), corpo
 limitado a `LIMITE_CORPO_BYTES` (413). **Sem sessão:** o cliente reenvia a cada chamada
-origem, destino, perfil, a posição e as mensagens recentes; o servidor recalcula a rota com a
+origem, destino, perfil, a posição, a trilha e as mensagens recentes; o servidor recalcula a rota com a
 mesma lógica de `POST /rotas` (perfis, `404 sem_rota`, 404 de ponto, 422, 503 iguais) e avalia.
 
-**Privacidade (RNF04):** a posição de quem navega **nunca é gravada**: não vai a tabela,
+**Privacidade (RNF04):** a posição de quem navega e a trilha **nunca são gravadas**: não vai a tabela,
 arquivo nem log. O app não tem nenhum `logging`/`print` (o corpo só vive em memória durante
 a chamada), o log de acesso do uvicorn registra só método, caminho e status, e o `log_format`
 do nginx (`frontend/nginx.conf`) registra `$uri` sem query nem corpo. Quem ligar log de corpo
@@ -366,14 +366,23 @@ Entrada (campos desconhecidos são 422; `origem_id`, `destino_id` e `perfil` val
 {
   "origem_id": 4, "destino_id": 6, "perfil": "cegueira",
   "posicao": {"lat": -23.5470, "lon": -46.6517, "precisao_m": 8.0,
-              "rumo_graus": 312.0, "rumo_oscilacao_graus": 6.0, "velocidade_ms": 1.1},
+              "rumo_bussola_graus": 312.0, "rumo_bussola_oscilacao_graus": 6.0},,
+  "trilha": [{"lat": -23.5474, "lon": -46.6519, "precisao_m": 6.0, "ha_segundos": 12.0},
+             {"lat": -23.5472, "lon": -46.6518, "precisao_m": 6.0, "ha_segundos": 6.0}],
   "recentes": [{"chave": "curva_0", "ha_segundos": 12.5}]
 }
 ```
 
 - `posicao.lat` -90..90, `lon` -180..180, `precisao_m` >= 0 (do aparelho, em metros).
-  `rumo_graus` 0..360 (bússola), `rumo_oscilacao_graus`, `velocidade_ms` >= 0: opcionais; se o
-  aparelho não informa, **omita** o campo (valor negativo é 422).
+  `rumo_bussola_graus` 0..360 e `rumo_bussola_oscilacao_graus` (opcionais): para onde o celular
+  está apontado; **só valem com a pessoa parada** (andando são ignorados); se o aparelho não
+  informa, **omita**. `rumo_graus`, `rumo_oscilacao_graus` e `velocidade_ms` foram
+  **removidos** (campo desconhecido é 422).
+- `trilha` (opcional, até 10): posições anteriores `{lat, lon, precisao_m, ha_segundos}`
+  (`ha_segundos` > 0, quanto tempo antes da posição atual). **Não é gravada** e só serve para
+  calcular o rumo pelo movimento. Pontos mais antigos que `JANELA_TRILHA_SEGUNDOS` são
+  ignorados. Sem trilha (ou sem deslocamento suficiente) `direcao` é `null`, mas `estado`,
+  progresso e `mensagem` continuam.
 - `recentes`: no máximo 20 `{chave, ha_segundos}` das mensagens que o cliente já falou
   (as `chave` devolvidas antes). O servidor não repete a mesma `chave` antes do intervalo.
 
@@ -386,7 +395,8 @@ Resposta 200:
   "mensagem": {"chave": "curva_0", "texto": "Em 10 metros, vire à direita.", "prioridade": "media"},
   "distancia_restante_m": 112.4,
   "progresso_m": 70.1,
-  "direcao": "frente"
+  "direcao": "frente",
+  "fonte_rumo": "movimento"
 }
 ```
 
@@ -395,10 +405,16 @@ Resposta 200:
 - `progresso_m` e `distancia_restante_m`: ao longo da rota (1 casa); `null` com
   `precisao_insuficiente` ou `fora_da_rota` (sem progresso confiável, silêncio).
 - `direcao`: `frente`, `direita`, `esquerda` ou `atras`: onde o ponto da rota
-  `ALVO_A_FRENTE_METROS` à frente fica em relação ao rumo da bússola. **`null`** (silêncio)
-  se parado (`velocidade_ms` < `VELOCIDADE_PARADO_MS` ou ausente), sem bússola, bússola
-  instável (oscilação > `RUMO_OSCILACAO_MAXIMA_GRAUS`), fora da rota, precisão insuficiente ou
-  confiança baixa. Nunca há direção "para voltar" à rota.
+  `ALVO_A_FRENTE_METROS` à frente fica em relação ao rumo do usuário. **Fonte híbrida**
+  (decisão de 03/11/2026, a validar com a orientadora), devolvida em `fonte_rumo`:
+  `"movimento"` (andando: azimute do ponto mais antigo da trilha, dentro de
+  `JANELA_TRILHA_SEGUNDOS` e a pelo menos `DESLOCAMENTO_MINIMO_RUMO_METROS` da posição atual,
+  até a posição atual; a bússola é ignorada), `"bussola"` (parado, isto é, trilha dentro da
+  janela sem deslocamento suficiente: vale a bússola do celular) ou `null`.
+  **`null`** (silêncio, `direcao` e `fonte_rumo`) se: trilha vazia ou toda fora da janela
+  (não se sabe se anda); andando com deslocamento menor que a soma das precisões dos dois
+  pontos; parado com bússola ausente ou instável (oscilação > `RUMO_OSCILACAO_MAXIMA_GRAUS`);
+  fora da rota, precisão insuficiente ou confiança baixa. Nunca há direção "para voltar".
 - `mensagem`: **uma** ou `null`. `prioridade` `perigo` > `alta` > `media` > `baixa`:
   1. `perigo` (`perigo_escada_N`, `perigo_travessia_N`): escada ou travessia a menos de
      `DISTANCIA_PERIGO_METROS` à frente, só com `na_rota`. "Atenção: escada em 10 metros."
@@ -406,7 +422,10 @@ Resposta 200:
      ("Não sei onde você está agora. Fique parado por alguns segundos.").
   3. `media`: `curva_N` ("Em 10 metros, vire à direita.", até `DISTANCIA_CURVA_IMINENTE_METROS`)
      e `chegada` (a última instrução da rota, "Você chegou à entrada do Prédio 29.").
-  4. `baixa`: `siga_em_frente` ("Siga em frente."), só com `direcao = "frente"` e confiança
+  4. direção, chave por setor (`direcao_frente`, `direcao_direita`, `direcao_esquerda`,
+     `direcao_atras`): "O caminho está à sua frente." (`baixa`, a confirmação de quem está
+     alinhado), "O caminho está à sua direita.", "O caminho está à sua esquerda." e "O caminho
+     está atrás de você." (`media`, desalinhado). Só com direção conhecida e confiança
      não baixa.
 - Anti-repetição: a mensagem escolhida é suprimida (`mensagem: null`) se a mesma `chave` está em
   `recentes` há menos de `INTERVALO_REPETICAO_SEGUNDOS`; `perigo`, há menos de
@@ -416,6 +435,7 @@ Erros: 404 `sem_rota` / ponto inexistente e 422 de rota (iguais a `/rotas`); 422
 `"Pedido de orientação inválido."` com `erros: [{campo, erro}]`; 413 corpo grande.
 
 Parâmetros novos (todos PROVISÓRIOS, `.env.example`): `ALVO_A_FRENTE_METROS`,
-`VELOCIDADE_PARADO_MS`, `RUMO_OSCILACAO_MAXIMA_GRAUS`, `SETOR_FRENTE_GRAUS`,
+`VELOCIDADE_PARADO_MS`, `RUMO_OSCILACAO_MAXIMA_GRAUS=30` (bússola, só parado), `DESLOCAMENTO_MINIMO_RUMO_METROS=8`, `JANELA_TRILHA_SEGUNDOS=15`,
+`SETOR_FRENTE_GRAUS`,
 `SETOR_ATRAS_GRAUS`, `INTERVALO_REPETICAO_SEGUNDOS`, `INTERVALO_REPETICAO_PERIGO_SEGUNDOS`,
 `DISTANCIA_PERIGO_METROS`, `DISTANCIA_CURVA_IMINENTE_METROS` (mais os três de `posicao`).
