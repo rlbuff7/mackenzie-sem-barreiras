@@ -60,6 +60,15 @@ class Configuracoes(BaseSettings):
     penalidade_perfil_baixa_visao: float = Field(default=1.5, gt=0)
     limite_pontos_interesse_por_consulta: int = Field(default=500, ge=1)
 
+    # --- Orientação ao vivo (M4) — PROVISÓRIOS, a calibrar com a medição de GPS e com a
+    # orientadora (pendência #1). Distâncias em metros. Ver docs/planos/m4-orientacao-ao-vivo.md.
+    # Precisão do celular pior que isto: nenhuma orientação (silêncio, RNF05).
+    precisao_minima_metros: float = Field(default=15.0, gt=0)
+    # Desvio da rota acima disto (mais a precisão informada) vira `fora_da_rota`.
+    distancia_fora_da_rota_metros: float = Field(default=15.0, gt=0)
+    # Distância restante ao longo da rota abaixo disto vira `chegou`.
+    raio_chegada_metros: float = Field(default=10.0, gt=0)
+
     # --- API ---
     # NoDecode: sem isso, pydantic-settings tentaria decodificar CORS_ORIGENS
     # como JSON antes do validador abaixo rodar, e uma string separada por

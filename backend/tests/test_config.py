@@ -43,3 +43,23 @@ def test_codigo_da_equipe_da_medicao_e_lido_do_ambiente(monkeypatch: pytest.Monk
     monkeypatch.setenv("MEDICAO_CODIGO_EQUIPE", "codigo-de-teste")
 
     assert Configuracoes().medicao_codigo_equipe == "codigo-de-teste"
+
+
+def test_parametros_da_orientacao_tem_padrao_provisorio() -> None:
+    configuracoes = Configuracoes()
+
+    assert configuracoes.precisao_minima_metros == 15.0
+    assert configuracoes.distancia_fora_da_rota_metros > 0
+    assert configuracoes.raio_chegada_metros > 0
+
+
+@pytest.mark.parametrize(
+    "variavel", ["PRECISAO_MINIMA_METROS", "DISTANCIA_FORA_DA_ROTA_METROS", "RAIO_CHEGADA_METROS"]
+)
+def test_parametro_da_orientacao_fora_da_faixa_e_recusado(
+    monkeypatch: pytest.MonkeyPatch, variavel: str
+) -> None:
+    monkeypatch.setenv(variavel, "0")
+
+    with pytest.raises(ValidationError):
+        Configuracoes()
