@@ -40,13 +40,14 @@
           id="mapa-campus"
           class="inicio__mapa"
           role="region"
-          aria-label="Mapa do campus Mackenzie Higienópolis, referência visual. Tudo o que importa está no texto da página."
+          aria-label="Mapa do campus Mackenzie Higienópolis, referência visual. Cada entrada do mapa também está na lista Para."
           aria-describedby="descricao-mapa"
         ></div>
         <p id="descricao-mapa" class="oculto-visualmente">
           Campus Mackenzie Higienópolis, em São Paulo, na região central da cidade (latitude
           -23,5475, longitude -46,6522). O mapa é só uma referência visual; tudo o que a página
-          informa está no texto.
+          informa está no texto. As entradas marcadas no mapa podem ser tocadas para escolher o
+          destino; a mesma escolha existe na busca e na lista Para.
         </p>
         <p id="mapa-indisponivel" class="inicio__mapa-aviso" role="status" hidden>
           O mapa não pôde ser carregado agora. O restante da página continua valendo.
@@ -108,6 +109,11 @@
           <h2 id="titulo-escolha" class="rota__titulo">Escolher destino</h2>
           <form id="form-rota" class="rota__form" novalidate>
             <div class="rota__campo">
+              <label for="rota-busca">Buscar lugar</label>
+              <input id="rota-busca" type="search" autocomplete="off" enterkeyhint="search" aria-describedby="ajuda-busca" />
+              <p id="ajuda-busca" class="rota__nota">Digite parte do nome, por exemplo "predio 29". As listas De e Para mostram só o que combina. Também dá para tocar numa entrada no mapa.</p>
+            </div>
+            <div class="rota__campo">
               <label for="rota-de">De</label>
               <select id="rota-de" disabled>
                 <option value="">Carregando os pontos do campus…</option>
@@ -118,6 +124,10 @@
               <select id="rota-para" disabled>
                 <option value="">Carregando os pontos do campus…</option>
               </select>
+            </div>
+            <div class="rota__escolha">
+              <p id="destino-escolhido" class="rota__mensagem rota__mensagem--ok" hidden></p>
+              <button type="button" id="usar-como-origem" class="rota__botao rota__botao--voz" hidden>Usar como origem</button>
             </div>
             <fieldset class="rota__perfil">
               <legend>Perfil</legend>

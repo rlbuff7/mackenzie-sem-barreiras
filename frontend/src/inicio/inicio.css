@@ -147,6 +147,17 @@ body.inicio {
 .rota__campo label,
 .rota__perfil legend { font-weight: 700; font-size: 0.95rem; padding: 0; }
 
+.rota__campo input[type="search"] {
+  font: inherit;
+  font-size: 1rem;
+  min-height: 56px;
+  padding: 0 var(--espaco-4);
+  border: var(--linha-controle) solid var(--borda-controle);
+  border-radius: var(--raio-controle);
+  background: var(--superficie);
+  color: var(--texto);
+}
+
 .rota__campo select {
   font: inherit;
   font-size: 1rem;
@@ -214,6 +225,13 @@ body.inicio {
   border-radius: var(--raio-controle);
   font-weight: 600;
 }
+
+/* Confirmação do destino escolhido (✓ em texto; borda e fundo do realce, texto normal). */
+.rota__mensagem--ok { border-color: var(--primaria); background: var(--realce); color: var(--texto); }
+.rota__mensagem--ok::before { content: "✓ "; font-weight: 800; }
+.rota__escolha { display: flex; flex-direction: column; gap: var(--espaco-3, var(--espaco-2)); }
+.rota__escolha:not(:has(:not([hidden]))) { display: none; }
+.rota__botao[hidden] { display: none; }
 
 .rota__mensagem[hidden],
 .rota__resultado[hidden],

@@ -53,6 +53,26 @@
   box-shadow: 0 0 0 1px var(--mapa-acessivel);
 }
 
+/* Entrada escolhível: alvo de toque de 44 x 44 px com o pino ao centro; escolhida = anel azul-escuro de 3 px. */
+.mapa-alvo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--raio-circulo);
+  cursor: pointer;
+}
+.mapa-alvo--escolhido {
+  background: var(--mapa-contorno);
+  border: 3px solid var(--mapa-posicao);
+}
+.leaflet-marker-icon:focus-visible .mapa-alvo {
+  outline: var(--linha-foco) solid var(--mapa-posicao);
+  outline-offset: 2px;
+}
+
 /* Referência do ponto de controle: LOSANGO cheio (quadrado girado 45 graus) em mapa-atencao. */
 .mapa-losango {
   display: block;

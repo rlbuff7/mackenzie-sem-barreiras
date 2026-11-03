@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { htmlMarcadorPosicao, htmlMarcadorReferencia, htmlPinoEntradaAcessivel } from "./marcadores.ts";
+import { TAMANHO_ALVO_MARCADOR_PX, htmlAlvoEntrada, htmlMarcadorPosicao, htmlMarcadorReferencia, htmlPinoEntradaAcessivel } from "./marcadores.ts";
 
 test("sem rumo, o marcador é só a bola (sem seta)", () => {
   const html = htmlMarcadorPosicao(null);
@@ -29,4 +29,11 @@ test("a referência do ponto é um losango, outra forma que a bola e o pino", ()
   assert.ok(html.includes("mapa-losango"));
   assert.ok(!html.includes("mapa-bola") && !html.includes("mapa-pino"));
   assert.ok(html.includes('aria-hidden="true"'));
+});
+
+test("o alvo da entrada escolhível tem 44 px e o pino dentro; escolhida ganha a classe do anel", () => {
+  assert.ok(TAMANHO_ALVO_MARCADOR_PX >= 44);
+  assert.ok(htmlAlvoEntrada(false).includes("mapa-pino"));
+  assert.ok(!htmlAlvoEntrada(false).includes("mapa-alvo--escolhido"));
+  assert.ok(htmlAlvoEntrada(true).includes("mapa-alvo--escolhido"));
 });

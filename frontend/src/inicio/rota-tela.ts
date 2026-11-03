@@ -16,9 +16,12 @@ import { TELA_ESCOLHER, TELA_SEM_ROTA, telaDaRota } from "./telas.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
 import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, enfileirarFala, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
 import { fatorValido, metrosPorPasso, planejarFalas, proximoEvento, pontoNaDistancia, comprimentoTotal_m, VIBRACAO_CHEGADA } from "../rotas/simulacao.ts";
+import { ESPERA_ANUNCIO_BUSCA_MS, confirmacaoDeOrigem, criarDebounce, escolherDestino, filtrarPontos, rotuloDoMarcador, textoContagem } from "../rotas/destino.ts";
 import {
+  TAMANHO_ALVO_MARCADOR_PX,
   TAMANHO_ICONE_LOSANGO_PX,
   TAMANHO_ICONE_PINO_PX,
+  htmlAlvoEntrada,
   htmlMarcadorReferencia,
   htmlPinoEntradaAcessivel,
 } from "../mapa/marcadores.ts";
@@ -38,6 +41,10 @@ function sinteseDoNavegador(): SinteseDeVoz | null {
 export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
   const selDe = el<HTMLSelectElement>("rota-de");
   const selPara = el<HTMLSelectElement>("rota-para");
+  const campoBusca = el<HTMLInputElement>("rota-busca");
+  const regiaoViva = el("anuncio-rota");
+  const textoDestino = el("destino-escolhido");
+  const botaoUsarOrigem = el<HTMLButtonElement>("usar-como-origem");
   const form = el<HTMLFormElement>("form-rota");
   const botao = el<HTMLButtonElement>("botao-tracar");
   const erroPontos = el("erro-pontos");
@@ -108,6 +115,7 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
   });
 
   const camadaRota = mapa ? L.layerGroup().addTo(mapa) : null;
+  const camadaEntradas = mapa ? L.layerGroup().addTo(mapa) : null;
   let rotaAtual: RotaResposta | null = null;
   let ocupado = false;
 
@@ -241,22 +249,67 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
   botaoSimular.addEventListener("click", iniciarSimulacao);
   botaoPararSimulacao.addEventListener("click", pararSimulacao);
 
-  // ---------- listas De e Para ----------
+  // ---------- listas De e Para (com busca) ----------
 
-  function preencher(sel: HTMLSelectElement, pontos: PontoInteresse[], marcarAcessivel: boolean): void {
+  let todasPartidas: PontoInteresse[] = [];
+  let todosDestinos: PontoInteresse[] = [];
+
+  /** Anuncia na região aria-live que já existe (limpa antes, para repetir a mesma frase também ser lida). */
+  function anunciar(texto: string): void {
+    regiaoViva.textContent = "";
+    window.setTimeout(() => {
+      regiaoViva.textContent = texto;
+    }, 60);
+  }
+
+  /** Lista filtrada pela busca; o que está escolhido continua na lista mesmo sem combinar (não some do campo). */
+  function preencher(sel: HTMLSelectElement, pontos: PontoInteresse[], marcarAcessivel: boolean, mantido: string): void {
+    const visiveis = filtrarPontos(pontos, campoBusca.value);
+    const ids = new Set(visiveis.map((p) => String(p.id)));
+    const lista = mantido !== "" && !ids.has(mantido) ? [...visiveis, ...pontos.filter((p) => String(p.id) === mantido)] : visiveis;
     sel.replaceChildren();
     const inicial = document.createElement("option");
     inicial.value = "";
-    inicial.textContent = pontos.length > 0 ? "Escolha um ponto" : "Nenhum ponto disponível";
+    inicial.textContent = pontos.length === 0 ? "Nenhum ponto disponível" : visiveis.length === 0 ? "Nenhum lugar encontrado" : "Escolha um ponto";
     sel.append(inicial);
-    for (const p of pontos) {
+    for (const p of lista) {
       const o = document.createElement("option");
       o.value = String(p.id);
       o.textContent = marcarAcessivel && p.acessivel === true ? `${p.nome} (entrada acessível)` : p.nome;
       sel.append(o);
     }
+    sel.value = mantido;
     sel.disabled = pontos.length === 0;
   }
+
+  function preencherListas(): void {
+    preencher(selDe, todasPartidas, false, selDe.value);
+    preencher(selPara, todosDestinos, true, selPara.value);
+  }
+
+  /** Quantos lugares a busca achou (o maior das duas listas: a pessoa vê as duas). */
+  function totalEncontrado(): number {
+    return Math.max(filtrarPontos(todasPartidas, campoBusca.value).length, filtrarPontos(todosDestinos, campoBusca.value).length);
+  }
+
+  const anunciarContagem = criarDebounce(
+    () => {
+      if (campoBusca.value.trim() !== "") anunciar(textoContagem(totalEncontrado()));
+    },
+    ESPERA_ANUNCIO_BUSCA_MS,
+    { agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => window.clearTimeout(id as number) },
+  );
+  campoBusca.addEventListener("input", () => {
+    preencherListas();
+    anunciarContagem.chamar();
+  });
+  // Enter na busca não envia o formulário (a pessoa ainda está escolhendo): só confirma a contagem.
+  campoBusca.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    anunciarContagem.cancelar();
+    anunciar(textoContagem(totalEncontrado()));
+  });
 
   void buscarPontos().then((r) => {
     if (r.tipo === "erro") {
@@ -267,8 +320,10 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
       mostrar(erroPontos, r.mensagem);
       return;
     }
-    preencher(selDe, pontosDePartida(r.pontos), false);
-    preencher(selPara, pontosDeDestino(r.pontos), true);
+    todasPartidas = pontosDePartida(r.pontos);
+    todosDestinos = pontosDeDestino(r.pontos);
+    preencherListas();
+    desenharEntradasNoMapa();
     if (r.pontos.length === 0) mostrar(erroPontos, "Ainda não há pontos do campus cadastrados.");
   });
 
@@ -281,6 +336,87 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
     campo.addEventListener("change", () => {
       if (rotaAtual || !erroRota.hidden || !erroEscolha.hidden) limparResultado();
     });
+  }
+
+  // ---------- destino pelo toque no mapa (RF03): o mesmo efeito da lista Para ----------
+
+  const marcadoresDeEntrada = new Map<number, L.Marker>();
+  let destinoConfirmadoId: number | null = null;
+
+  /** Anel no marcador do destino escolhido e aria-pressed; a confirmação some se o Para mudou por outro caminho. */
+  function sincronizarDestino(): void {
+    const atual = idEscolhido(selPara);
+    for (const [id, m] of marcadoresDeEntrada) {
+      const e = m.getElement();
+      if (!e) continue;
+      e.querySelector(".mapa-alvo")?.classList.toggle("mapa-alvo--escolhido", id === atual);
+      e.setAttribute("aria-pressed", id === atual ? "true" : "false");
+    }
+    if (destinoConfirmadoId !== null && destinoConfirmadoId !== atual) {
+      destinoConfirmadoId = null;
+      esconder(textoDestino);
+    }
+    if (idEscolhido(selDe) !== null) botaoUsarOrigem.hidden = true;
+  }
+  selPara.addEventListener("change", sincronizarDestino);
+  selDe.addEventListener("change", sincronizarDestino);
+
+  function escolherPeloMapa(id: number): void {
+    const escolha = escolherDestino(todosDestinos, id, idEscolhido(selDe));
+    if (!escolha) return;
+    preencher(selPara, todosDestinos, true, String(id));
+    selPara.dispatchEvent(new Event("change", { bubbles: true }));
+    destinoConfirmadoId = id;
+    mostrar(textoDestino, escolha.confirmacao);
+    botaoUsarOrigem.hidden = !escolha.oferecerOrigem;
+    sincronizarDestino();
+    anunciar(escolha.oferecerOrigem ? `${escolha.confirmacao}. Há um botão para usar este ponto como origem.` : escolha.confirmacao);
+  }
+
+  botaoUsarOrigem.addEventListener("click", () => {
+    const id = destinoConfirmadoId;
+    const ponto = todasPartidas.find((p) => p.id === id);
+    if (!ponto) return;
+    // A origem passa a ser este ponto e o destino volta a ficar em aberto (partida e destino iguais não traçam rota).
+    preencher(selDe, todasPartidas, false, String(ponto.id));
+    preencher(selPara, todosDestinos, true, "");
+    selDe.dispatchEvent(new Event("change", { bubbles: true }));
+    selPara.dispatchEvent(new Event("change", { bubbles: true }));
+    esconder(textoDestino);
+    botaoUsarOrigem.hidden = true;
+    selPara.focus();
+    anunciar(`${confirmacaoDeOrigem(ponto.nome)}. Agora escolha o destino.`);
+  });
+
+  function desenharEntradasNoMapa(): void {
+    if (!mapa) return;
+    try {
+      for (const ponto of todosDestinos) {
+        const m = L.marker(pontoParaLatLng(ponto), {
+          // Sem Tab: o mapa vem antes do formulário e dezenas de paradas travariam quem usa teclado; a lista Para faz o mesmo.
+          keyboard: false,
+          icon: L.divIcon({ className: "", html: htmlAlvoEntrada(false), iconSize: [TAMANHO_ALVO_MARCADOR_PX, TAMANHO_ALVO_MARCADOR_PX], iconAnchor: [TAMANHO_ALVO_MARCADOR_PX / 2, TAMANHO_ALVO_MARCADOR_PX / 2] }),
+        });
+        m.on("add", () => {
+          const e = m.getElement();
+          if (!e) return;
+          e.setAttribute("role", "button");
+          e.setAttribute("aria-label", rotuloDoMarcador(ponto.nome));
+          e.setAttribute("aria-pressed", "false");
+          e.setAttribute("tabindex", "-1");
+          e.addEventListener("keydown", (ev) => {
+            if (ev.key !== "Enter" && ev.key !== " ") return;
+            ev.preventDefault();
+            escolherPeloMapa(ponto.id);
+          });
+        });
+        m.on("click", () => escolherPeloMapa(ponto.id));
+        m.addTo(camadaEntradas ?? mapa);
+        marcadoresDeEntrada.set(ponto.id, m);
+      }
+    } catch {
+      // O mapa é só referência: a busca e a lista Para fazem o mesmo.
+    }
   }
 
   // ---------- mapa ----------
