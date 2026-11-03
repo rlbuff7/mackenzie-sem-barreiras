@@ -68,6 +68,24 @@ class Configuracoes(BaseSettings):
     distancia_fora_da_rota_metros: float = Field(default=15.0, gt=0)
     # Distância restante ao longo da rota abaixo disto vira `chegou`.
     raio_chegada_metros: float = Field(default=10.0, gt=0)
+    # Rumo e mensagens (M4, PROVISÓRIOS). O alvo da direção é o ponto da rota este tanto de
+    # metros à frente da posição projetada.
+    alvo_a_frente_metros: float = Field(default=8.0, gt=0)
+    # Velocidade abaixo disto (ou ausente) = parado: nenhuma direção é dada.
+    velocidade_parado_ms: float = Field(default=0.3, ge=0)
+    # Oscilação da bússola acima disto (graus) = bússola instável: nenhuma direção.
+    rumo_oscilacao_maxima_graus: float = Field(default=30.0, gt=0)
+    # Setores do alvo em relação ao rumo: frente = até este ângulo para cada lado; atrás =
+    # acima do segundo; direita/esquerda = entre os dois.
+    setor_frente_graus: float = Field(default=30.0, gt=0, lt=180)
+    setor_atras_graus: float = Field(default=150.0, gt=0, lt=180)
+    # Mesma mensagem não se repete antes disto (segundos); perigo repete em intervalo menor.
+    intervalo_repeticao_segundos: float = Field(default=20.0, gt=0)
+    intervalo_repeticao_perigo_segundos: float = Field(default=8.0, gt=0)
+    # Escada ou travessia a menos disto (metros) à frente gera aviso de perigo.
+    distancia_perigo_metros: float = Field(default=15.0, gt=0)
+    # Curva a menos disto (metros) à frente gera "Em N metros, vire...".
+    distancia_curva_iminente_metros: float = Field(default=10.0, gt=0)
 
     # --- API ---
     # NoDecode: sem isso, pydantic-settings tentaria decodificar CORS_ORIGENS

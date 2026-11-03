@@ -478,6 +478,101 @@ def _verificar_rotas(v: Verificador, frontend: httpx.Client) -> None:
         f"HTTP {resposta.status_code}",
     )
 
+    _verificar_orientacoes(v, frontend, origem["id"], destino["id"], rota)
+
+
+def _ponto_a(coordenadas: list[list[float]], metros: float) -> tuple[float, float]:
+    """(lat, lon) a `metros` do início da linha `[lon, lat]` (plano local; só para o teste)."""
+    m_lat = 110_600.0
+    m_lon = 111_320.0 * math.cos(math.radians(coordenadas[0][1]))
+    restante = metros
+    for (lon_a, lat_a), (lon_b, lat_b) in zip(coordenadas, coordenadas[1:], strict=False):
+        comprimento = math.hypot((lon_b - lon_a) * m_lon, (lat_b - lat_a) * m_lat)
+        if comprimento > 0 and restante <= comprimento:
+            t = restante / comprimento
+            return lat_a + t * (lat_b - lat_a), lon_a + t * (lon_b - lon_a)
+        restante -= comprimento
+    return coordenadas[-1][1], coordenadas[-1][0]
+
+
+def _verificar_orientacoes(
+    v: Verificador, frontend: httpx.Client, origem_id: int, destino_id: int, rota: dict[str, Any]
+) -> None:
+    """`POST /api/orientacoes` pelo proxy, com posições SINTÉTICAS sobre a rota devolvida
+    por `/rotas` (nada aqui é medição real). A posição nunca é gravada."""
+    coordenadas = rota["geometria"]["coordinates"]
+    total = float(rota["distancia_m"])
+    base = {"origem_id": origem_id, "destino_id": destino_id}
+
+    def orientar(metros: float, precisao_m: float = 5.0, lat_extra: float = 0.0) -> httpx.Response:
+        lat, lon = _ponto_a(coordenadas, metros)
+        posicao = {"lat": lat + lat_extra, "lon": lon, "precisao_m": precisao_m}
+        return pedir(frontend, "POST", "/api/orientacoes", json={**base, "posicao": posicao})
+
+    resposta = orientar(min(3.0, total / 2))
+    corpo = json_seguro(resposta)
+    v.checar(
+        "POST /api/orientacoes sobre a rota, perto do início: na_rota com progresso e restante",
+        resposta.status_code == 200
+        and corpo.get("estado") == "na_rota"
+        and corpo.get("distancia_restante_m", 0) > 0
+        and corpo.get("direcao") is None,
+        f"HTTP {resposta.status_code}: {resposta.text[:200]}",
+    )
+    resposta = orientar(total / 2, lat_extra=0.0008)  # ~88 m ao norte
+    corpo = json_seguro(resposta)
+    v.checar(
+        "POST /api/orientacoes longe da rota: fora_da_rota, 'Pare e aguarde', sem direção",
+        resposta.status_code == 200
+        and corpo.get("estado") == "fora_da_rota"
+        and (corpo.get("mensagem") or {}).get("texto") == "Você saiu da rota. Pare e aguarde."
+        and corpo.get("direcao") is None,
+        f"HTTP {resposta.status_code}: {resposta.text[:200]}",
+    )
+    resposta = orientar(total / 2, precisao_m=40.0)
+    corpo = json_seguro(resposta)
+    v.checar(
+        "POST /api/orientacoes com precisão de 40 m: precisao_insuficiente e silêncio, sem posição",
+        resposta.status_code == 200
+        and corpo.get("estado") == "precisao_insuficiente"
+        and corpo.get("progresso_m") is None
+        and (corpo.get("mensagem") or {}).get("chave") == "sem_posicao",
+        f"HTTP {resposta.status_code}: {resposta.text[:200]}",
+    )
+    corpo = json_seguro(orientar(max(0.0, total - 3.0)))
+    v.checar(
+        "POST /api/orientacoes perto do fim: chegou",
+        corpo.get("estado") == "chegou",
+        f"estado={corpo.get('estado')!r}",
+    )
+    resposta = pedir(
+        frontend,
+        "POST",
+        "/api/orientacoes",
+        json={
+            **base,
+            "destino_id": 999999999,
+            "posicao": {"lat": 0.0, "lon": 0.0, "precisao_m": 5.0},
+        },
+    )
+    v.checar(
+        "POST /api/orientacoes com ponto inexistente responde 404",
+        resposta.status_code == 404,
+        f"HTTP {resposta.status_code}",
+    )
+    resposta = pedir(frontend, "POST", "/api/orientacoes", json={**base, "posicao": {"lat": 95.0}})
+    v.checar(
+        "POST /api/orientacoes com posição inválida responde 422",
+        resposta.status_code == 422,
+        f"HTTP {resposta.status_code}",
+    )
+    resposta = pedir(frontend, "POST", "/api/orientacoes", content=" " * (20 * 1024))
+    v.checar(
+        "POST /api/orientacoes com corpo de 20 KiB é recusado (413)",
+        resposta.status_code == 413,
+        f"HTTP {resposta.status_code}",
+    )
+
 
 def _medicao_de_teste(*, tipo: str = "ponto") -> dict[str, Any]:
     """Uma medição de GPS válida para `POST /medicoes` (celular da equipe, 1 ponto)."""
