@@ -18,8 +18,8 @@ Cartão do Kanban: E2 (prazo 22/10/2026; depende de E1; destino final: `docs/req
 |---|---|---|
 | RF01 | Parcial | Mapa e `GET /pontos-interesse` existem; o grafo e os pontos são provisórios (OpenStreetMap), sem o recorte completo do M2. |
 | RF02 | Parcial | A coluna `descricao` e a API existem; falta conferir que todos os pontos do recorte tenham texto. |
-| RF03 | Falta (em andamento, branch `rotas/destino-mapa-busca`) | Hoje a origem e o destino são escolhidos só pela lista (`select`) na tela de rota; escolher tocando no mapa ainda não está na `main`. |
-| RF04 | Parcial | Escolha por lista (`select`) funciona só com teclado e leitor de tela; não há busca textual. |
+| RF03 | Pronto (sem teste em aparelho) | Desde 03/11: tocar no marcador de uma entrada escolhe o destino (alvo de 44 px, confirmação visível e anunciada; "Usar como origem" quando De está vazio). A lista Para tem o mesmo efeito (RNF07). |
+| RF04 | Pronto (sem teste em aparelho) | Desde 03/11: campo "Buscar lugar" filtra De e Para sem acento nem maiúsculas, com a contagem anunciada ao leitor de tela; lista funciona só com teclado. |
 | RF05 | Pronto | `POST /rotas` com `pgr_dijkstra`, 4 perfis, instruções curva a curva (`backend/app/rotas/`). |
 | RF06 | Parcial | Cadeirante exclui escada (`custo.py`); cegueira e baixa visão têm regras provisórias. **Pendente de validação com a orientadora** (regras e divergência com o texto de 19/10). |
 | RF07 | Pronto | Rota desenhada no mapa (v0). |
