@@ -14,6 +14,15 @@ anotada aqui.
   créditos do Rodrigo; o túnel Cloudflare fica como plano B (R41). A AWS recebe o IP de
   quem usa o protótipo: citar no termo de consentimento.
 
+## Decidido em 03/11/2026 (Rodrigo, M4 — a validar com a orientadora)
+
+- **Rumo do usuário híbrido:** andando, vem do movimento (deslocamento entre posições recentes); parado, vem da direção para onde o celular aponta (bússola, se estável). Sem deslocamento suficiente nem bússola estável: sem direção (silêncio).
+- **Frases de direção:** "O caminho está à sua direita/esquerda/frente." e "O caminho está atrás de você."
+- **Confirmadas pelo Rodrigo:** (1) aviso de escada/travessia só quando a pessoa está na rota; (3) escada e travessia vêm dos trechos da rota, sem mudar a API de rotas.
+- **Implementadas sem objeção:** (2) mensagem bloqueada pela anti-repetição vira silêncio; (5) o celular omite rumo/velocidade quando o aparelho informa -1.
+- **Sem resposta, seguem provisórios:** setores (frente ±30°, atrás >150°), distância de perigo 15 m, curva iminente 10 m, repetição 20 s (perigo 8 s), deslocamento mínimo 8 m, janela de 15 s, oscilação máxima da bússola 30°.
+- **Pergunta aberta:** quem anda muito devagar (bengala, cadeira) pode não deslocar 8 m em 15 s e cair no modo "parado" (direção pela bússola).
+
 ## Decidido em 27/10/2026
 
 - **Decidido 27/10/2026 (orientadora, reunião): os perfis do aplicativo são `cegueira`,
