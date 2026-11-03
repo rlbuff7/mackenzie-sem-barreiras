@@ -35,11 +35,12 @@ export function orientacaoDaTela(tela: Tela): string {
   return anuncioDeLocalizacao(tela.nome, tela.acao);
 }
 
-export const ROTULO_ATIVAR_VOZ = "Ativar voz";
-export const ROTULO_DESATIVAR_VOZ = "Desativar voz";
+/** Rótulo FIXO do botão (prática do ARIA: o estado vai em aria-pressed, o texto não muda). */
+export const ROTULO_DO_BOTAO_DE_VOZ = "Voz do site";
 
-export function rotuloDoBotaoDeVoz(ativa: boolean): string {
-  return ativa ? ROTULO_DESATIVAR_VOZ : ROTULO_ATIVAR_VOZ;
+/** Texto visual do estado, ao lado do rótulo (aria-hidden: o leitor de tela já lê o aria-pressed). */
+export function estadoVisualDaVoz(ativa: boolean): string {
+  return ativa ? "Ligada" : "Desligada";
 }
 
 export const NOTA_VOZ_DESLIGADA =

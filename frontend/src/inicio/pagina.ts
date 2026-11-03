@@ -84,6 +84,6 @@ function iniciarMapaCampus(): L.Map | null {
 iniciarAjustes();
 iniciarSeletorTema();
 iniciarInterruptorMovimento();
-const orientacao = iniciarOrientacaoDaPagina({ regiao: "anuncio-rota", botao: "botao-voz-tela", nota: "nota-voz-tela" });
+const orientacao = iniciarOrientacaoDaPagina({ regiao: "anuncio-rota", botao: "botao-voz-tela", nota: "nota-voz-tela", estado: "estado-voz-tela" });
 orientacao.definirTela(TELA_ESCOLHER);
 iniciarRota(iniciarMapaCampus(), orientacao);

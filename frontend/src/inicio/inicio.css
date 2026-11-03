@@ -3,7 +3,7 @@
  * ocupa a tela e um cartão fica embaixo; no desktop, o cartão fica ao lado do mapa.
  * Cores, fonte e foco vêm de ../estilos.css e dos tokens do Design System.
  */
-/* O botão "Ativar voz" (header) ocupa o alto; o resto da tela completa a altura da janela. */
+/* O botão "Voz do site" (header) ocupa o alto; o resto da tela completa a altura da janela. */
 body.inicio {
   display: flex;
   flex-direction: column;

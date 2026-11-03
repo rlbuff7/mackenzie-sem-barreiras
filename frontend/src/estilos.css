@@ -545,8 +545,8 @@ textarea#campo-descricao {
   }
 }
 
-/* "Ativar voz": primeiro controle das duas páginas (para quem não usa leitor de tela). Botão grande de 64 px,
-   texto + aria-pressed (o estado nunca é só cor: o texto muda para "Desativar voz" e o fundo enche). */
+/* "Voz do site": primeiro controle das duas páginas (para quem não usa leitor de tela). Botão grande de 64 px,
+   rótulo fixo + aria-pressed; o estado nunca é só cor: texto visual Ligada/Desligada e fundo cheio quando ligada. */
 .barra-voz {
   display: flex;
   flex-direction: column;
@@ -560,6 +560,15 @@ textarea#campo-descricao {
   font-size: 1.15rem;
   font-weight: 800;
   border-radius: var(--raio-secao);
+}
+
+.botao-voz__estado {
+  margin-left: var(--espaco-3);
+  padding: 0 var(--espaco-3);
+  border: var(--linha-controle) solid currentColor;
+  border-radius: var(--raio-controle);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .botao-voz[aria-pressed="true"] {

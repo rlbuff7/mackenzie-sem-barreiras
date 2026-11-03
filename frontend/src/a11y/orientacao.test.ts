@@ -6,7 +6,8 @@ import {
   guardarVozAtiva,
   lerVozAtiva,
   notaDaVoz,
-  rotuloDoBotaoDeVoz,
+  estadoVisualDaVoz,
+  ROTULO_DO_BOTAO_DE_VOZ,
   tituloDaPagina,
 } from "./orientacao.ts";
 
@@ -26,9 +27,10 @@ test("o título da página é '<Tela> · Navegação Acessível no Campus'", () 
   assert.equal(tituloDaPagina("Etapa 2 de 3: Medir o ponto"), "Etapa 2 de 3: Medir o ponto · Navegação Acessível no Campus");
 });
 
-test("rótulo do botão: 'Ativar voz' desligada, 'Desativar voz' ligada", () => {
-  assert.equal(rotuloDoBotaoDeVoz(false), "Ativar voz");
-  assert.equal(rotuloDoBotaoDeVoz(true), "Desativar voz");
+test("rótulo FIXO 'Voz do site'; o estado visual é Ligada/Desligada", () => {
+  assert.equal(ROTULO_DO_BOTAO_DE_VOZ, "Voz do site");
+  assert.equal(estadoVisualDaVoz(false), "Desligada");
+  assert.equal(estadoVisualDaVoz(true), "Ligada");
   assert.notEqual(notaDaVoz(true), notaDaVoz(false));
 });
 

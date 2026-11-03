@@ -1,6 +1,6 @@
 /**
  * Cola da orientação com o navegador, igual nas duas páginas: pega a região aria-live, o botão
- * "Ativar voz" e a nota pelos ids, entrega a síntese de voz e o localStorage (com try/catch).
+ * "Voz do site" e a nota pelos ids, entrega a síntese de voz e o localStorage (com try/catch).
  */
 import type { FalaDeVoz, SinteseDeVoz } from "../rotas/voz.ts";
 import { criarOrientacao, ligarBotaoDeVoz, type Orientacao } from "./localizacao.ts";
@@ -11,7 +11,7 @@ function porId(id: string): HTMLElement {
   return e;
 }
 
-export function iniciarOrientacaoDaPagina(ids: { regiao: string; botao: string; nota: string }): Orientacao {
+export function iniciarOrientacaoDaPagina(ids: { regiao: string; botao: string; nota: string; estado: string }): Orientacao {
   const sintese =
     typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined"
       ? (window.speechSynthesis as unknown as SinteseDeVoz)
@@ -32,7 +32,7 @@ export function iniciarOrientacaoDaPagina(ids: { regiao: string; botao: string; 
     agendar: (fn, ms) => window.setTimeout(fn, ms),
     cancelarAgenda: (id) => window.clearTimeout(id as number),
   });
-  ligarBotaoDeVoz(porId(ids.botao) as HTMLButtonElement, porId(ids.nota), orientacao);
+  ligarBotaoDeVoz(porId(ids.botao) as HTMLButtonElement, porId(ids.nota), orientacao, porId(ids.estado));
   window.addEventListener("pagehide", () => {
     try {
       sintese?.cancel();

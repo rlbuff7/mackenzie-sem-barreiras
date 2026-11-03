@@ -7,7 +7,7 @@
  * - Voz do app ligada: a frase é falada com a voz escolhida em Ajustes e a região fica vazia (leitor de
  *   tela e voz do app falando juntos atropelam um ao outro). Se a fala falhar (por exemplo, o navegador
  *   exige um toque antes), a frase vai para a região.
- * - Nada fala sozinho: a fala começa dentro do toque em "Ativar voz" ou, com a voz já ligada, a cada mudança de tela.
+ * - Nada fala sozinho: a fala começa dentro do toque em "Voz do site" ou, com a voz já ligada, a cada mudança de tela.
  */
 import { falar, lerPreferenciasDeVoz, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
 import {
@@ -16,7 +16,7 @@ import {
   notaDaVoz,
   NOTA_SEM_VOZ,
   orientacaoDaTela,
-  rotuloDoBotaoDeVoz,
+  estadoVisualDaVoz,
   tituloDaPagina,
   type Tela,
 } from "./orientacao.ts";
@@ -49,7 +49,7 @@ export interface Orientacao {
   /** Troca de tela: título e anúncio (região aria-live ou voz do app). `anunciar: false` só põe o título. */
   mudarDeTela(tela: Tela, opcoes?: { anunciar?: boolean }): void;
   vozAtiva(): boolean;
-  /** Há voz no navegador? Sem ela o botão "Ativar voz" não aparece. */
+  /** Há voz no navegador? Sem ela o botão "Voz do site" não aparece. */
   temVoz(): boolean;
   /** Liga ou desliga a voz (chame dentro do toque). Ao ligar, fala a orientação da tela atual. */
   alternarVoz(): boolean;
@@ -130,7 +130,7 @@ export function criarOrientacao(deps: DependenciasDaOrientacao): Orientacao {
   };
 }
 
-/** Elementos do botão "Ativar voz" e da nota abaixo dele (só o que o código mexe). */
+/** Elementos do botão "Voz do site" e da nota abaixo dele (só o que o código mexe). */
 export interface BotaoDeVoz {
   hidden: boolean | string;
   textContent: string | null;
@@ -143,13 +143,13 @@ export interface NotaDeVoz {
 }
 
 /**
- * Mostra o estado da voz no botão (texto + aria-pressed) e na nota; o clique liga ou desliga.
+ * Mostra o estado da voz no botão (aria-pressed + texto visual do estado, rótulo fixo) e na nota; o clique liga ou desliga.
  * Sem voz no navegador: o botão some e a nota explica.
  */
-export function ligarBotaoDeVoz(botao: BotaoDeVoz, nota: NotaDeVoz | null, orientacao: Orientacao): void {
+export function ligarBotaoDeVoz(botao: BotaoDeVoz, nota: NotaDeVoz | null, orientacao: Orientacao, estado: NotaDeVoz | null = null): void {
   const desenhar = (): void => {
     const ativa = orientacao.vozAtiva();
-    botao.textContent = rotuloDoBotaoDeVoz(ativa);
+    if (estado) estado.textContent = estadoVisualDaVoz(ativa);
     botao.setAttribute("aria-pressed", String(ativa));
     if (nota) nota.textContent = notaDaVoz(ativa);
   };

@@ -191,7 +191,7 @@ function botaoFalso() {
   let ouvinte: (() => void) | null = null;
   return {
     hidden: false as boolean | string,
-    textContent: "Ativar voz" as string | null,
+    textContent: "Voz do site" as string | null,
     setAttribute: (n: string, v: string) => void atributos.set(n, v),
     addEventListener: (_t: "click", fn: () => void) => {
       ouvinte = fn;
@@ -201,28 +201,32 @@ function botaoFalso() {
   };
 }
 
-test("botão: começa 'Ativar voz' com aria-pressed=false; ao tocar vira 'Desativar voz' com aria-pressed=true e volta", () => {
+test("botão: aria-pressed alterna e só o texto visual do estado muda (o rótulo fica fixo)", () => {
   const { orientacao } = montar();
   const botao = botaoFalso();
+  botao.textContent = "Voz do site";
   const nota = { hidden: false as boolean | string, textContent: "" as string | null };
-  ligarBotaoDeVoz(botao, nota, orientacao);
-  assert.equal(botao.textContent, "Ativar voz");
+  const estado = { hidden: false as boolean | string, textContent: "" as string | null };
+  ligarBotaoDeVoz(botao, nota, orientacao, estado);
   assert.equal(botao.atributos.get("aria-pressed"), "false");
+  assert.equal(estado.textContent, "Desligada");
   botao.tocar();
-  assert.equal(botao.textContent, "Desativar voz");
   assert.equal(botao.atributos.get("aria-pressed"), "true");
+  assert.equal(estado.textContent, "Ligada");
   assert.match(nota.textContent ?? "", /Voz ligada/);
+  assert.equal(botao.textContent, "Voz do site", "o rótulo não muda");
   botao.tocar();
-  assert.equal(botao.textContent, "Ativar voz");
   assert.equal(botao.atributos.get("aria-pressed"), "false");
+  assert.equal(estado.textContent, "Desligada");
 });
 
-test("botão: com a preferência salva, a página já abre 'Desativar voz' e aria-pressed=true", () => {
+test("botão: com a preferência salva, a página já abre com aria-pressed=true e 'Ligada'", () => {
   const { orientacao } = montar({ armazem: armazemFalso({ [CHAVE_VOZ_ATIVA]: "1" }) });
   const botao = botaoFalso();
-  ligarBotaoDeVoz(botao, null, orientacao);
-  assert.equal(botao.textContent, "Desativar voz");
+  const estado = { hidden: false as boolean | string, textContent: "" as string | null };
+  ligarBotaoDeVoz(botao, null, orientacao, estado);
   assert.equal(botao.atributos.get("aria-pressed"), "true");
+  assert.equal(estado.textContent, "Ligada");
 });
 
 test("botão: sem voz no navegador ele some e a nota explica que o leitor de tela continua valendo", () => {

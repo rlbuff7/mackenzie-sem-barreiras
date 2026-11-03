@@ -140,7 +140,7 @@ const resumoConfig = el<HTMLElement>("resumo-config");
 const botaoAlterar = el<HTMLButtonElement>("botao-alterar");
 const botaoContinuar = el<HTMLButtonElement>("botao-continuar");
 const botaoCorrigirCodigo = el<HTMLButtonElement>("botao-corrigir-codigo");
-const orientacao = iniciarOrientacaoDaPagina({ regiao: "anuncio-etapa", botao: "botao-voz-tela", nota: "nota-voz-tela" });
+const orientacao = iniciarOrientacaoDaPagina({ regiao: "anuncio-etapa", botao: "botao-voz-tela", nota: "nota-voz-tela", estado: "estado-voz-tela" });
 const secoesEtapa: Record<Etapa, HTMLElement> = {
   preparar: el("etapa-preparar"),
   medir: el("etapa-medir"),

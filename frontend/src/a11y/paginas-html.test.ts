@@ -1,7 +1,7 @@
 /**
  * Acessibilidade estrutural das DUAS páginas (index.html e medicao.html), conferida no HTML e no código
  * (a página depende do DOM e não roda no node:test). Pedido da orientadora (27/10/2026): WCAG AA, leitor de
- * tela (TalkBack/VoiceOver) informado a cada mudança de tela, perfis, botão "Ativar voz" como 1º controle.
+ * tela (TalkBack/VoiceOver) informado a cada mudança de tela, perfis, botão "Voz do site" como 1º controle.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -62,13 +62,15 @@ for (const { nome, html, regiao, ts } of PAGINAS) {
     assert.ok(html.indexOf("<header") < html.indexOf("<main"));
   });
 
-  test(`${nome}: 'Ativar voz' é o primeiro botão da página, com aria-pressed e nota ligada por aria-describedby`, () => {
+  test(`${nome}: 'Voz do site' é o primeiro botão da página, com aria-pressed e nota ligada por aria-describedby`, () => {
     const botoes = [...html.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
     assert.match(botoes[0]!, /id="botao-voz-tela"/, "o primeiro <button> é o da voz");
     assert.match(botoes[0]!, /type="button"/);
     assert.match(botoes[0]!, /aria-pressed="false"/);
     assert.match(botoes[0]!, /aria-describedby="nota-voz-tela"/);
-    assert.match(html, /<button[^>]*id="botao-voz-tela"[^>]*>Ativar voz<\/button>/);
+    const botao = /<button[^>]*id="botao-voz-tela"[^>]*>([\s\S]*?)<\/button>/.exec(html)![1]!;
+    assert.equal(semTags(botao.replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/, "")), "Voz do site", "rótulo fixo");
+    assert.match(botao, /<span id="estado-voz-tela"[^>]*aria-hidden="true">Desligada<\/span>/);
     assert.match(html, /<p id="nota-voz-tela"/);
     // vem antes de qualquer campo e de qualquer outro controle
     const posVoz = html.indexOf('id="botao-voz-tela"');
@@ -151,7 +153,7 @@ test("zoom e atribuição do mapa: textos em português", async () => {
   assert.equal(OPCOES_DE_FOCO_DO_MAPA.keyboard, false);
 });
 
-test("alvos de toque: botões de ação com >= 44 px no CSS e o 'Ativar voz' com 64 px", () => {
+test("alvos de toque: botões de ação com >= 44 px no CSS e o 'Voz do site' com 64 px", () => {
   const estilos = ler("../estilos.css");
   assert.match(estilos, /\.botao\s*\{[^}]*min-height:\s*var\(--alvo-toque\)/);
   assert.match(estilos, /\.botao-voz\s*\{[^}]*min-height:\s*64px/);
@@ -162,7 +164,7 @@ test("alvos de toque: botões de ação com >= 44 px no CSS e o 'Ativar voz' com
   assert.ok(alvo && parseInt(alvo.value, 10) >= 44, "token alvo-toque >= 44 px");
 });
 
-test("o estado da voz nunca é só cor: o texto do botão muda e o aria-pressed acompanha", () => {
+test("o estado da voz nunca é só cor: texto Ligada/Desligada e aria-pressed", () => {
   const estilos = ler("../estilos.css");
   assert.match(estilos, /\.botao-voz\[aria-pressed="true"\]/);
 });
