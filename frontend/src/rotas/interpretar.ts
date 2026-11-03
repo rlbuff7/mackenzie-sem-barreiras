@@ -11,6 +11,7 @@ import type {
   ResultadoRota,
   RotaResposta,
 } from "./tipos.ts";
+import { normalizarPerfil } from "./tipos.ts";
 
 export const URL_PONTOS = "/api/pontos-interesse";
 export const URL_ROTAS = "/api/rotas";
@@ -112,7 +113,7 @@ export function lerRota(corpo: unknown): RotaResposta | null {
   return {
     rotulo: corpo.rotulo,
     provisorio: corpo.provisorio === true,
-    perfil: corpo.perfil === "cadeirante" || corpo.perfil === "deficiencia_visual" ? corpo.perfil : "sem_restricao",
+    perfil: normalizarPerfil(corpo.perfil),
     origem,
     destino,
     distancia_m: corpo.distancia_m,
@@ -139,7 +140,7 @@ function primeiroErroDe422(corpo: unknown): string | null {
 }
 
 /**
- * Defesa extra: no perfil cadeirante (só nele; para deficiencia_visual a escada é permitida e vem avisada), rota com escada nunca é mostrada (o backend já a exclui; se
+ * Defesa extra: no perfil cadeirante (só nele; para cegueira e baixa visão a escada é permitida e vem avisada), rota com escada nunca é mostrada (o backend já a exclui; se
  * vier mesmo assim, vale o silêncio). Usa o tipo estruturado dos trechos; os textos só como reforço.
  */
 export function rotaTemEscada(rota: RotaResposta): boolean {

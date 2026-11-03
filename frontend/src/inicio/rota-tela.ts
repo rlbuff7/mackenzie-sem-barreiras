@@ -283,7 +283,7 @@ export function iniciarRota(mapa: L.Map | null): void {
 
   const idEscolhido = (sel: HTMLSelectElement): number | null => (sel.value === "" ? null : Number(sel.value));
   const perfilEscolhido = (): Perfil =>
-    (form.querySelector<HTMLInputElement>('input[name="perfil"]:checked')?.value as Perfil | undefined) ?? "deficiencia_visual";
+    (form.querySelector<HTMLInputElement>('input[name="perfil"]:checked')?.value as Perfil | undefined) ?? "cegueira";
 
   // Mudou a escolha: o resultado antigo deixou de valer (não fica rota de outro par de pontos na tela).
   for (const campo of [selDe, selPara, ...form.querySelectorAll<HTMLInputElement>('input[name="perfil"]')]) {

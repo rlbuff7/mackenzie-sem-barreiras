@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { PERFIS } from "./tipos.ts";
 
 const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 const tela = readFileSync(new URL("../inicio/rota-tela.ts", import.meta.url), "utf8");
@@ -28,15 +29,16 @@ test("De e Para são <select> nativos com <label> ligado pelo for", () => {
   }
 });
 
-test("perfil: três rádios nativos em fieldset com legend; pessoa cega é o primeiro e o padrão", () => {
+test("perfil: quatro rádios nativos em fieldset com legend; Cegueira é o primeiro e o padrão", () => {
   assert.match(html, /<fieldset[^>]*>\s*<legend>Perfil<\/legend>/);
   const valores = [...html.matchAll(/name="perfil" value="([a-z_]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(valores, ["deficiencia_visual", "sem_restricao", "cadeirante"]);
-  assert.match(html, /value="deficiencia_visual" checked/);
-  assert.ok(!/value="sem_restricao" checked/.test(html));
-  assert.ok(html.includes("Pessoa cega ou com baixa visão"));
-  assert.match(html, /value="cadeirante"/);
-  assert.ok(html.includes("Sem restrição") && html.includes("Cadeirante (evita escadas)"));
+  assert.deepEqual(valores, ["cegueira", "baixa_visao", "cadeirante", "sem_restricao"]);
+  assert.deepEqual(valores, [...PERFIS]);
+  assert.match(html, /value="cegueira" checked/);
+  assert.equal(html.match(/name="perfil"[^>]* checked/g)?.length, 1, "só um perfil marcado");
+  const rotulos = [...html.matchAll(/name="perfil" value="[a-z_]+"(?: checked)? \/> ([^<]+)<\/label>/g)].map((m) => m[1]);
+  assert.deepEqual(rotulos, ["Cegueira", "Baixa visão", "Cadeirante (evita escadas)", "Sem restrição"]);
+  assert.ok(!html.includes("deficiencia_visual"), "o nome antigo não é mais enviado pela tela");
 });
 
 test("Traçar rota é o botão de envio do formulário, com 64 px no CSS", () => {
