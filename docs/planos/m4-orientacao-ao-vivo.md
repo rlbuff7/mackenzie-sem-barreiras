@@ -1,6 +1,6 @@
 # Plano do M4: orientação ao vivo pelo GPS
 
-> Plano de 03/11/2026. Só o módulo `posicao` está implementado (branch `m4/posicao`). O resto é desenho. Todo limiar abaixo é **PROVISÓRIO**. Requisitos: RF08, RF09, RF12, RNF03, RNF04, RNF05 (`docs/texto-tcc/rascunhos/e2-requisitos.md`).
+> Plano de 03/11/2026. Implementados: `posicao` (branch `m4/posicao`) e, em `m4/rumo-mensagens`, `rumo`, `mensagens` e `POST /orientacoes` (ver §7). O resto é desenho. Todo limiar abaixo é **PROVISÓRIO**. Requisitos: RF08, RF09, RF12, RNF03, RNF04, RNF05 (`docs/texto-tcc/rascunhos/e2-requisitos.md`).
 
 ## 1. Regras que não mudam
 
@@ -14,8 +14,8 @@
 | Módulo | Faz | Estado |
 |---|---|---|
 | `posicao.py` | `projetar_na_rota` (map matching por trecho: ponto projetado, desvio, distância percorrida/restante, índice do trecho) e `avaliar_posicao` (estado e confiança) | **feito** (RF08, RF12) |
-| `rumo.py` | Rumo do usuário e a posição relativa do alvo (frente, direita, esquerda, atrás); giro 0°/360°; parado = sem seta. Espelha `frontend/src/mapa/rumo.ts` | a fazer (RF09); faixas angulares **[DECIDIR com a orientadora]** |
-| `mensagens.py` | Estado + confiança + rumo viram frase curta em português, no mesmo estilo de `rotas/instrucoes.py`; "não sei onde você está" quando silêncio | a fazer (RF12) |
+| `rumo.py` | Rumo do usuário e a posição relativa do alvo (frente, direita, esquerda, atrás); giro 0°/360°; parado = sem seta. Espelha `frontend/src/mapa/rumo.ts` | **feito** (RF09), só pela bússola; faixas angulares provisórias **[DECIDIR com a orientadora]** |
+| `mensagens.py` | Estado + confiança + rumo viram frase curta em português, no mesmo estilo de `rotas/instrucoes.py`; "não sei onde você está" quando silêncio | **feito** (RF12) |
 
 ## 3. API (ainda NÃO criada)
 
@@ -74,3 +74,25 @@ Fonte: `vw_erro_medicoes` e o diário (`docs/diario-de-campo.md`). Cuidados já 
 - **A precisão informada não serve como confiança.** No P01 dizia 3 m e o erro foi 19 m; no P02 dizia 14 m e o erro foi 3 m; o iPhone 17 Pro aparece **fixo em 14,25 m**. Por isso o plano usa `precisao_m` só como gatilho de silêncio (teto) e como margem do `fora_da_rota`, e exige que o desvio em relação à rota concorde com ela para dar confiança alta.
 - Passos: (1) tabela de erro por condição (céu aberto, entre prédios, entrada) sem os pontos deslocados; (2) fixar o raio de chegada acima do erro típico da pior condição do ponto de chegada; (3) com o trajeto andando do iPhone (175 posições em 26/10), reprojetar sobre a rota provisória 4 para 6 e contar falsos `fora_da_rota` e falsos `precisao_insuficiente`; (4) o `DISTANCIA_FORA_DA_ROTA_METROS` sai da dispersão da posição andando contra a largura real das calçadas; (5) decisão final com a orientadora.
 - O trajeto real e a rota 4 para 6 ficam na produção; o banco de dev não os tem. Os testes atuais usam trajeto **sintético** (rotulado como tal); o teste com o trajeto real fica para quando o dado for exportado localmente, sem acessar a produção a partir do código.
+
+## 7. O que ficou pronto (03/11/2026, branch `m4/rumo-mensagens`)
+
+- `orientacao/rumo.py`: rumo da bússola (0 a 360, oscilação opcional), ponto da rota
+  `ALVO_A_FRENTE_METROS` adiante, diferença normalizada em (-180, 180], setores (frente
+  +-30, lados 30 a 150, atrás > 150). Silêncio (`None`) se parado, sem bússola ou bússola
+  instável.
+- `orientacao/mensagens.py`: uma mensagem ou nenhuma (perigo > fora da rota/sem posição >
+  curva > chegada > "Siga em frente."), anti-repetição por `chave` com o histórico enviado
+  pelo cliente.
+- `POST /orientacoes` (`routers/orientacoes.py`, `schemas/orientacao.py`): **mudou o
+  desenho do §3**: em vez de o cliente enviar a geometria, envia `origem_id`, `destino_id`,
+  `perfil`, `posicao` e `recentes`, e o servidor recalcula a rota com `_montar_rota` (uma
+  lógica só, sem duplicar), ao custo de uma consulta ao banco por chamada. Contrato e nota de
+  privacidade em `docs/api.md`.
+- Decisões desta etapa: perigo só vale com `na_rota` (fora da rota o progresso não é
+  confiável); escada e travessia vêm dos `trechos` da rota (soma de `comprimento_m`, a mesma
+  medida das instruções); mensagem suprimida pela anti-repetição não cede lugar a outra de
+  menor prioridade (silêncio); as mensagens `direita`/`esquerda`/`atras` ainda não têm frase
+  (só o campo `direcao`), por não estarem decididas com a orientadora.
+- Falta: teste com o trajeto real do iPhone, histerese, continuidade para rota que volta
+  sobre si, frontend (M4 no app), rumo derivado do movimento se a bússola não servir.

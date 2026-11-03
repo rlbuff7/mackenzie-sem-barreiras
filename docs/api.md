@@ -344,3 +344,78 @@ Erros (corpo `{"mensagem": ...}` em português):
 curl -X POST http://localhost:8000/rotas -H 'content-type: application/json' \
   -d '{"origem_id": 3, "destino_id": 7, "perfil": "cadeirante"}'
 ```
+
+## `POST /orientacoes` (M4, orientação ao vivo)
+
+O que falar agora a quem está navegando por uma rota. Sem token (como `/rotas`), corpo
+limitado a `LIMITE_CORPO_BYTES` (413). **Sem sessão:** o cliente reenvia a cada chamada
+origem, destino, perfil, a posição e as mensagens recentes; o servidor recalcula a rota com a
+mesma lógica de `POST /rotas` (perfis, `404 sem_rota`, 404 de ponto, 422, 503 iguais) e avalia.
+
+**Privacidade (RNF04):** a posição de quem navega **nunca é gravada**: não vai a tabela,
+arquivo nem log. O app não tem nenhum `logging`/`print` (o corpo só vive em memória durante
+a chamada), o log de acesso do uvicorn registra só método, caminho e status, e o `log_format`
+do nginx (`frontend/nginx.conf`) registra `$uri` sem query nem corpo. Quem ligar log de corpo
+(middleware ou proxy) tem de excluir `/orientacoes`. O 422 devolve só `campo` e `erro`, sem
+ecoar o valor enviado. Testado em `backend/tests/test_api_orientacoes.py` (log e tabelas).
+
+Entrada (campos desconhecidos são 422; `origem_id`, `destino_id` e `perfil` valem como em
+`/rotas`, inclusive o sinônimo `deficiencia_visual`):
+
+```json
+{
+  "origem_id": 4, "destino_id": 6, "perfil": "cegueira",
+  "posicao": {"lat": -23.5470, "lon": -46.6517, "precisao_m": 8.0,
+              "rumo_graus": 312.0, "rumo_oscilacao_graus": 6.0, "velocidade_ms": 1.1},
+  "recentes": [{"chave": "curva_0", "ha_segundos": 12.5}]
+}
+```
+
+- `posicao.lat` -90..90, `lon` -180..180, `precisao_m` >= 0 (do aparelho, em metros).
+  `rumo_graus` 0..360 (bússola), `rumo_oscilacao_graus`, `velocidade_ms` >= 0: opcionais; se o
+  aparelho não informa, **omita** o campo (valor negativo é 422).
+- `recentes`: no máximo 20 `{chave, ha_segundos}` das mensagens que o cliente já falou
+  (as `chave` devolvidas antes). O servidor não repete a mesma `chave` antes do intervalo.
+
+Resposta 200:
+
+```json
+{
+  "estado": "na_rota",
+  "confianca": "alta",
+  "mensagem": {"chave": "curva_0", "texto": "Em 10 metros, vire à direita.", "prioridade": "media"},
+  "distancia_restante_m": 112.4,
+  "progresso_m": 70.1,
+  "direcao": "frente"
+}
+```
+
+- `estado`: `na_rota`, `fora_da_rota`, `precisao_insuficiente` ou `chegou`. `confianca`:
+  `alta`, `media` ou `baixa`. Regras em `docs/planos/m4-orientacao-ao-vivo.md` §4.
+- `progresso_m` e `distancia_restante_m`: ao longo da rota (1 casa); `null` com
+  `precisao_insuficiente` (sem projeção, silêncio).
+- `direcao`: `frente`, `direita`, `esquerda` ou `atras`: onde o ponto da rota
+  `ALVO_A_FRENTE_METROS` à frente fica em relação ao rumo da bússola. **`null`** (silêncio)
+  se parado (`velocidade_ms` < `VELOCIDADE_PARADO_MS` ou ausente), sem bússola, bússola
+  instável (oscilação > `RUMO_OSCILACAO_MAXIMA_GRAUS`), fora da rota, precisão insuficiente ou
+  confiança baixa. Nunca há direção "para voltar" à rota.
+- `mensagem`: **uma** ou `null`. `prioridade` `perigo` > `alta` > `media` > `baixa`:
+  1. `perigo` (`perigo_escada_N`, `perigo_travessia_N`): escada ou travessia a menos de
+     `DISTANCIA_PERIGO_METROS` à frente, só com `na_rota`. "Atenção: escada em 10 metros."
+  2. `alta`: `fora_da_rota` ("Você saiu da rota. Pare e aguarde.") e `sem_posicao`
+     ("Não sei onde você está agora. Fique parado por alguns segundos.").
+  3. `media`: `curva_N` ("Em 10 metros, vire à direita.", até `DISTANCIA_CURVA_IMINENTE_METROS`)
+     e `chegada` (a última instrução da rota, "Você chegou à entrada do Prédio 29.").
+  4. `baixa`: `siga_em_frente` ("Siga em frente."), só com `direcao = "frente"` e confiança
+     não baixa.
+- Anti-repetição: a mensagem escolhida é suprimida (`mensagem: null`) se a mesma `chave` está em
+  `recentes` há menos de `INTERVALO_REPETICAO_SEGUNDOS`; `perigo`, há menos de
+  `INTERVALO_REPETICAO_PERIGO_SEGUNDOS`. Suprimida, não cai para outra de menor prioridade.
+
+Erros: 404 `sem_rota` / ponto inexistente e 422 de rota (iguais a `/rotas`); 422
+`"Pedido de orientação inválido."` com `erros: [{campo, erro}]`; 413 corpo grande.
+
+Parâmetros novos (todos PROVISÓRIOS, `.env.example`): `ALVO_A_FRENTE_METROS`,
+`VELOCIDADE_PARADO_MS`, `RUMO_OSCILACAO_MAXIMA_GRAUS`, `SETOR_FRENTE_GRAUS`,
+`SETOR_ATRAS_GRAUS`, `INTERVALO_REPETICAO_SEGUNDOS`, `INTERVALO_REPETICAO_PERIGO_SEGUNDOS`,
+`DISTANCIA_PERIGO_METROS`, `DISTANCIA_CURVA_IMINENTE_METROS` (mais os três de `posicao`).
