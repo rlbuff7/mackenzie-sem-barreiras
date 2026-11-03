@@ -1,5 +1,7 @@
 # Plano: análise da medição de GPS no campus
 
+> **Status em 03/11/2026: PENDENTE.** A medição de GPS dos 10 pontos foi feita em 26/10/2026 (ver `docs/diario-de-campo.md`), mas o `analise_gps.py` e as figuras de `docs/figuras/gps/` ainda não existem. Mudou desde o plano: o P01 mostrou desvio sistemático de cerca de 17 m (pendência #9, referência possivelmente deslocada) e a precisão informada pelo celular não acompanhou o erro real; P01, P03 e P08 precisam de conferência da referência antes de fechar os números. Cartão "Análise da medição de GPS" segue em "A fazer".
+
 > **Plano de 22/10/2026, escrito ANTES de haver dados.** Nenhum número aqui é resultado: são perguntas, métricas e critérios. Dado sintético nunca entra nesta análise. Marcações: **[REF?]** precisa de citação; **[CONFERIR]** depende de checar o app; **[DECIDIR]** precisa de decisão da equipe ou da orientadora.
 
 **Objetivo:** transformar as medições de 22/10 (P01 a P10) em evidência para três decisões do sistema (raio de "chegou ao ponto", quando ficar em silêncio, quando pedir confirmação por referência física) e em texto para o E3.

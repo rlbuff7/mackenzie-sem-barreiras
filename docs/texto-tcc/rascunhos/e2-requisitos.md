@@ -10,6 +10,37 @@ Cartão do Kanban: E2 (prazo 22/10/2026; depende de E1; destino final: `docs/req
 
 **Como ler a coluna "Componente".** Cada requisito aponta para algo que **existe hoje** na branch (marcado *existe*) ou para o componente previsto no marco M3, M4 ou M5 (marcado *previsto*). Em 19/10/2026 existem apenas a migration 004 (grafo), a 005 (medições de GPS), a página `/medicao.html` e o sistema de design do frontend. Não existem ainda `backend/app/rotas/`, `backend/app/orientacao/`, `/pontos-interesse`, `/rotas` nem `/orientacoes`.
 
+## Estado dos requisitos em 03/11/2026
+
+> Estado conferido no código da `main` em 03/11/2026 (v0 de rotas no ar, 4 perfis, leitor de tela, contraste AA). **Pronto** = existe e tem teste automatizado; **Parcial** = existe em versão provisória ou falta parte; **Falta** = não existe. Nenhum item foi verificado em aparelho real nem aprovado pela orientadora. A tabela da seção 1 continua como estava em 19/10 (marcações *previsto*/*existe* dessa data).
+
+| Requisito | Estado em 03/11 | Nota |
+|---|---|---|
+| RF01 | Parcial | Mapa e `GET /pontos-interesse` existem; o grafo e os pontos são provisórios (OpenStreetMap), sem o recorte completo do M2. |
+| RF02 | Parcial | A coluna `descricao` e a API existem; falta conferir que todos os pontos do recorte tenham texto. |
+| RF03 | Pronto | Origem e destino escolhidos na tela de rota (v0). Falta só ampliar para o recorte completo. |
+| RF04 | Parcial | Escolha por lista (`select`) funciona só com teclado e leitor de tela; não há busca textual. |
+| RF05 | Pronto | `POST /rotas` com `pgr_dijkstra`, 4 perfis, instruções curva a curva (`backend/app/rotas/`). |
+| RF06 | Parcial | Cadeirante exclui escada (`custo.py`); cegueira e baixa visão têm regras provisórias. **Pendente de validação com a orientadora** (regras e divergência com o texto de 19/10). |
+| RF07 | Pronto | Rota desenhada no mapa (v0). |
+| RF08 | Parcial | Módulo de posição em andamento (branch `m4/posicao`); sem *map matching* integrado. |
+| RF09 | Parcial | A decisão de seta/bola existe em `frontend/src/mapa/rumo.ts`; o cálculo de rumo no M4 não está integrado. |
+| RF10 | Falta | `orientacao/referencias.py` e `mensagens.py` não existem. A v0 cita referências só na instrução da rota. |
+| RF11 | Parcial | Voz (leitor de tela da pessoa, voz do app opcional) e vibração na simulação de caminhada; falta em percurso real e em aparelho. |
+| RF12 | Falta | Aviso de chegada existe só na simulação; aviso de saída da rota e "não sei onde você está" dependem do M4. |
+| RNF01 | Parcial | Título e "Você está em" por tela, landmarks, skip link, `aria-live`. **Falta teste com TalkBack e VoiceOver em aparelho real** e axe-core no CI. |
+| RNF02 | Pronto | `contraste.test.ts` (17 pares de texto e 15 de não texto, 3 temas). Falta conferir sobre o mapa real ao sol. |
+| RNF03 | Falta | Sem meta numérica nem medição de tempo. |
+| RNF04 | Pronto | Nenhuma tabela de posição de quem navega; só medições da equipe. |
+| RNF05 | Parcial | Regra de silêncio no cliente (`rumo.ts`) e aviso de rota provisória ("Confira com a bengala"); métrica de orientações erradas só na avaliação. |
+| RNF06 | Pronto | Sem dependência paga. |
+| RNF07 | Parcial | Rota e instruções em texto e lista; falta equivalente em lista para todas as ações do mapa. |
+| RNF08 | Pronto | `movimento.ts` com interruptor e testes. |
+| RNF09 | Parcial | Parâmetros em `.env.example`; `config.py` ainda não lê todas as `PENALIDADE_*` (conferir). |
+| RNF10 | Pronto | Servido por HTTPS na AWS. Limitação do iOS (vibração) declarada. |
+
+Resumo: dos 12 RF, 3 prontos, 7 parciais e 2 faltam; dos 10 RNF, 5 prontos, 4 parciais e 1 falta (conferir contagem com o deck da reunião de 27/10, que usou outro critério).
+
 ## 1 Requisitos funcionais
 
 | ID | Requisito (proposto) | Componente no sistema | Marco | Critério de verificação (proposto) |

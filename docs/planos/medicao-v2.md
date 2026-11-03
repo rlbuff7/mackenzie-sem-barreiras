@@ -1,5 +1,7 @@
 # Medição v2 — Plano de Implementação
 
+> **Status em 03/11/2026: PARCIALMENTE ATENDIDO, por outro caminho.** Este plano (redesenho Preparar/Medir/Resultado em `frontend/medicao.html`) não foi executado como escrito. A medição de 26/10 foi feita com a tela existente e, depois dela, o mapa da medição ganhou as camadas "Falta mapear", "Já feito" (trajeto da equipe, caminhos da v0, pontos de controle), trajeto ao vivo, botões Centralizar e Ver o campus e legenda em lista (merges `medicao/falta-mapear`, `medicao/enquadrar`, `medicao/ja-mapeado`). Seguem pendentes o cartão inferior fixo de 64 px, a barra única e o Resultado enxuto. Decidir se vale executar antes de nova rodada de medição.
+
 > **Para quem executar:** use `superpowers:executing-plans` (ou `subagent-driven-development`), tarefa por tarefa, marcando os passos. Teste primeiro quando houver lógica. Commits pequenos, em português.
 
 **Objetivo:** redesenhar a tela `frontend/medicao.html` (Preparar, Medir, Resultado) conforme os boards `Medicao-v2-{preparar,medir,resultado}.dc.html`: uma barra única no topo, mapa maior, ação principal de 64 px num cartão inferior fixo, Resultado enxuto. É só apresentação: nenhum contrato muda.
