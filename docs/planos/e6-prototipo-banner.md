@@ -1,5 +1,7 @@
 # E6 — Protótipo funcional para o banner: plano de implementação
 
+> **Status em 03/11/2026: EXECUTADO.** O plano foi implementado e mesclado na `main` (merge `e6/integracao`, `e6/app`, `e6/banco-api`): v0 de rotas no ar com `GET /pontos-interesse`, `POST /rotas` (pgr_dijkstra), tela de rota com voz. Mudou desde então: a v0 ganhou 4 perfis (cegueira, baixa visão, cadeirante, sem restrição), instruções curva a curva, leitura pelo leitor de tela, simulação de caminhada, contraste AA e anúncio de mudança de tela. O grafo é provisório (OpenStreetMap); o mapeamento a pé segue pendente. A marcação "primeiro trecho" do texto abaixo vale como histórico do plano de 22/10.
+
 > **Para os agentes que forem executar:** use `superpowers:subagent-driven-development` (recomendado) ou `superpowers:executing-plans`. Os passos usam caixas de seleção (`- [ ]`). Cada tarefa é de UM agente; leia a memória dele e o `CLAUDE.md` do escopo novo antes de começar.
 
 **Status:** PLANO para revisão do Rodrigo, escrito em 22/10/2026 pelo agente `backend-api` (consultando o papel do `infra-banco`). Nada aqui foi implementado nem aprovado pela orientadora. Marcação **[DECIDIR COM A ORIENTADORA]** = toca em escopo da §13 do `CLAUDE.md` novo; o plano usa valor provisório configurável.
