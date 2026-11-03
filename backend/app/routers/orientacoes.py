@@ -1,6 +1,7 @@
 """`POST /orientacoes` (M4): o que falar agora a quem está navegando por uma rota.
 
-PRIVACIDADE (RNF04): a posição de quem navega NUNCA é gravada. Esta rota não escreve em
+PRIVACIDADE (RNF04): a posição de quem navega e a trilha NUNCA
+são gravadas. Esta rota não escreve em
 banco, arquivo nem log; o corpo só vive em memória durante a chamada. O app não configura
 logging de corpo (nenhum `logging`/`print` em `app/`), o log de acesso do uvicorn registra
 só método, caminho e status, e o `nginx.conf` não usa `$request_body` no `log_format`;
@@ -29,7 +30,7 @@ from app.orientacao.mensagens import (
     obstaculos_dos_trechos,
 )
 from app.orientacao.posicao import ParametrosOrientacao, Posicao, avaliar_posicao
-from app.orientacao.rumo import ParametrosRumo, direcao_relativa
+from app.orientacao.rumo import ParametrosRumo, PontoTrilha, direcao_relativa
 from app.routers.alertas import _ler_corpo_limitado, _mensagem_corpo_grande
 from app.routers.rotas import _erro, _montar_rota
 from app.schemas.orientacao import OrientacaoEntrada
@@ -62,18 +63,22 @@ def _orientar(
     projecao = avaliacao.projecao
 
     direcao = None
+    fonte_rumo = None
     # Direção só com a posição confiável e na rota: fora da rota, nunca "vire para voltar".
     if projecao is not None and avaliacao.estado == "na_rota" and avaliacao.confianca != "baixa":
-        direcao = direcao_relativa(
+        achado = direcao_relativa(
             geometria,
             lat=pos.lat,
             lon=pos.lon,
             distancia_percorrida_m=projecao.distancia_percorrida_m,
-            velocidade_ms=pos.velocidade_ms,
-            rumo_graus=pos.rumo_graus,
-            oscilacao_graus=pos.rumo_oscilacao_graus,
+            precisao_m=pos.precisao_m,
+            bussola_graus=pos.rumo_bussola_graus,
+            bussola_oscilacao_graus=pos.rumo_bussola_oscilacao_graus,
+            trilha=[PontoTrilha(t.lat, t.lon, t.precisao_m, t.ha_segundos) for t in entrada.trilha],
             parametros=ParametrosRumo.de_configuracoes(config),
         )
+        if achado is not None:
+            direcao, fonte_rumo = achado
 
     mensagem = decidir_mensagem(
         avaliacao,
@@ -96,6 +101,7 @@ def _orientar(
         "distancia_restante_m": round(projecao.distancia_restante_m, 1) if mostrar else None,
         "progresso_m": round(projecao.distancia_percorrida_m, 1) if mostrar else None,
         "direcao": direcao,
+        "fonte_rumo": fonte_rumo,
     }
 
 

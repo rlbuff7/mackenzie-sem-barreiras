@@ -14,7 +14,7 @@
 | Módulo | Faz | Estado |
 |---|---|---|
 | `posicao.py` | `projetar_na_rota` (map matching por trecho: ponto projetado, desvio, distância percorrida/restante, índice do trecho) e `avaliar_posicao` (estado e confiança) | **feito** (RF08, RF12) |
-| `rumo.py` | Rumo do usuário e a posição relativa do alvo (frente, direita, esquerda, atrás); giro 0°/360°; parado = sem seta. Espelha `frontend/src/mapa/rumo.ts` | **feito** (RF09), só pela bússola; faixas angulares provisórias **[DECIDIR com a orientadora]** |
+| `rumo.py` | Rumo do usuário e a posição relativa do alvo (frente, direita, esquerda, atrás); giro 0°/360°; parado = sem seta. Espelha `frontend/src/mapa/rumo.ts` | **feito** (RF09), rumo híbrido, movimento andando e bússola parado (decisão de 03/11/2026, a validar com a orientadora); faixas angulares provisórias **[DECIDIR com a orientadora]** |
 | `mensagens.py` | Estado + confiança + rumo viram frase curta em português, no mesmo estilo de `rotas/instrucoes.py`; "não sei onde você está" quando silêncio | **feito** (RF12) |
 
 ## 3. API (ainda NÃO criada)
@@ -25,12 +25,12 @@
 {
   "rota": { "geometria": [[-46.6514681, -23.5474426], [-46.6520217, -23.5460134]] },
   "posicao": { "lat": -23.5470, "lon": -46.6517, "precisao_m": 8.0,
-               "rumo_graus": 312.0, "velocidade_ms": 1.1 }
+               "trilha": [ { "lat": ..., "lon": ..., "precisao_m": 6.0, "ha_segundos": 12.0 } ] }
 }
 ```
 
 - `rota`: a geometria `[lon, lat]` devolvida por `POST /rotas` (o cliente a guarda e reenvia, então o servidor não precisa de sessão nem de banco). Alternativa: ids de arestas; adiar até haver necessidade. Limite de vértices no schema.
-- `posicao.rumo_graus` e `velocidade_ms` são opcionais (o celular nem sempre informa).
+- `posicao`: lat, lon, precisão e, opcionais, `rumo_bussola_graus`/`rumo_bussola_oscilacao_graus` (só valem parado). `trilha` (opcional, até 10 posições anteriores com `ha_segundos`) não é gravada e só serve ao rumo pelo movimento; `rumo_graus`, `rumo_oscilacao_graus` e `velocidade_ms` foram removidos. A resposta traz `fonte_rumo` ("movimento", "bussola" ou null).
 - Pydantic estrito (`StrictFloat`, `extra="forbid"`), erros 422 em português, unidades no nome.
 
 Resposta:
@@ -40,7 +40,7 @@ Resposta:
   "distancia_restante_m": 70, "distancia_ate_proxima_instrucao_m": 35 }
 ```
 
-Estados: `na_rota`, `fora_da_rota`, `precisao_insuficiente`, `chegou` (já em `posicao.py`) e `parado` (decidido em `rumo.py`/`mensagens.py` com `velocidade_ms`, porque não é propriedade da projeção). Sem projeção quando `precisao_insuficiente`: a resposta traz só a mensagem de silêncio. O log da API não pode registrar o corpo desta rota (RNF04; revisar o log de acesso do uvicorn/nginx). RNF03: a função é barata (O(vértices)); valor-alvo de tempo ainda sem número.
+Estados: `na_rota`, `fora_da_rota`, `precisao_insuficiente`, `chegou` (já em `posicao.py`) e `parado` (derivado da trilha em `rumo.py`: sem deslocamento suficiente, porque não é propriedade da projeção). Sem projeção quando `precisao_insuficiente`: a resposta traz só a mensagem de silêncio. O log da API não pode registrar o corpo desta rota (RNF04; revisar o log de acesso do uvicorn/nginx). RNF03: a função é barata (O(vértices)); valor-alvo de tempo ainda sem número.
 
 ## 4. Regras do `posicao.py` (provisórias)
 
@@ -59,7 +59,7 @@ Confiança: **baixa** se fora da rota ou desvio > `DISTANCIA_FORA_DA_ROTA_METROS
 
 ## 5. Fica para depois
 
-- **Rumo pela bússola** (`rumo_graus` do aparelho): a análise ainda não diz se a bússola é estável (pergunta P6 do plano de análise). Até lá `rumo.py` usa o rumo derivado do movimento, e só se a pessoa estiver andando.
+- **Rumo híbrido (decisão de 03/11/2026, a validar com a orientadora):** andando, pelo movimento (azimute do ponto mais antigo da trilha, janela `JANELA_TRILHA_SEGUNDOS=15`, a pelo menos `DESLOCAMENTO_MINIMO_RUMO_METROS=8` da posição atual; escolhido em vez da média antigas-vs-recentes: maior base, menos erro angular, mais simples); parado (trilha sem deslocamento suficiente), pela bússola do celular, com `RUMO_OSCILACAO_MAXIMA_GRAUS=30` (instável ou ausente = silêncio). Andando a bússola é ignorada. Trilha vazia = silêncio (não vira bússola); deslocamento menor que a soma das precisões = silêncio. Parâmetros provisórios.
 - **Referências não visuais** ("cheguei na rampa", método 3): confirmação do usuário em vez de posição, onde o erro é do tamanho da distância entre marcos.
 - Filtro/suavização e histerese (método 2): evitar anunciar e desanunciar a chegada.
 - Rota que volta sobre si mesma: a projeção por menor distância pode pular de trecho; exigir continuidade com a posição anterior (que o cliente teria de enviar, sem o servidor guardar).
@@ -77,10 +77,9 @@ Fonte: `vw_erro_medicoes` e o diário (`docs/diario-de-campo.md`). Cuidados já 
 
 ## 7. O que ficou pronto (03/11/2026, branch `m4/rumo-mensagens`)
 
-- `orientacao/rumo.py`: rumo da bússola (0 a 360, oscilação opcional), ponto da rota
+- `orientacao/rumo.py`: rumo híbrido (0 a 360: movimento pela trilha se andando, bússola se parado), ponto da rota
   `ALVO_A_FRENTE_METROS` adiante, diferença normalizada em (-180, 180], setores (frente
-  +-30, lados 30 a 150, atrás > 150). Silêncio (`None`) se parado, sem bússola ou bússola
-  instável.
+  +-30, lados 30 a 150, atrás > 150). Silêncio (`None`) se sem rumo (trilha vazia, GPS ruidoso, parado com bússola ausente ou instável).
 - `orientacao/mensagens.py`: uma mensagem ou nenhuma (perigo > fora da rota/sem posição >
   curva > chegada > "Siga em frente."), anti-repetição por `chave` com o histórico enviado
   pelo cliente.
@@ -93,6 +92,12 @@ Fonte: `vw_erro_medicoes` e o diário (`docs/diario-de-campo.md`). Cuidados já 
   confiável); escada e travessia vêm dos `trechos` da rota (soma de `comprimento_m`, a mesma
   medida das instruções); mensagem suprimida pela anti-repetição não cede lugar a outra de
   menor prioridade (silêncio); as mensagens `direita`/`esquerda`/`atras` ainda não têm frase
-  (só o campo `direcao`), por não estarem decididas com a orientadora.
+  (só o campo `direcao`): **decididas em 03/11 (frases abaixo, §7b)**.
 - Falta: teste com o trajeto real do iPhone, histerese, continuidade para rota que volta
-  sobre si, frontend (M4 no app), rumo derivado do movimento se a bússola não servir.
+  sobre si, frontend (M4 no app), validar o rumo híbrido com a orientadora.
+
+## 7b. Rumo híbrido e frases de direção (03/11/2026, branch `m4/rumo-movimento`)
+
+- `posicao.rumo_bussola_graus` e `rumo_bussola_oscilacao_graus` (opcionais, só parado); `trilha` até 10 pontos; resposta com `fonte_rumo`.
+- Frases (chave por setor, intervalo normal de repetição): "O caminho está à sua frente." (`direcao_frente`, baixa, a confirmação), "...à sua direita." / "...à sua esquerda." / "O caminho está atrás de você." (`direcao_*`, media), abaixo de perigo, fora da rota e curva iminente.
+- Ângulos e distâncias seguem provisórios (sem resposta da orientadora).
