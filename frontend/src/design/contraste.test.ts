@@ -87,6 +87,16 @@ export const TEXTO: [string, string, string][] = [
   ["mapa-posicao", BRANCO, "símbolos + e − dos botões de zoom do mapa"],
   [LEAFLET_LINK, LEAFLET_FUNDO_ATRIBUICAO, "link da atribuição do mapa"],
   [LEAFLET_TEXTO, BRANCO, "rótulo (tooltip) de partida e chegada no mapa"],
+  // Orientação ao vivo (index.html, #tela-orientacao)
+  ["texto", "superficie", "orientação ao vivo: palavra do estado (Na rota, Você saiu da rota...), distância e última mensagem"],
+  ["texto-suave", "superficie", "orientação ao vivo: rótulo 'Última mensagem:'"],
+  ["primaria", "superficie", "orientação ao vivo: símbolo ✓ (Na rota)"],
+  ["perigo", "superficie", "orientação ao vivo: símbolo ✕ (Você saiu da rota)"],
+  ["pendente", "superficie", "orientação ao vivo: símbolo ◆ (Sem GPS confiável)"],
+  ["primaria-escura", "superficie", "orientação ao vivo: símbolo ★ (Você chegou)"],
+  ["sobre-primaria", "primaria-escura", "orientação ao vivo: avisos permanentes de segurança e de direções provisórias"],
+  ["sobre-primaria", "perigo", "orientação ao vivo: botão Parar orientação"],
+  ["sobre-primaria", "perigo-escuro", "orientação ao vivo: botão Parar orientação pressionado e em hover"],
 ];
 
 // [frente, fundo, onde]
@@ -118,6 +128,12 @@ export const NAO_TEXTO: [string, string, string][] = [
   [AZUL_CAMINHO_V0, TILE_OSM, "caminho da v0 (calçada) sobre o tile, sem transparência"],
   [AZUL_BOLINHA_SIMULACAO, TILE_OSM, "bolinha da simulação sobre o tile"],
   [BRANCO, AZUL_BOLINHA_SIMULACAO, "borda branca da bolinha da simulação"],
+  // Orientação ao vivo: o estado nunca depende só da cor (palavra + símbolo), e a borda ainda passa de 3:1
+  ["primaria", "superficie", "orientação ao vivo: borda e símbolo de 'Na rota'"],
+  ["perigo", "superficie", "orientação ao vivo: borda e símbolo de 'Você saiu da rota'; botão Parar contra o fundo"],
+  ["pendente", "superficie", "orientação ao vivo: borda tracejada de 'Sem GPS confiável'"],
+  ["primaria-escura", "superficie", "orientação ao vivo: borda de 'Você chegou'"],
+  ["borda-controle", "superficie", "orientação ao vivo: borda do estado antes da primeira leitura"],
 ];
 
 for (const { id: tema } of tokens.color.themes) {
