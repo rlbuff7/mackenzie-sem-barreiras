@@ -101,3 +101,14 @@ Fonte: `vw_erro_medicoes` e o diário (`docs/diario-de-campo.md`). Cuidados já 
 - `posicao.rumo_bussola_graus` e `rumo_bussola_oscilacao_graus` (opcionais, só parado); `trilha` até 10 pontos; resposta com `fonte_rumo`.
 - Frases (chave por setor, intervalo normal de repetição): "O caminho está à sua frente." (`direcao_frente`, baixa, a confirmação), "...à sua direita." / "...à sua esquerda." / "O caminho está atrás de você." (`direcao_*`, media), abaixo de perigo, fora da rota e curva iminente.
 - Ângulos e distâncias seguem provisórios (sem resposta da orientadora).
+
+## 7c. Tela "Orientação ao vivo" no app (03/11/2026, branch `m4/tela-ao-vivo`)
+
+- Botão "Iniciar orientação ao vivo" aparece depois da rota traçada (não na simulação). O toque pede GPS (`watchPosition`, alta precisão, `maximumAge: 0`), permissão e leitura da bússola (iPhone: `webkitCompassHeading`; Android: `alpha` só do evento absoluto; relativo é descartado) e Wake Lock.
+- A cada ~2,5 s (uma requisição em voo no máximo) vai `POST /api/orientacoes` com `posicao`, `trilha` (<= 10 pontos, janela de 15 s, amostra ~1,5 s) e `recentes` (<= 20). Campo ausente é omitido. Posição com mais de 10 s não é enviada (o GPS sumiu): fica "Sem GPS confiável" no app, sem fala.
+- Código: lógica pura em `frontend/src/orientacao/` (`trilha.ts`, `requisicao.ts`, `apresentacao.ts`); DOM em `frontend/src/inicio/orientacao-tela.ts`.
+- **Privacidade:** posição, trilha e recentes só na memória; `encerrarRecursos()` apaga tudo ao parar ou sair da página; `orientacao-html.test.ts` varre os módulos atrás de `localStorage`, `sessionStorage`, IndexedDB, cookie, `console`, beacon etc. e confere que o único `fetch` é o de `/api/orientacoes`.
+- **Silêncio:** o app só mostra e fala o `mensagem.texto` da API; o campo `direcao` não é lido; resposta torta vira "orientação pausada".
+- **Decisão do app (a confirmar):** o mapa só acompanha a pessoa dentro do campus (`dentroDoCampus`), porque os blocos de mapa pedidos ao OpenStreetMap revelam a região mostrada; fora do campus não há marcador nem o mapa se move.
+- Voz (decisão de 03/11): com "Voz do site" ligada a mensagem é só falada (região aria-live vazia; se a fala falhar, cai na região); desligada, só as regiões (assertive para alta).
+

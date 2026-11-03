@@ -141,6 +141,20 @@
             <button type="submit" id="botao-tracar" class="rota__botao">Traçar rota</button>
           </form>
 
+          <section id="tela-orientacao" class="ao-vivo" aria-labelledby="titulo-orientacao" hidden>
+            <h2 id="titulo-orientacao" class="rota__titulo" tabindex="-1">Orientação ao vivo</h2>
+            <div class="ao-vivo__avisos" role="note">
+              <p>Apoio à orientação. Nunca substitui a bengala, o cão-guia ou as técnicas de mobilidade.</p>
+              <p>Direções provisórias, calculadas pelo mapa aberto.</p>
+            </div>
+            <button type="button" id="botao-orientacao-parar" class="rota__botao ao-vivo__parar">Parar orientação</button>
+            <p id="estado-orientacao" class="ao-vivo__estado ao-vivo__estado--sem-gps"><span id="simbolo-orientacao" class="ao-vivo__simbolo" aria-hidden="true">◆</span> <span id="rotulo-estado-orientacao">Aguardando o GPS</span></p>
+            <p id="distancia-orientacao" class="ao-vivo__distancia" hidden></p>
+            <p class="ao-vivo__ultima"><span class="ao-vivo__rotulo">Última mensagem:</span> <span id="mensagem-orientacao">Nenhuma mensagem ainda.</span></p>
+            <p id="status-orientacao" class="rota__mensagem" hidden></p>
+            <p id="alerta-orientacao" class="oculto-visualmente" role="alert" aria-live="assertive" aria-atomic="true"></p>
+          </section>
+
           <p id="anuncio-rota" class="oculto-visualmente" role="status" aria-live="polite" aria-atomic="true"></p>
           <p id="erro-rota" class="rota__mensagem rota__mensagem--erro" tabindex="-1" hidden></p>
 
@@ -152,6 +166,10 @@
             <ol id="instrucoes-rota" class="rota__instrucoes"></ol>
             <button type="button" id="botao-voz" class="rota__botao rota__botao--voz">Ouvir com a voz do app</button>
             <p id="aviso-voz" class="rota__nota" hidden></p>
+            <div id="bloco-orientacao" class="rota__ao-vivo">
+              <button type="button" id="botao-orientacao-iniciar" class="rota__botao">Iniciar orientação ao vivo</button>
+              <p id="nota-orientacao-iniciar" class="rota__nota">Usa o GPS e a bússola do aparelho. Sua posição é enviada ao servidor só para calcular a orientação e não é guardada.</p>
+            </div>
             <div class="rota__simulacao">
               <p id="aviso-simulacao" class="rota__nota"><strong>Simulação: a posição é imaginária, não é o GPS.</strong></p>
               <label for="seletor-velocidade-simulacao">Velocidade da simulação</label>

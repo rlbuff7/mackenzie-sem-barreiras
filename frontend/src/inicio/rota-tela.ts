@@ -12,6 +12,7 @@ import { paraLatLng, pontoParaLatLng } from "../rotas/geometria.ts";
 import { pontosDeDestino, pontosDePartida, problemaNaEscolha } from "../rotas/interpretar.ts";
 import { montarFalas, textoDistanciaTotal, tituloDoResultado } from "../rotas/resumo.ts";
 import type { Orientacao } from "../a11y/localizacao.ts";
+import { iniciarOrientacaoAoVivo } from "./orientacao-tela.ts";
 import { TELA_ESCOLHER, TELA_SEM_ROTA, telaDaRota } from "./telas.ts";
 import type { Perfil, PontoInteresse, RotaResposta } from "../rotas/tipos.ts";
 import { guardarPreferenciasDeVoz, lerPreferenciasDeVoz, vozesPortuguesas, velocidadeValida, AVISO_SEM_VOZ, AVISO_VOZ_FALHOU, avisoDeVoz, falar, enfileirarFala, type FalaDeVoz, type LeituraEmCurso, type SinteseDeVoz } from "../rotas/voz.ts";
@@ -61,6 +62,7 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
   const botaoSimular = el<HTMLButtonElement>("botao-simular");
   const botaoPararSimulacao = el<HTMLButtonElement>("botao-parar-simulacao");
   const selSimulacao = el<HTMLSelectElement>("seletor-velocidade-simulacao");
+  const blocoOrientacao = el("bloco-orientacao");
   let timerSimulacao: number | null = null;
   let bolinha: L.CircleMarker | null = null;
 
@@ -189,6 +191,7 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
     botaoSimular.hidden = false;
     botaoPararSimulacao.hidden = true;
     selSimulacao.disabled = false;
+    blocoOrientacao.hidden = false;
   }
 
   function iniciarSimulacao(): void {
@@ -205,6 +208,7 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
     botaoSimular.hidden = true;
     botaoPararSimulacao.hidden = false;
     selSimulacao.disabled = true;
+    blocoOrientacao.hidden = true; // a simulação não tem GPS: sem "orientação ao vivo" ao mesmo tempo
     const mover = (): void => {
       const p = pontoNaDistancia(rota.coordenadas, percorrido_m);
       if (!p || !mapa) return;
@@ -238,6 +242,7 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
         botaoSimular.hidden = false;
         botaoPararSimulacao.hidden = true;
         selSimulacao.disabled = false;
+        blocoOrientacao.hidden = false;
         return;
       }
     };
@@ -503,6 +508,20 @@ export function iniciarRota(mapa: L.Map | null, orientacao: Orientacao): void {
   });
 
   window.addEventListener("pagehide", () => sintese?.cancel());
+
+  // ---------- Orientação ao vivo (GPS de verdade; a simulação acima é outra coisa) ----------
+
+  iniciarOrientacaoAoVivo({
+    mapa,
+    orientacao,
+    sintese,
+    preferencias: () => preferencias,
+    rota: () => rotaAtual,
+    aoComecar: () => {
+      pararSimulacao();
+      pararVoz();
+    },
+  });
 
   // ---------- Traçar rota ----------
 

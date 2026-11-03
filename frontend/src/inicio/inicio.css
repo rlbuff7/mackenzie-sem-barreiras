@@ -331,3 +331,56 @@ body.inicio {
 .rota__simulacao select { min-height: 48px; font: inherit; }
 .rota__simulacao .rota__botao { min-height: 56px; }
 .rota__simulacao .rota__botao[hidden] { display: none; }
+
+/* Orientação ao vivo: o estado vem em texto grande, com palavra e forma (✓ ✕ ◆ ★ ■); a borda e a cor só reforçam.
+   Nada anima (o estado troca de uma vez; leituras ao vivo nunca animam). */
+.rota__form[hidden],
+.rota__ao-vivo[hidden],
+.ao-vivo[hidden],
+.ao-vivo__distancia[hidden] { display: none; }
+
+.rota__ao-vivo { display: grid; gap: var(--espaco-3); }
+.ao-vivo { display: flex; flex-direction: column; gap: var(--espaco-4); }
+
+.ao-vivo__avisos {
+  display: grid;
+  gap: var(--espaco-2);
+  padding: var(--espaco-4);
+  background: var(--primaria-escura);
+  color: var(--sobre-primaria);
+  border-radius: var(--raio-secao);
+}
+.ao-vivo__avisos p { margin: 0; font-size: 0.95rem; font-weight: 600; line-height: 1.35; }
+
+.ao-vivo__parar { background: var(--perigo); border-color: var(--perigo-escuro); }
+.ao-vivo__parar:active { background: var(--perigo-escuro); }
+@media (hover: hover) and (pointer: fine) {
+  .ao-vivo__parar:hover { background: var(--perigo-escuro); }
+}
+
+.ao-vivo__estado {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-3);
+  margin: 0;
+  padding: var(--espaco-4);
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--texto);
+  border: var(--linha-secao) solid var(--borda-controle);
+  border-radius: var(--raio-secao);
+}
+.ao-vivo__simbolo { flex: none; font-size: 2rem; line-height: 1; }
+.ao-vivo__estado--na-rota { border-color: var(--primaria); }
+.ao-vivo__estado--na-rota .ao-vivo__simbolo { color: var(--primaria); }
+.ao-vivo__estado--fora { border-color: var(--perigo); }
+.ao-vivo__estado--fora .ao-vivo__simbolo { color: var(--perigo); }
+.ao-vivo__estado--sem-gps { border-color: var(--pendente); border-style: dashed; }
+.ao-vivo__estado--sem-gps .ao-vivo__simbolo { color: var(--pendente); }
+.ao-vivo__estado--chegou { border-color: var(--primaria-escura); }
+.ao-vivo__estado--chegou .ao-vivo__simbolo { color: var(--primaria-escura); }
+
+.ao-vivo__distancia { margin: 0; font-size: 1.4rem; font-weight: 700; }
+.ao-vivo__ultima { margin: 0; font-size: 1.3rem; font-weight: 600; line-height: 1.35; }
+.ao-vivo__rotulo { display: block; font-size: 0.95rem; font-weight: 700; color: var(--texto-suave); }
