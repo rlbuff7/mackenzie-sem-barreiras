@@ -3,11 +3,18 @@
  * ocupa a tela e um cartão fica embaixo; no desktop, o cartão fica ao lado do mapa.
  * Cores, fonte e foco vêm de ../estilos.css e dos tokens do Design System.
  */
-.inicio__tela {
+/* O botão "Voz do site" (header) ocupa o alto; o resto da tela completa a altura da janela. */
+body.inicio {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+}
+
+.inicio__tela {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
 }
 
 /* z-index 0 cria o contexto de empilhamento: os painéis do Leaflet (z-index até 1000) ficam aqui dentro. */
@@ -76,6 +83,12 @@
   background: var(--superficie);
   border-top: var(--linha-secao) solid var(--primaria);
   border-radius: var(--raio-secao) var(--raio-secao) 0 0;
+}
+
+.inicio__principal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4);
 }
 
 .inicio__titulos { display: flex; flex-direction: column; gap: var(--espaco-1); }
@@ -279,9 +292,10 @@
     display: grid;
     grid-template-columns: minmax(22rem, 28rem) 1fr;
     grid-template-areas: "cartao mapa";
-    height: 100dvh;
+    flex: 1 1 0;
     min-height: 0;
   }
+  body.inicio { height: 100dvh; }
   .inicio__area-mapa { grid-area: mapa; min-height: 0; }
   .inicio__cartao {
     grid-area: cartao;

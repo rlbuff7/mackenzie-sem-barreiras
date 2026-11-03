@@ -34,6 +34,9 @@ import {
   soltarPorGesto,
   type MotivoEnquadramento,
 } from "./enquadramento.ts";
+import { OPCOES_DE_FOCO_DO_MAPA, OPCOES_DO_ZOOM, PREFIXO_DA_ATRIBUICAO } from "../mapa/acessibilidade.ts";
+import { iniciarOrientacaoDaPagina } from "../a11y/pagina.ts";
+import type { Tela } from "../a11y/orientacao.ts";
 import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
@@ -59,7 +62,8 @@ import {
   DURACAO_CONTAGEM_S,
   MEDICOES_POR_PONTO,
   TOTAL_PONTOS,
-  anuncioDaEtapa,
+  descricaoDoPonto,
+  telaDaEtapa,
   anuncioRecomecou,
   classificarPrecisao,
   descreverEnvio,
@@ -136,7 +140,7 @@ const resumoConfig = el<HTMLElement>("resumo-config");
 const botaoAlterar = el<HTMLButtonElement>("botao-alterar");
 const botaoContinuar = el<HTMLButtonElement>("botao-continuar");
 const botaoCorrigirCodigo = el<HTMLButtonElement>("botao-corrigir-codigo");
-const anuncioEtapa = el<HTMLParagraphElement>("anuncio-etapa");
+const orientacao = iniciarOrientacaoDaPagina({ regiao: "anuncio-etapa", botao: "botao-voz-tela", nota: "nota-voz-tela", estado: "estado-voz-tela" });
 const secoesEtapa: Record<Etapa, HTMLElement> = {
   preparar: el("etapa-preparar"),
   medir: el("etapa-medir"),
@@ -188,8 +192,8 @@ const botaoProximo = el<HTMLButtonElement>("botao-proximo");
 const textoProximo = el<HTMLElement>("texto-proximo");
 const contagemRegistros = el<HTMLParagraphElement>("contagem-registros");
 const listaRegistros = el<HTMLOListElement>("lista-registros");
-const barraMedir = el<HTMLDivElement>("barra-medir");
-const barraConfirmar = el<HTMLDivElement>("barra-confirmar");
+const barraMedir = el<HTMLElement>("barra-medir");
+const barraConfirmar = el<HTMLElement>("barra-confirmar");
 const botaoRegistrar = el<HTMLButtonElement>("botao-registrar");
 const botaoAbrirBussola = el<HTMLButtonElement>("botao-abrir-bussola");
 const botaoPular = el<HTMLButtonElement>("botao-pular");
@@ -483,29 +487,21 @@ function desenhar(): void {
 
 // ---------- etapas: uma por tela ----------
 
-let anuncioPendente: number | null = null;
-
-/** Fala uma frase só, uma vez: limpa a região e escreve no quadro seguinte (repetir a mesma frase também é lido). */
-function anunciar(frase: string): void {
-  if (anuncioPendente !== null) window.clearTimeout(anuncioPendente);
-  anuncioEtapa.textContent = "";
-  anuncioPendente = window.setTimeout(() => {
-    anuncioEtapa.textContent = frase;
-    anuncioPendente = null;
-  }, 60);
+function medicaoDaProximaMarcacao(): number {
+  return numeroDaProximaMedicao(registrosDaRodadaAtual(), pontoAtual, aparelho());
 }
 
-function frasePadraoDaEtapa(nova: Etapa): string {
-  if (nova === "resultado" && ultimo) return anuncioDaEtapa(nova, ultimo.ponto, ultimo.medicao);
-  const medicao = numeroDaProximaMedicao(registrosDaRodadaAtual(), pontoAtual, aparelho());
-  return anuncioDaEtapa(nova, pontoAtual, medicao);
+function telaAtualDaEtapa(nova: Etapa, acao?: string): Tela {
+  if (nova === "resultado" && ultimo) return telaDaEtapa(nova, ultimo.ponto, ultimo.medicao, acao);
+  return telaDaEtapa(nova, pontoAtual, medicaoDaProximaMarcacao(), acao);
 }
 
 /**
  * Troca a etapa. Os textos são desenhados ANTES de a etapa aparecer (região aria-live que já nasce
  * escrita não fala sozinha); depois o foco vai para o título da etapa (tabindex=-1) e UMA frase é
- * anunciada. `anuncio`: omitido = frase padrão da etapa; texto = essa frase; null = nenhuma
- * (quando outro aviso já vai falar). `foco: "nenhum"` deixa o foco onde o chamador pôr.
+ * anunciada ("Você está em: <etapa>. <próxima ação>", na região aria-live ou pela voz do app). `anuncio`:
+ * omitido = próxima ação padrão da etapa; texto = essa próxima ação; null = nenhum anúncio (quando outro aviso já vai
+ * falar; o título da página muda sempre). `foco: "nenhum"` deixa o foco onde o chamador pôr.
  */
 function irParaEtapa(nova: Etapa, opcoes: { foco?: "titulo" | "nenhum"; anuncio?: string | null } = {}): void {
   etapa = nova;
@@ -518,7 +514,7 @@ function irParaEtapa(nova: Etapa, opcoes: { foco?: "titulo" | "nenhum"; anuncio?
     enquadrarMapa("etapa");
   }
   if (opcoes.foco !== "nenhum") titulosEtapa[nova].focus();
-  if (opcoes.anuncio !== null) anunciar(opcoes.anuncio ?? frasePadraoDaEtapa(nova));
+  orientacao.mudarDeTela(telaAtualDaEtapa(nova, opcoes.anuncio ?? undefined), { anunciar: opcoes.anuncio !== null });
 }
 
 // ---------- mapa pequeno ----------
@@ -693,8 +689,12 @@ function iniciarMapa(): void {
       zoom: 17,
       minZoom: 14,
       maxZoom: 19,
+      zoomControl: false,
       ...SEM_ANIMACAO,
+      ...OPCOES_DE_FOCO_DO_MAPA,
     });
+    L.control.zoom({ position: "topleft", ...OPCOES_DO_ZOOM }).addTo(mapa);
+    mapa.attributionControl.setPrefix(PREFIXO_DA_ATRIBUICAO);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution:
@@ -955,7 +955,7 @@ function irParaProximo(): void {
     definirPonto(ultimo.ponto);
     // Já está parado no ponto: a contagem começa sozinha e a própria dica fala o contexto (um só anúncio).
     irParaEtapa("medir", { anuncio: null });
-    iniciarContagem(`${frasePadraoDaEtapa("medir")} `);
+    iniciarContagem(`${descricaoDoPonto(pontoAtual, medicaoDaProximaMarcacao())} `);
     return;
   }
   const seguinte = proximoPonto(ultimo.ponto);

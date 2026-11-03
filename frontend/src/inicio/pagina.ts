@@ -7,11 +7,14 @@
 import "../estilos.css";
 import "./inicio.css";
 import "../mapa/marcadores.css";
+import { OPCOES_DE_FOCO_DO_MAPA, OPCOES_DO_ZOOM, PREFIXO_DA_ATRIBUICAO } from "../mapa/acessibilidade.ts";
 import { TAMANHO_ICONE_POSICAO_PX, htmlMarcadorPosicao } from "../mapa/marcadores.ts";
 import { iniciarAjustes } from "../design/ajustes.ts";
 import { iniciarSeletorTema } from "../design/seletor-tema.ts";
 import { iniciarInterruptorMovimento } from "../design/interruptor-movimento.ts";
 import { iniciarRota } from "./rota-tela.ts";
+import { iniciarOrientacaoDaPagina } from "../a11y/pagina.ts";
+import { TELA_ESCOLHER } from "./telas.ts";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -42,9 +45,11 @@ function iniciarMapaCampus(): L.Map | null {
       maxZoom: ZOOM_MAXIMO,
       zoomControl: false,
       ...SEM_ANIMACAO,
+      ...OPCOES_DE_FOCO_DO_MAPA,
     });
+    mapa.attributionControl.setPrefix(PREFIXO_DA_ATRIBUICAO);
     // Zoom embaixo à direita: no alto ficam a etiqueta do campus e o seletor de tema.
-    L.control.zoom({ position: "bottomright" }).addTo(mapa);
+    L.control.zoom({ position: "bottomright", ...OPCOES_DO_ZOOM }).addTo(mapa);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: ZOOM_MAXIMO,
@@ -57,7 +62,9 @@ function iniciarMapaCampus(): L.Map | null {
     const metade = TAMANHO_ICONE_POSICAO_PX / 2;
     L.marker(CENTRO_CAMPUS, {
       title: "Campus Mackenzie Higienópolis (referência aproximada)",
-      alt: "Campus Mackenzie Higienópolis (referência aproximada)",
+      // Só referência visual: sem foco e sem papel de botão (o leitor de tela não teria o que fazer ali).
+      keyboard: false,
+      interactive: false,
       icon: L.divIcon({
         className: "",
         html: htmlMarcadorPosicao(null),
@@ -77,4 +84,6 @@ function iniciarMapaCampus(): L.Map | null {
 iniciarAjustes();
 iniciarSeletorTema();
 iniciarInterruptorMovimento();
-iniciarRota(iniciarMapaCampus());
+const orientacao = iniciarOrientacaoDaPagina({ regiao: "anuncio-rota", botao: "botao-voz-tela", nota: "nota-voz-tela", estado: "estado-voz-tela" });
+orientacao.definirTela(TELA_ESCOLHER);
+iniciarRota(iniciarMapaCampus(), orientacao);

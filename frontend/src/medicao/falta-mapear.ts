@@ -36,8 +36,8 @@ export function filtrarPorTipo(colecao: ColecaoCamada, tipo: TipoCamada): Feicao
 /** Estilo Leaflet por tipo (cores só por tokens; `interactive: false` para não roubar o toque). */
 export function estiloDaFeicao(tipo: string | undefined): EstiloLinha {
   if (tipo === "falta_mapear") {
-    // A cor vem do token --mapa-lacuna via CSS (.mapa-lacuna-area): var() não vale em atributo SVG.
-    return { stroke: false, fill: true, fillOpacity: 1, className: "mapa-lacuna-area", interactive: false };
+    // A cor vem dos tokens --mapa-lacuna (preenchimento) e --mapa-atencao (contorno tracejado) via CSS (.mapa-lacuna-area): var() não vale em atributo SVG.
+    return { stroke: true, weight: 2, opacity: 1, dashArray: "6 4", fill: true, fillOpacity: 1, className: "mapa-lacuna-area", interactive: false };
   }
   if (tipo === "limite_campus") {
     return { fill: false, weight: 1.5, opacity: 0.8, dashArray: "6 6", className: "mapa-limite-campus", interactive: false };

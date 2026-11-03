@@ -23,9 +23,10 @@ test("18 letras únicas de A a R", () => {
   assert.deepEqual([...letras].sort().join(""), "ABCDEFGHIJKLMNOPQR");
 });
 
-test("estilos: nada interativo, lacuna sem borda, limite tracejado", () => {
+test("estilos: nada interativo, lacuna com contorno tracejado (contraste), limite tracejado", () => {
   for (const t of ["falta_mapear", "limite_campus", "outro", undefined]) assert.equal(estiloDaFeicao(t).interactive, false);
-  assert.equal(estiloDaFeicao("falta_mapear").stroke, false);
+  assert.equal(estiloDaFeicao("falta_mapear").stroke, true);
+  assert.ok(estiloDaFeicao("falta_mapear").dashArray);
   assert.equal(estiloDaFeicao("falta_mapear").className, "mapa-lacuna-area");
   assert.ok(estiloDaFeicao("limite_campus").dashArray);
 });

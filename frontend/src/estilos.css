@@ -539,6 +539,57 @@ textarea#campo-descricao {
   .botao--secundaria:active {
     background: var(--realce-ativo);
   }
+
+  .botao-voz[aria-pressed="true"]:hover {
+    background: var(--primaria-escura);
+  }
+}
+
+/* "Voz do site": primeiro controle das duas páginas (para quem não usa leitor de tela). Botão grande de 64 px,
+   rótulo fixo + aria-pressed; o estado nunca é só cor: texto visual Ligada/Desligada e fundo cheio quando ligada. */
+.barra-voz {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-2);
+  padding: var(--espaco-3) var(--espaco-5);
+}
+
+.botao-voz {
+  width: 100%;
+  min-height: 64px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  border-radius: var(--raio-secao);
+}
+
+.botao-voz__estado {
+  margin-left: var(--espaco-3);
+  padding: 0 var(--espaco-3);
+  border: var(--linha-controle) solid currentColor;
+  border-radius: var(--raio-controle);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.botao-voz[aria-pressed="true"] {
+  background: var(--primaria);
+  border-color: var(--primaria-escura);
+  color: var(--sobre-primaria);
+}
+
+.botao-voz[aria-pressed="true"]:active {
+  background: var(--primaria-escura);
+}
+
+.botao-voz[hidden],
+.barra-voz__nota[hidden] {
+  display: none;
+}
+
+.barra-voz__nota {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
 }
 
 /* Foco visível em toda a página, com cor distinta da marca para se destacar

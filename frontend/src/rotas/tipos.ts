@@ -2,7 +2,19 @@
  * Tipos do contrato de GET /pontos-interesse e POST /rotas (docs/planos/e6-prototipo-banner.md, B2 e B3).
  * Coordenadas do GeoJSON vêm como [longitude, latitude]; unidades no nome (`distancia_m`).
  */
-export type Perfil = "sem_restricao" | "cadeirante" | "deficiencia_visual";
+/**
+ * Perfis do aplicativo (reunião com a orientadora, 27/10/2026), na ordem em que aparecem na tela.
+ * "deficiencia_visual" é o nome antigo de "cegueira": a API ainda o aceita como sinônimo, mas o app
+ * só envia os quatro valores abaixo.
+ */
+export const PERFIS = ["cegueira", "baixa_visao", "cadeirante", "sem_restricao"] as const;
+export type Perfil = (typeof PERFIS)[number];
+
+/** Valor da resposta da API -> perfil do app. Nome antigo vira cegueira; valor desconhecido vira sem_restricao. */
+export function normalizarPerfil(valor: unknown): Perfil {
+  if (valor === "deficiencia_visual") return "cegueira";
+  return (PERFIS as readonly unknown[]).includes(valor) ? (valor as Perfil) : "sem_restricao";
+}
 
 export interface PontoInteresse {
   id: number;

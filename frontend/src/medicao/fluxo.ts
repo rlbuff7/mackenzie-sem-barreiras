@@ -3,6 +3,7 @@
  * nível da precisão (palavra e forma, nunca só cor) e contagem de 30 s parado.
  * Sem DOM nem relógio: tudo recebe os dados por parâmetro, para o node:test.
  */
+import { orientacaoDaTela, type Tela } from "../a11y/orientacao.ts";
 import { MOTIVO_SEM_SINAL, type EstadoEnvio } from "./fila.ts";
 import { contarPontoRegistrado, type Registro } from "./medicao.ts";
 import { PONTOS_CONTROLE } from "./pontos-controle.ts";
@@ -133,14 +134,34 @@ export function etapaInicial(estado: { temAparelho: boolean; temCodigo: boolean 
   return estado.temAparelho && estado.temCodigo ? "medir" : "preparar";
 }
 
+/** Nome da tela no título da página e em "Você está em": "Etapa 2 de 3: Medir o ponto". */
+export function nomeDaTela(etapa: Etapa): string {
+  return `${textoEtapa(etapa)}: ${tituloEtapa(etapa)}`;
+}
+
+/** "Ponto 3 de 10, medição 2 de 3." */
+export function descricaoDoPonto(ponto: number, medicao: number): string {
+  return `Ponto ${ponto} de ${TOTAL_PONTOS}, ${textoMedicao(medicao)}.`;
+}
+
+/** Próxima ação de cada etapa, em uma frase curta (depois de "Você está em: <etapa>."). */
+export function acaoDaEtapa(etapa: Etapa, ponto: number, medicao: number): string {
+  if (etapa === "preparar") return "Preencha o aparelho e o código da equipe. Depois, continue para a medição.";
+  if (etapa === "medir") return `${descricaoDoPonto(ponto, medicao)} Pare em cima do ponto e registre.`;
+  return `Ponto ${ponto} registrado, ${textoMedicao(medicao)}. Veja o envio e siga para a próxima medição.`;
+}
+
+/** A tela para a orientação: nome (título da página) e próxima ação. `acao` troca a frase padrão (ex.: depois de Recomeçar). */
+export function telaDaEtapa(etapa: Etapa, ponto: number, medicao: number, acao?: string): Tela {
+  return { nome: nomeDaTela(etapa), acao: acao ?? acaoDaEtapa(etapa, ponto, medicao) };
+}
+
 /**
- * Frase falada UMA vez (aria-live) quando a etapa troca. O foco vai para o título da etapa e o leitor
- * de tela já lê "Etapa X de Y, <título>": por isso a frase traz só o que o título não diz.
+ * Frase falada UMA vez (aria-live, ou pela voz do app se estiver ligada) quando a etapa troca:
+ * "Você está em: Etapa 2 de 3: Medir o ponto. Ponto 3 de 10, medição 2 de 3. Pare em cima do ponto e registre."
  */
 export function anuncioDaEtapa(etapa: Etapa, ponto: number, medicao: number): string {
-  if (etapa === "preparar") return "Preencha o aparelho e o código da equipe. Depois, continue para a medição.";
-  if (etapa === "medir") return `Ponto ${ponto} de ${TOTAL_PONTOS}, ${textoMedicao(medicao)}.`;
-  return `Ponto ${ponto} registrado, ${textoMedicao(medicao)}.`;
+  return orientacaoDaTela(telaDaEtapa(etapa, ponto, medicao));
 }
 
 function registrosEsperando(n: number): string {

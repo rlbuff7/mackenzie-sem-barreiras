@@ -14,7 +14,8 @@ import {
   urlDosPontos,
 } from "./interpretar.ts";
 import { buscarPontos, tracarRota } from "./api.ts";
-import { PONTOS_200, ROTA_200, ROTA_CADEIRANTE_200, ROTA_VISUAL_200, SEM_ROTA_404 } from "./fixtures.ts";
+import { PONTOS_200, ROTA_200, ROTA_BAIXA_VISAO_200, ROTA_CADEIRANTE_200, ROTA_NOME_ANTIGO_200, ROTA_VISUAL_200, SEM_ROTA_404 } from "./fixtures.ts";
+import { PERFIS, normalizarPerfil } from "./tipos.ts";
 
 test("o pedido tem só os três campos do contrato e vai por POST em JSON", () => {
   const { url, init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "cadeirante" });
@@ -150,14 +151,42 @@ test("cadeirante sem alternativa: 404 sem_rota do contrato vira a frase combinad
   assert.ok(r.tipo === "erro" && r.mensagem === MENSAGEM_SEM_ROTA && r.motivo === "sem_rota");
 });
 
-test("deficiencia_visual: o pedido leva o perfil e a rota COM escada aparece com os avisos (a defesa é só do cadeirante)", () => {
-  const { init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "deficiencia_visual" });
-  assert.equal(JSON.parse(init.body).perfil, "deficiencia_visual");
-  const r = interpretarRespostaDeRota(200, ROTA_VISUAL_200, "deficiencia_visual");
-  assert.ok(r.tipo === "ok" && r.rota.perfil === "deficiencia_visual" && r.rota.avisos.length === 2);
+test("cegueira: o pedido leva o perfil e a rota COM escada aparece com os avisos (a defesa é só do cadeirante)", () => {
+  const { init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "cegueira" });
+  assert.equal(JSON.parse(init.body).perfil, "cegueira");
+  const r = interpretarRespostaDeRota(200, ROTA_VISUAL_200, "cegueira");
+  assert.ok(r.tipo === "ok" && r.rota.perfil === "cegueira" && r.rota.avisos.length === 2);
   assert.ok(r.tipo === "ok" && r.rota.avisos[0].includes("piso tátil") && rotaTemEscada(r.rota));
   // sem o perfil pedido, vale o perfil da resposta
   assert.equal(interpretarRespostaDeRota(200, ROTA_VISUAL_200).tipo, "ok");
   // o cadeirante continua protegido
   assert.equal(interpretarRespostaDeRota(200, ROTA_VISUAL_200, "cadeirante").tipo, "erro");
+});
+
+test("baixa visão: o pedido leva baixa_visao e a rota com escada aparece avisada (sem a defesa do cadeirante)", () => {
+  const { init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "baixa_visao" });
+  assert.equal(JSON.parse(init.body).perfil, "baixa_visao");
+  const r = interpretarRespostaDeRota(200, ROTA_BAIXA_VISAO_200, "baixa_visao");
+  assert.ok(r.tipo === "ok" && r.rota.perfil === "baixa_visao" && rotaTemEscada(r.rota));
+});
+
+test("sem restrição: o pedido leva sem_restricao e a rota com escada aparece (só o cadeirante a recusa)", () => {
+  const { init } = montarRequisicaoDeRota({ origem_id: 3, destino_id: 7, perfil: "sem_restricao" });
+  assert.equal(JSON.parse(init.body).perfil, "sem_restricao");
+  assert.equal(interpretarRespostaDeRota(200, ROTA_VISUAL_200, "sem_restricao").tipo, "ok");
+});
+
+test("só o cadeirante recusa rota com escada: nenhum dos outros três perfis cai na defesa", () => {
+  const recusam = PERFIS.filter((p) => interpretarRespostaDeRota(200, ROTA_VISUAL_200, p).tipo === "erro");
+  assert.deepEqual(recusam, ["cadeirante"]);
+});
+
+test("perfis: são quatro, nesta ordem, e o nome antigo deficiencia_visual é lido como cegueira", () => {
+  assert.deepEqual([...PERFIS], ["cegueira", "baixa_visao", "cadeirante", "sem_restricao"]);
+  assert.equal(normalizarPerfil("deficiencia_visual"), "cegueira");
+  assert.equal(normalizarPerfil("baixa_visao"), "baixa_visao");
+  assert.equal(normalizarPerfil("qualquer_coisa"), "sem_restricao");
+  assert.equal(normalizarPerfil(undefined), "sem_restricao");
+  const r = interpretarRespostaDeRota(200, ROTA_NOME_ANTIGO_200);
+  assert.ok(r.tipo === "ok" && r.rota.perfil === "cegueira");
 });

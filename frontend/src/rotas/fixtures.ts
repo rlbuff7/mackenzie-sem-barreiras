@@ -73,12 +73,18 @@ export const PONTOS_200 = {
   ],
 };
 
-/** Perfil pessoa cega ou com baixa visão: escada é permitida (vem avisada) e ainda não há dado de piso tátil. */
+/** Perfil cegueira (o nome antigo era deficiencia_visual): escada é permitida (vem avisada) e ainda não há dado de piso tátil. */
 export const ROTA_VISUAL_200 = {
   ...ROTA_200,
-  perfil: "deficiencia_visual",
+  perfil: "cegueira",
   avisos: [
     "Ainda sem dados de piso tátil: a rota usa caminhos do mapa aberto.",
     "O caminho tem escada (cerca de 10 metros).",
   ],
 };
+
+/** Perfil baixa visão: mesma rota e mesmos avisos do perfil cegueira (escada permitida e avisada). */
+export const ROTA_BAIXA_VISAO_200 = { ...ROTA_VISUAL_200, perfil: "baixa_visao" };
+
+/** A API ainda aceita (e pode devolver) o nome antigo: o app o lê como cegueira. */
+export const ROTA_NOME_ANTIGO_200 = { ...ROTA_VISUAL_200, perfil: "deficiencia_visual" };
