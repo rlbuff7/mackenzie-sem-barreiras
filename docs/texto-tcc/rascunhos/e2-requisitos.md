@@ -39,7 +39,7 @@ Cartão do Kanban: E2 (prazo 22/10/2026; depende de E1; destino final: `docs/req
 | RNF09 | Parcial | Parâmetros em `.env.example`; `config.py` ainda não lê todas as `PENALIDADE_*` (conferir). |
 | RNF10 | Pronto | Servido por HTTPS na AWS. Limitação do iOS (vibração) declarada. |
 
-Resumo: dos 12 RF, 2 prontos, 7 parciais e 3 faltam; dos 10 RNF, 5 prontos, 4 parciais e 1 falta (conferir contagem com o deck da reunião de 27/10, que usou outro critério).
+Resumo: dos 12 RF, 4 prontos, 6 parciais e 2 faltam; dos 10 RNF, 5 prontos, 4 parciais e 1 falta (conferir contagem com o deck da reunião de 27/10, que usou outro critério).
 
 ## 1 Requisitos funcionais
 
